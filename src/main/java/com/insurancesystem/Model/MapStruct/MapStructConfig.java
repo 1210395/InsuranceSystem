@@ -7,6 +7,6 @@ import org.mapstruct.*;
         injectionStrategy = InjectionStrategy.CONSTRUCTOR,
         nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE,
         nullValueCheckStrategy = NullValueCheckStrategy.ALWAYS,
-        unmappedTargetPolicy = ReportingPolicy.IGNORE   // أضِف هذا السطر
+        unmappedTargetPolicy = ReportingPolicy.IGNORE
 )
 public interface MapStructConfig {}

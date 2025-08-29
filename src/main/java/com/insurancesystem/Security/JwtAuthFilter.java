@@ -63,10 +63,20 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                     var auth = new UsernamePasswordAuthenticationToken(ud, null, ud.getAuthorities());
                     auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(auth);
+
+                    //  المصادقة نجحت → كمّل للسلسلة
+                    chain.doFilter(request, response);
+                    return;
+                } else {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.getWriter().write("Invalid or expired token");
+                    return;
                 }
             }
 
-            chain.doFilter(request, response);
+            // إذا ما في username أو مصادقة فاضية → رجّع 401
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.getWriter().write("Authentication required");
         } catch (ExpiredJwtException e) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.getWriter().write("Token expired");
@@ -77,9 +87,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.getWriter().write("Authentication error");
         }
-    }
 
-    // JwtAuthFilter.java
+        }
+        // JwtAuthFilter.java
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getServletPath();

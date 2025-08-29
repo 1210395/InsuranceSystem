@@ -7,9 +7,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.Instant;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 @Entity
 @Table(
@@ -57,6 +55,14 @@ public class Client {
 
     @Column(name = "university_card_image")
     private String universityCardImage;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "policy_id")
+    private Policy policy;
+
+    @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<SearchProfile> searchProfiles = new ArrayList<>();
+
 
 
     @Column(name = "created_at", nullable = false)

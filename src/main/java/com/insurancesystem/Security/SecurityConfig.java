@@ -26,27 +26,10 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-
                         // السماح المفتوح لتسجيل الدخول والتسجيل
                         .requestMatchers("/api/auth/**").permitAll()
-
-                        // مدير التأمين فقط
-                        .requestMatchers("/api/policies/**").hasRole("INSURANCE_MANAGER")
-                        .requestMatchers("/api/coverages/**").hasRole("INSURANCE_MANAGER")
-                        .requestMatchers("/api/enrollments/**").hasRole("INSURANCE_MANAGER")
-                        .requestMatchers("/api/roles/**").hasRole("INSURANCE_MANAGER")
-                        .requestMatchers("/api/clients/role-requests/**").hasRole("INSURANCE_MANAGER")
-                        .requestMatchers("/api/clients/*/reject").hasRole("INSURANCE_MANAGER")
-                        .requestMatchers("/api/clients/*/role-requests/approve").hasRole("INSURANCE_MANAGER")
-
-                        // مدير الطوارئ لو عنده Endpoints خاصة ممكن إضافتها هنا
-                        // .requestMatchers("/api/emergency-manager/**").hasRole("EMERGENCY_MANAGER")
-
-                        // المستخدم العادي (العميل)
-                        .requestMatchers("/api/clients/**").hasRole("INSURANCE_CLIENT")
-
-                        // أي شيء غير مصرح به → رفض مباشر
-                        .anyRequest().denyAll()
+                        // أي طلب آخر يجب أن يكون مصادق عليه
+                        .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 

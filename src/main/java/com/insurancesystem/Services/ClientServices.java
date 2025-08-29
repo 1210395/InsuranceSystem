@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -26,6 +27,8 @@ public class ClientServices {
     private final RoleService roleService;
     private final ClientMapper clientMapper;
     private final EmailService emailService;
+    private final PolicyService policyService;
+    private final NotificationService notificationService;
 
 
     @Transactional(readOnly = true)
@@ -77,13 +80,27 @@ public class ClientServices {
         var role = roleService.getByNameOrThrow(u.getRequestedRole());
         u.getRoles().add(role);
         u.setStatus(MemberStatus.ACTIVE);
-
         u.setRoleRequestStatus(RoleRequestStatus.APPROVED);
         u.setRequestedRole(null);
+
+        //  إذا كان عميل تأمين، اربط معه البوليصة
+        if (role.getName() == RoleName.INSURANCE_CLIENT) {
+            policyService.assignPolicyByName(u.getId(), "General University Staff Insurance");
+        }
+
         clientRepo.save(u);
 
         // ✉️ أرسل إيميل للمستخدم
         emailService.sendRoleApprovalEmail(u.getEmail(), u.getFullName(), role.getName());
+
+        notificationService.sendToUser(
+                u.getId(),
+                "تمت الموافقة على حسابك. يمكنك تسجيل الدخول الآن."
+        );
+        notificationService.markNotificationAsReadByMessage(
+                RoleName.INSURANCE_MANAGER,
+                "مستخدم جديد (" + u.getFullName() + ") سجل وينتظر الموافقة."
+        );
 
         return clientMapper.toDTO(u);
     }
@@ -98,12 +115,21 @@ public class ClientServices {
             throw new BadRequestException("No pending role request for this client");
         }
 
-        // أرسل إيميل قبل الحذف
+        // ✉️ أرسل إيميل قبل الحذف
         emailService.sendRoleRejectionEmail(u.getEmail(), u.getFullName(), u.getRequestedRole(), reason);
 
-        // احذف الحساب نهائيًّا
+
+        notificationService.sendToUser(
+                u.getId(),
+                "تم رفض طلب حسابك. السبب: " + reason
+        );
+
+        notificationService.markNotificationAsReadByMessage(
+                RoleName.INSURANCE_MANAGER,
+                "مستخدم جديد (" + u.getFullName() + ") سجل وينتظر الموافقة."
+        );
+
         clientRepo.delete(u);
     }
-
 
 }

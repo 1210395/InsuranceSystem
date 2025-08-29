@@ -19,6 +19,7 @@ public class CustomUserDetailsService implements UserDetailsService {
         var user = clientRepo.findByUsername(username.toLowerCase())
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
+
         var authorities = user.getRoles().stream()
                 .map(r -> new SimpleGrantedAuthority("ROLE_" + r.getName().name()))
                 .toList();
@@ -27,9 +28,12 @@ public class CustomUserDetailsService implements UserDetailsService {
         return org.springframework.security.core.userdetails.User
                 .withUsername(user.getUsername())
                 .password(user.getPasswordHash())
+
                 .authorities(authorities)
                 .accountLocked(false)
                 .disabled(false)
                 .build();
+
     }
+
 }

@@ -5,8 +5,10 @@ import com.insurancesystem.Exception.NotFoundException;
 import com.insurancesystem.Model.Dto.CreatePolicyDTO;
 import com.insurancesystem.Model.Dto.PolicyDTO;
 import com.insurancesystem.Model.Dto.UpdatePolicyDTO;
+import com.insurancesystem.Model.Entity.Client;
 import com.insurancesystem.Model.Entity.Policy;
 import com.insurancesystem.Model.MapStruct.PolicyMapper;
+import com.insurancesystem.Repository.ClientRepository;
 import com.insurancesystem.Repository.PolicyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,8 @@ public class PolicyService {
 
     private final PolicyRepository policyRepo;
     private final PolicyMapper policyMapper;
+    private final ClientRepository clientRepo;
+
 
     public PolicyDTO create(CreatePolicyDTO dto) {
         policyRepo.findByPolicyNo(dto.getPolicyNo()).ifPresent(p -> {
@@ -54,4 +58,44 @@ public class PolicyService {
         if (!policyRepo.existsById(id)) throw new NotFoundException("Policy not found");
         policyRepo.deleteById(id);
     }
+
+    public void assignPolicyToClient(UUID clientId, UUID policyId) {
+        Policy policy = policyRepo.findById(policyId)
+                .orElseThrow(() -> new NotFoundException("Policy not found"));
+
+        Client client = clientRepo.findById(clientId)
+                .orElseThrow(() -> new NotFoundException("Client not found"));
+
+        client.setPolicy(policy);
+        clientRepo.save(client);
+    }
+
+    public void assignPolicyByName(UUID clientId, String policyName) {
+        Policy policy = policyRepo.findByName(policyName)
+                .orElseThrow(() -> new NotFoundException("Policy with name " + policyName + " not found"));
+        assignPolicyToClient(clientId, policy.getId());
+    }
+
+    public PolicyDTO getPolicyByUsername(String username) {
+        Client client = clientRepo.findByUsername(username)
+                .orElseThrow(() -> new NotFoundException("Client not found"));
+
+        if (client.getPolicy() == null) {
+            throw new NotFoundException("No policy assigned to this client");
+        }
+
+        return policyMapper.toDTO(client.getPolicy());
+    }
+    public PolicyDTO getPolicyByUserId(UUID userId) {
+        Client client = clientRepo.findById(userId)
+                .orElseThrow(() -> new NotFoundException("Client not found"));
+
+        if (client.getPolicy() == null) {
+            throw new NotFoundException("No policy assigned to this client");
+        }
+
+        return policyMapper.toDTO(client.getPolicy());
+    }
+
+
 }

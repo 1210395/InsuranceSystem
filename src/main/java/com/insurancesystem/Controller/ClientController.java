@@ -19,30 +19,33 @@ import java.util.UUID;
 public class ClientController {
 
     private final ClientServices clientServices;
-
+    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
     @GetMapping("/list")
     public ResponseEntity<List<ClientDto>> list() {
         return ResponseEntity.ok(clientServices.list());
     }
 
+    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
     @GetMapping("/get/{id}")
     public ResponseEntity<ClientDto> getUserById(@PathVariable UUID id) {
         return ResponseEntity.ok(clientServices.getById(id));
     }
-
+    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
     @PatchMapping("/update/{id}")
-    public ResponseEntity<ClientDto> updateUserById(@PathVariable UUID id,
-                                                  @Valid @RequestBody UpdateUserDTO dto) {
+    public ResponseEntity<ClientDto> updateUserById(@PathVariable UUID id, @Valid @RequestBody UpdateUserDTO dto) {
         return ResponseEntity.ok(clientServices.update(id, dto));
     }
-
+    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<Void> deleteUserById(@PathVariable UUID id) {
         clientServices.delete(id);
         return ResponseEntity.noContent().build();
     }
-
-
+    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
+    @PatchMapping("/{id}/approve")
+    public ResponseEntity<ClientDto> approve(@PathVariable UUID id) {
+        return ResponseEntity.ok(clientServices.approveRequestedRole(id));
+    }
 
 
     @PreAuthorize("hasRole('INSURANCE_MANAGER')")
@@ -59,8 +62,7 @@ public class ClientController {
 
     @PreAuthorize("hasRole('INSURANCE_MANAGER')")
     @PatchMapping("/{id}/reject")
-    public ResponseEntity<Void> rejectAndDelete(@PathVariable UUID id,
-                                                @Valid @RequestBody RejectReasonDTO dto) {
+    public ResponseEntity<Void> rejectAndDelete(@PathVariable UUID id, @Valid @RequestBody RejectReasonDTO dto) {
         clientServices.rejectRoleRequestAndDelete(id, dto.getReason());
         return ResponseEntity.noContent().build(); // 204
     }

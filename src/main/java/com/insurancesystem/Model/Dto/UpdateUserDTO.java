@@ -4,7 +4,10 @@ import com.insurancesystem.Model.Entity.Enums.MemberStatus;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
-@Data @Builder @NoArgsConstructor @AllArgsConstructor
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class UpdateUserDTO {
     @Size(min = 3, max = 150)
     private String fullName;

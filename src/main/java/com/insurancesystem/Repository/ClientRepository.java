@@ -14,4 +14,8 @@ public interface ClientRepository extends JpaRepository<Client, UUID> {
     boolean existsByUsername(String username);
     boolean existsByEmail(String email);
     List<Client> findByStatus(MemberStatus status);
+    long countByStatus(MemberStatus status);
+
+
+
 }

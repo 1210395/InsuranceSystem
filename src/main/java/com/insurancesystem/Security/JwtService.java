@@ -21,8 +21,7 @@ public class JwtService {
     private final ConcurrentHashMap<String, Long> revoked = new ConcurrentHashMap<>();
 
     public JwtService(
-            @Value("${app.jwt.secret}") String secret,
-            @Value("${app.jwt.ttl-ms:86400000}") long ttlMillis // 24h افتراضياً
+            @Value("${app.jwt.secret}") String secret, @Value("${app.jwt.ttl-ms:86400000}") long ttlMillis // 24h افتراضياً
     ) {
         if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
             throw new IllegalArgumentException("app.jwt.secret must be at least 32 bytes");
