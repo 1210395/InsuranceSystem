@@ -15,4 +15,5 @@ public class NotificationDTO {
     private boolean read;
     private Instant createdAt;
     private String recipientName; // اسم المستفيد (اختياري للعرض)
+
 }

@@ -22,6 +22,50 @@ public class NotificationService {
     private final ClientRepository clientRepo;
     private final NotificationMapper notificationMapper;
 
+
+    // ➕ إرسال إشعار يدوي (استفسار أو رد)
+    public void createNotification(UUID senderId, UUID recipientId, String message, UUID repliedNotificationId) {
+        Client recipient = clientRepo.findById(recipientId)
+                .orElseThrow(() -> new NotFoundException("Recipient not found"));
+        Client sender = clientRepo.findById(senderId)
+                .orElseThrow(() -> new NotFoundException("Sender not found"));
+
+        // لو هذا رد على إشعار سابق ⇒ نعلّم الأصلي كمقروء
+        if (repliedNotificationId != null) {
+            Notification original = notificationRepo.findById(repliedNotificationId)
+                    .orElseThrow(() -> new NotFoundException("Original notification not found"));
+            original.setRead(true); // 👈 الاشعار القديم صار مقروء
+            notificationRepo.save(original);
+        }
+
+        // إنشاء إشعار جديد (سواء رسالة جديدة أو رد)
+        Notification notification = Notification.builder()
+                .recipient(recipient)
+                .message(sender.getFullName() + ": " + message)
+                .read(false)
+                .build();
+
+        notificationRepo.save(notification);
+    }
+
+
+    // 📖 استرجاع إشعارات مستخدم + تعليمها كمقروءة
+    public List<NotificationDTO> getUserNotifications(UUID recipientId) {
+        Client recipient = clientRepo.findById(recipientId)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+
+        List<Notification> notifications = notificationRepo.findByRecipientOrderByCreatedAtDesc(recipient);
+
+        // 👇 بمجرد ما المستخدم استرجع إشعاراته نعلمها كمقروء
+        notifications.forEach(n -> n.setRead(true));
+        notificationRepo.saveAll(notifications);
+
+        return notifications.stream()
+                .map(notificationMapper::toDto)
+                .toList();
+    }
+
+
     // ➕ إرسال إشعار لمستخدم واحد
     public void sendToUser(UUID recipientId, String message) {
         Client recipient = clientRepo.findById(recipientId)
@@ -53,15 +97,6 @@ public class NotificationService {
     }
 
 
-    //  استرجاع إشعارات مستخدم
-    public List<NotificationDTO> getUserNotifications(UUID recipientId) {
-        Client recipient = clientRepo.findById(recipientId)
-                .orElseThrow(() -> new NotFoundException("User not found"));
-        return notificationRepo.findByRecipientOrderByCreatedAtDesc(recipient)
-                .stream()
-                .map(notificationMapper::toDto)
-                .toList();
-    }
 
 
     public void markAllAsRead(UUID recipientId) {
