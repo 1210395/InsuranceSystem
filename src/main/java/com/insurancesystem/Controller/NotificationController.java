@@ -1,5 +1,6 @@
 package com.insurancesystem.Controller;
 
+import com.insurancesystem.Model.Dto.CreateNotificationManualDTO;
 import com.insurancesystem.Model.Dto.NotificationDTO;
 import com.insurancesystem.Model.Entity.Client;
 import com.insurancesystem.Repository.ClientRepository;
@@ -19,6 +20,32 @@ public class NotificationController {
 
     private final NotificationService notificationService;
     private final ClientRepository clientRepo;
+
+
+    // ➕ إرسال استفسار/إشعار يدوي
+    @PostMapping
+    @PreAuthorize("isAuthenticated()")
+    public void sendNotification(@RequestBody CreateNotificationManualDTO dto, Authentication auth) {
+        String senderUsername = auth.getName();
+        Client sender = clientRepo.findByUsername(senderUsername)
+                .orElseThrow(() -> new RuntimeException("Sender not found"));
+
+        notificationService.createNotification(sender.getId(), dto.getRecipientId(), dto.getMessage(), null);
+    }
+
+    // ➕ الرد على إشعار سابق
+    @PostMapping("/{notificationId}/reply")
+    @PreAuthorize("isAuthenticated()")
+    public void replyNotification(@PathVariable UUID notificationId,
+                                  @RequestBody CreateNotificationManualDTO dto,
+                                  Authentication auth) {
+        String senderUsername = auth.getName();
+        Client sender = clientRepo.findByUsername(senderUsername)
+                .orElseThrow(() -> new RuntimeException("Sender not found"));
+
+        notificationService.createNotification(sender.getId(), dto.getRecipientId(), dto.getMessage(), notificationId);
+    }
+
 
     // 📖 عرض إشعارات المستخدم الحالي
     @GetMapping
