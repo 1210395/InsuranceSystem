@@ -18,6 +18,7 @@ public class NotificationDTO {
     private UUID recipientId;     // ✅ أضف هذا الحقل
     private UUID senderId;        // ✅ المرسل
     private String senderName;    // ✅ اسم المرسل
+    private boolean replied; // ✅ جديد
 
     private String type;          // ✅ نوع الإشعار
 

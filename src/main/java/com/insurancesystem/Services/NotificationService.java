@@ -1,6 +1,7 @@
 package com.insurancesystem.Services;
 
 import com.insurancesystem.Exception.NotFoundException;
+import com.insurancesystem.Exception.UnauthorizedException;
 import com.insurancesystem.Model.Dto.NotificationDTO;
 import com.insurancesystem.Model.Entity.Client;
 import com.insurancesystem.Model.Entity.Notification;
@@ -34,6 +35,7 @@ public class NotificationService {
             Notification original = notificationRepo.findById(repliedNotificationId)
                     .orElseThrow(() -> new NotFoundException("Original notification not found"));
             original.setRead(true);
+            original.setReplied(true); // ✅ علّم أنه تم الرد
             notificationRepo.save(original);
         }
 
@@ -59,7 +61,6 @@ public class NotificationService {
                 .map(notificationMapper::toDto)
                 .toList();
     }
-
 
     public void sendToUser(UUID recipientId, String message) {
         Client recipient = clientRepo.findById(recipientId)
@@ -117,28 +118,39 @@ public class NotificationService {
             notificationRepo.saveAll(notifications);
         }
     }
-    public void markAsRead(UUID recipientId, UUID notificationId) {
-        Notification notification = notificationRepo.findById(notificationId)
-                .orElseThrow(() -> new NotFoundException("Notification not found"));
 
-        if (!notification.getRecipient().getId().equals(recipientId)) {
-            throw new RuntimeException("Unauthorized to read this notification");
+    public void markAsRead(UUID notificationId, UUID currentUserId) {
+        Notification notification = notificationRepo.findById(notificationId)
+                .orElseThrow(() -> new NotFoundException("Notification not found with id: " + notificationId));
+
+        // SYSTEM notifications → ما إلها recipient، نخليها تتعلم كمقروءة
+        if (notification.getType() == NotificationType.SYSTEM) {
+            notification.setRead(true);
+            notificationRepo.save(notification);
+            return;
+        }
+
+        // إشعارات عادية → لازم المستلم == المستخدم الحالي
+        if (!notification.getRecipient().getId().equals(currentUserId)) {
+            throw new UnauthorizedException("You are not allowed to read this notification");
         }
 
         notification.setRead(true);
         notificationRepo.save(notification);
     }
+
+
+
+
     public long countUnreadNotifications(UUID recipientId) {
         Client recipient = clientRepo.findById(recipientId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
         return notificationRepo.countByRecipientAndReadFalse(recipient);
     }
+
     public long countUnreadEmergencyNotifications(UUID recipientId) {
         Client recipient = clientRepo.findById(recipientId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
         return notificationRepo.countByRecipientAndReadFalse(recipient);
     }
-
-
-
 }
