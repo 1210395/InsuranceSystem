@@ -6,15 +6,18 @@ import org.mapstruct.*;
 
 @Mapper(componentModel = "spring")
 public interface PrescriptionMapper {
+    @Mapping(source = "pharmacist.fullName", target = "pharmacistName")
 
     @Mapping(source = "member.id", target = "memberId")
     @Mapping(source = "doctor.fullName", target = "doctorName")  // ✅ اسم الدكتور
     @Mapping(source = "member.fullName", target = "memberName")  // ✅ اسم المريض
     @Mapping(source = "status", target = "status")
     PrescriptionDTO toDto(Prescription entity);
+    @Mapping(target = "pharmacist", ignore = true)
 
     @Mapping(source = "memberId", target = "member.id")
     @Mapping(target = "doctor", ignore = true) // doctor يجي من الـ Service
     @Mapping(target = "status", ignore = true) // default → PENDING
     Prescription toEntity(PrescriptionDTO dto);
+
 }

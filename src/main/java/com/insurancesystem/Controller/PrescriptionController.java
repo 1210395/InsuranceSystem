@@ -101,4 +101,15 @@ public class PrescriptionController {
         ClientDto updated = prescriptionService.updatePharmacistProfile(username, dto, universityCard);
         return ResponseEntity.ok(updated);
     }
+    @GetMapping("/all")
+    @PreAuthorize("hasRole('PHARMACIST')")
+    public List<PrescriptionDTO> getAll() {
+        return prescriptionService.getAllForCurrentPharmacist();
+    }
+    // 📖 جميع الصيادلة
+    @GetMapping("/pharmacists")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','DOCTOR')") // 🔒 السماح للدكتور كمان
+    public List<ClientDto> getAllPharmacists() {
+        return prescriptionService.getAllPharmacists();
+    }
 }

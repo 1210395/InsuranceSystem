@@ -96,7 +96,19 @@ public class LabRequestController {
         return ResponseEntity.ok(updated);
     }
 
+    // 📖 Lab Tech يشوف كل طلباته
+    @GetMapping("/my-requests")
+    @PreAuthorize("hasRole('LAB_TECH')")
+    public List<LabRequestDTO> getMyLabRequests() {
+        return labService.getAllForCurrentLab();
+    }
 
+    // 📖 جميع الفنيين (Lab Technicians)
+    @GetMapping("/labtechs")
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','DOCTOR')") // السماح للدكتور كمان
+    public List<ClientDto> getAllLabTechs() {
+        return labService.getAllLabTechs();
+    }
 
 
 

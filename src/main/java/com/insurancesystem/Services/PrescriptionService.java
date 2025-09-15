@@ -6,6 +6,7 @@ import com.insurancesystem.Model.Dto.PrescriptionDTO;
 import com.insurancesystem.Model.Dto.UpdateUserDTO;
 import com.insurancesystem.Model.Entity.Client;
 import com.insurancesystem.Model.Entity.Enums.PrescriptionStatus;
+import com.insurancesystem.Model.Entity.Enums.RoleName;
 import com.insurancesystem.Model.Entity.Prescription;
 import com.insurancesystem.Model.MapStruct.ClientMapper;
 import com.insurancesystem.Model.MapStruct.PrescriptionMapper;
@@ -39,12 +40,12 @@ public class PrescriptionService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
 
-        // 🧑‍⚕️ الدكتور من التوكن
+        // 🧑‍⚕️ الدكتور
         Client doctor = clientRepo.findByUsername(currentUsername)
                 .orElseThrow(() -> new NotFoundException("Doctor not found"));
 
-        // 👤 المريض: إما بالـ ID أو بالـ Name
-        Client member = null;
+        // 👤 المريض
+        Client member;
         if (dto.getMemberId() != null) {
             member = clientRepo.findById(dto.getMemberId())
                     .orElseThrow(() -> new NotFoundException("Member not found"));
@@ -52,25 +53,49 @@ public class PrescriptionService {
             member = clientRepo.findByFullName(dto.getMemberName())
                     .orElseThrow(() -> new NotFoundException("Member not found with name: " + dto.getMemberName()));
         } else {
-            throw new IllegalArgumentException("Member ID or Member Name is required");
+            throw new IllegalArgumentException("Member info required");
+        }
+
+        // 🧑‍🔬 الصيدلاني (بالـ ID أو Name)
+        Client pharmacist;
+        if (dto.getPharmacistId() != null) {
+            pharmacist = clientRepo.findById(dto.getPharmacistId())
+                    .orElseThrow(() -> new NotFoundException("Pharmacist not found"));
+        } else if (dto.getPharmacistName() != null && !dto.getPharmacistName().isBlank()) {
+            pharmacist = clientRepo.findByFullName(dto.getPharmacistName())
+                    .orElseThrow(() -> new NotFoundException("Pharmacist not found with name: " + dto.getPharmacistName()));
+        } else {
+            throw new IllegalArgumentException("Pharmacist info required");
         }
 
         // 📝 بناء الوصفة
         Prescription prescription = prescriptionMapper.toEntity(dto);
         prescription.setDoctor(doctor);
         prescription.setMember(member);
+        prescription.setPharmacist(pharmacist);   // ✅ مربوط بصيدلاني
         prescription.setStatus(PrescriptionStatus.PENDING);
         prescription.setCreatedAt(Instant.now());
         prescription.setUpdatedAt(Instant.now());
 
+        Prescription saved = prescriptionRepo.save(prescription);
+
         // 🔔 إشعار للمريض
         notificationService.sendToUser(
                 member.getId(),
-                "تم إنشاء وصفة جديدة من دكتور " + doctor.getFullName()
+                "تم إنشاء وصفة جديدة لك من الدكتور " + doctor.getFullName()
         );
 
-        return prescriptionMapper.toDto(prescriptionRepo.save(prescription));
+        // 🔔 إشعار للصيدلاني
+        notificationService.sendToUser(
+                pharmacist.getId(),
+                "تم إضافة وصفة جديدة من الدكتور " + doctor.getFullName() +
+                        " للمريض " + member.getFullName()
+        );
+
+        return prescriptionMapper.toDto(saved);
     }
+
+
 
     // 📖 Member يشوف وصفاته
     public List<PrescriptionDTO> getMyPrescriptions() {
@@ -189,20 +214,27 @@ public class PrescriptionService {
                 .orElseThrow(() -> new NotFoundException("Pharmacist not found"));
 
         return PrescriptionDTO.builder()
-                // Pending عامة (كل النظام)
-                .pending(prescriptionRepo.countByStatus(PrescriptionStatus.PENDING))
+                // 🟡 Pending تخص الصيدلي الحالي
+                .pending(prescriptionRepo.countByPharmacistIdAndStatus(
+                        pharmacist.getId(), PrescriptionStatus.PENDING))
 
-                // Verified/Rejected خاصة بالصيدلي الحالي
-                .verified(prescriptionRepo.countByPharmacistIdAndStatus(pharmacist.getId(), PrescriptionStatus.VERIFIED))
-                .rejected(prescriptionRepo.countByPharmacistIdAndStatus(pharmacist.getId(), PrescriptionStatus.REJECTED))
+                // ✅ Verified تخص الصيدلي الحالي
+                .verified(prescriptionRepo.countByPharmacistIdAndStatus(
+                        pharmacist.getId(), PrescriptionStatus.VERIFIED))
 
-                // Total تخص الصيدلي الحالي (Verified + Rejected فقط)
+                // ❌ Rejected تخص الصيدلي الحالي
+                .rejected(prescriptionRepo.countByPharmacistIdAndStatus(
+                        pharmacist.getId(), PrescriptionStatus.REJECTED))
+
+                // 📊 Total = Pending + Verified + Rejected للصيدلي الحالي
                 .total(
-                        prescriptionRepo.countByPharmacistIdAndStatus(pharmacist.getId(), PrescriptionStatus.VERIFIED)
+                        prescriptionRepo.countByPharmacistIdAndStatus(pharmacist.getId(), PrescriptionStatus.PENDING)
+                                + prescriptionRepo.countByPharmacistIdAndStatus(pharmacist.getId(), PrescriptionStatus.VERIFIED)
                                 + prescriptionRepo.countByPharmacistIdAndStatus(pharmacist.getId(), PrescriptionStatus.REJECTED)
                 )
                 .build();
     }
+
 
     // 👤 Pharmacist يحدّث بروفايله
     public ClientDto updatePharmacistProfile(String username, UpdateUserDTO dto, MultipartFile universityCard) {
@@ -251,6 +283,32 @@ public class PrescriptionService {
         return prescriptionRepo.findByDoctorId(doctor.getId())
                 .stream()
                 .map(prescriptionMapper::toDto)
+                .collect(Collectors.toList());
+    }
+    public List<PrescriptionDTO> getAll() {
+        return prescriptionRepo.findAll()
+                .stream()
+                .map(prescriptionMapper::toDto)
+                .collect(Collectors.toList());
+    }
+    // 📖 الصيدلي يشوف كل الوصفات الخاصة فيه
+    public List<PrescriptionDTO> getAllForCurrentPharmacist() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String currentUsername = auth.getName();
+
+        Client pharmacist = clientRepo.findByUsername(currentUsername)
+                .orElseThrow(() -> new NotFoundException("Pharmacist not found"));
+
+        return prescriptionRepo.findByPharmacistId(pharmacist.getId())
+                .stream()
+                .map(prescriptionMapper::toDto)
+                .collect(Collectors.toList());
+    }
+    // 📖 إرجاع كل الصيادلة
+    public List<ClientDto> getAllPharmacists() {
+        return clientRepo.findByRoles_Name(RoleName.PHARMACIST)
+                .stream()
+                .map(clientMapper::toDTO)
                 .collect(Collectors.toList());
     }
 }

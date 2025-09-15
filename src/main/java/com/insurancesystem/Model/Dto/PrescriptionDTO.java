@@ -25,6 +25,9 @@ public class PrescriptionDTO {
     private String doctorName;
     private String memberName;
 
+    private UUID pharmacistId;
+    private String pharmacistName;
+
     private Instant createdAt;
     private Instant updatedAt;
 

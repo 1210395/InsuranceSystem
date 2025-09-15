@@ -2,6 +2,7 @@ package com.insurancesystem.Repository;
 
 import com.insurancesystem.Model.Entity.Client;
 import com.insurancesystem.Model.Entity.Enums.MemberStatus;
+import com.insurancesystem.Model.Entity.Enums.RoleName;
 import com.insurancesystem.Model.Entity.Policy;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -19,4 +20,6 @@ public interface ClientRepository extends JpaRepository<Client, UUID> {
     long countByStatus(MemberStatus status);
     List<Client> findByPolicy(Policy policy);
     Optional<Client> findByFullName(String fullName);
+    List<Client> findByRoles_Name(RoleName roleName);
+
 }

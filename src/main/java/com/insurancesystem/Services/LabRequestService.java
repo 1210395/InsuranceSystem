@@ -40,29 +40,57 @@ public class LabRequestService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
 
+        // 🧑‍⚕️ الدكتور
         Client doctor = clientRepo.findByUsername(currentUsername)
                 .orElseThrow(() -> new NotFoundException("Doctor not found"));
 
+        // 👤 المريض
         Client member;
         if (dto.getMemberId() != null) {
             member = clientRepo.findById(dto.getMemberId())
                     .orElseThrow(() -> new NotFoundException("Member not found"));
-        } else if (dto.getMemberName() != null) {
+        } else if (dto.getMemberName() != null && !dto.getMemberName().isBlank()) {
             member = clientRepo.findByFullName(dto.getMemberName())
                     .orElseThrow(() -> new NotFoundException("Member not found"));
         } else {
             throw new RuntimeException("Member info required");
         }
 
+        // 🧑‍🔬 اللاب تِكنيشن
+        Client labTech;
+        if (dto.getLabTechId() != null) {
+            labTech = clientRepo.findById(dto.getLabTechId())
+                    .orElseThrow(() -> new NotFoundException("Lab Tech not found"));
+        } else if (dto.getLabTechName() != null && !dto.getLabTechName().isBlank()) {
+            labTech = clientRepo.findByFullName(dto.getLabTechName())
+                    .orElseThrow(() -> new NotFoundException("Lab Tech not found with name: " + dto.getLabTechName()));
+        } else {
+            throw new RuntimeException("Lab Tech info required");
+        }
+
+        // 📝 بناء الطلب
         LabRequest request = labRequestMapper.toEntity(dto);
         request.setDoctor(doctor);
         request.setMember(member);
+        request.setLabTech(labTech); // 🟢 مربوط باللابر
         request.setStatus(LabRequestStatus.PENDING);
         request.setCreatedAt(Instant.now());
         request.setUpdatedAt(Instant.now());
 
+        // 🔔 إشعار
+        notificationService.sendToUser(
+                member.getId(),
+                "📑 تم إنشاء طلب فحص جديد بواسطة الدكتور " + doctor.getFullName()
+        );
+
+        notificationService.sendToUser(
+                labTech.getId(),
+                "🧪 لديك طلب فحص جديد للمريض " + member.getFullName()
+        );
+
         return labRequestMapper.toDto(labRepo.save(request));
     }
+
     // 📖 Doctor يشوف طلباته
     public List<LabRequestDTO> getByDoctor() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -188,20 +216,18 @@ public class LabRequestService {
 
         labRepo.delete(request);
     }
-
     // 📊 Lab Technician يشوف إحصائيات الطلبات
     public LabRequestDTO getLabStats() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
 
-        // جيب اليوزر (lab worker الحالي)
+        // 🧑‍🔬 اللابوركر الحالي
         Client labWorker = clientRepo.findByUsername(currentUsername)
                 .orElseThrow(() -> new NotFoundException("Lab worker not found"));
 
-        long pending = labRepo.countByStatus(LabRequestStatus.PENDING);
+        // 🟢 احسب فقط الطلبات الخاصة فيه
+        long pending = labRepo.countByStatusAndLabTechId(LabRequestStatus.PENDING, labWorker.getId());
         long completed = labRepo.countByStatusAndLabTechId(LabRequestStatus.COMPLETED, labWorker.getId());
-
-        // المجموع = pending + completed
         long total = pending + completed;
 
         return LabRequestDTO.builder()
@@ -210,6 +236,21 @@ public class LabRequestService {
                 .completed(completed)
                 .build();
     }
+
+    // 📖 Lab Tech يشوف كل طلباته (pending + completed)
+    public List<LabRequestDTO> getAllForCurrentLab() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String currentUsername = auth.getName();
+
+        Client labTech = clientRepo.findByUsername(currentUsername)
+                .orElseThrow(() -> new NotFoundException("Lab worker not found"));
+
+        return labRepo.findByLabTechId(labTech.getId())
+                .stream()
+                .map(labRequestMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
 
 
 
@@ -249,5 +290,15 @@ public class LabRequestService {
 
         return clientMapper.toDTO(updated);
     }
+
+    // 📖 إرجاع كل الفنيين (Lab Technicians)
+    public List<ClientDto> getAllLabTechs() {
+        return clientRepo.findByRoles_Name(RoleName.LAB_TECH)
+                .stream()
+                .map(clientMapper::toDTO)
+                .collect(Collectors.toList());
+    }
+
+
 
 }

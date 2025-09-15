@@ -109,4 +109,9 @@ public class PolicyController {
     public ResponseEntity<List<CoverageDTO>> listCoverages(@PathVariable UUID id) {
         return ResponseEntity.ok(coverageService.listByPolicy(id));
     }
+    @PreAuthorize("hasRole('INSURANCE_CLIENT')")
+    @GetMapping("/all_Client")
+    public ResponseEntity<List<PolicyDTO>> listClient() {
+        return ResponseEntity.ok(policyService.list());
+    }
 }
