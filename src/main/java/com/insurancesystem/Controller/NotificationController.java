@@ -1,8 +1,11 @@
 package com.insurancesystem.Controller;
 
+import com.insurancesystem.Model.Dto.ClientDto;
 import com.insurancesystem.Model.Dto.CreateNotificationManualDTO;
 import com.insurancesystem.Model.Dto.NotificationDTO;
+import com.insurancesystem.Model.Dto.RecipientDto;
 import com.insurancesystem.Model.Entity.Client;
+import com.insurancesystem.Model.Entity.Enums.RoleName;
 import com.insurancesystem.Repository.ClientRepository;
 import com.insurancesystem.Services.NotificationService;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +24,6 @@ public class NotificationController {
 
     private final NotificationService notificationService;
     private final ClientRepository clientRepo;
-
 
     // ➕ إرسال استفسار/إشعار يدوي
     @PostMapping
@@ -47,7 +49,6 @@ public class NotificationController {
         notificationService.createNotification(sender.getId(), dto.getRecipientId(), dto.getMessage(), notificationId);
     }
 
-
     // 📖 عرض إشعارات المستخدم الحالي
     @GetMapping
     @PreAuthorize("isAuthenticated()")
@@ -58,8 +59,6 @@ public class NotificationController {
         return notificationService.getUserNotifications(user.getId());
     }
 
-
-
     @PatchMapping("/read-all")
     @PreAuthorize("isAuthenticated()")
     public void markAllAsRead(Authentication auth) {
@@ -68,13 +67,15 @@ public class NotificationController {
                 .orElseThrow(() -> new RuntimeException("User not found"));
         notificationService.markAllAsRead(user.getId());
     }
+
+    // ✅ نسخة موحدة للقراءة
     @PatchMapping("/{id}/read")
     @PreAuthorize("isAuthenticated()")
     public void markAsRead(@PathVariable UUID id, Authentication auth) {
         String username = auth.getName();
         Client user = clientRepo.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        notificationService.markAsRead(id, user.getId());
+        notificationService.markAsRead(id, user);
     }
 
     @GetMapping("/unread-count")
@@ -85,6 +86,8 @@ public class NotificationController {
                 .orElseThrow(() -> new RuntimeException("User not found"));
         return notificationService.countUnreadNotifications(user.getId());
     }
+
+
     @GetMapping("/unread-count/emergency")
     @PreAuthorize("hasRole('EMERGENCY_MANAGER')")
     public long getUnreadEmergencyCount(Authentication auth) {
@@ -105,6 +108,7 @@ public class NotificationController {
         notificationService.deleteNotification(user.getId(), id);
         return ResponseEntity.ok("✅ Notification deleted successfully");
     }
+
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/by-name")
     public void sendByName(@RequestBody CreateNotificationManualDTO dto, Authentication auth) {
@@ -112,15 +116,6 @@ public class NotificationController {
                 auth.getName(), dto.getRecipientName(), dto.getMessage(), dto.getType(), null
         );
     }
-    @PatchMapping("/{id}/read/client")
-    @PreAuthorize("isAuthenticated()")
-    public void clientMarkAsRead(@PathVariable UUID id, Authentication auth) {
-        String username = auth.getName();
-        Client client = clientRepo.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("Client not found"));
-        notificationService.clientMarkAsRead(client.getId(), id);
-    }
-
 
     @DeleteMapping("/{id}/client")
     @PreAuthorize("isAuthenticated()")
@@ -139,24 +134,30 @@ public class NotificationController {
     @PostMapping("/by-fullname")
     @PreAuthorize("isAuthenticated()")
     public void sendByFullName(@RequestBody CreateNotificationManualDTO dto, Authentication auth) {
-        // Find sender by logged-in user
         String username = auth.getName();
         Client sender = clientRepo.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("Sender not found"));
 
-        // Use full names
         notificationService.createNotificationByFullName(
-                sender.getFullName(),          // from logged-in user
-                dto.getRecipientName(),        // from frontend
+                sender.getFullName(),
+                dto.getRecipientName(),
                 dto.getMessage(),
                 null
         );
     }
-
+    @GetMapping("/recipients")
+    @PreAuthorize("isAuthenticated()")    public List<RecipientDto> getRecipients() {
+        return clientRepo.findAll().stream()
+                .filter(c -> c.getRoles().stream().anyMatch(r ->
+                        r.getName() == RoleName.INSURANCE_MANAGER ||
+                                r.getName() == RoleName.EMERGENCY_MANAGER ||
+                                r.getName() == RoleName.DOCTOR ||
+                                r.getName() == RoleName.PHARMACIST ||
+                                r.getName() == RoleName.LAB_TECH
+                ))
+                .map(c -> new RecipientDto(c.getId(), c.getFullName()))
+                .toList();
+    }
 
 
 }
-
-
-
-

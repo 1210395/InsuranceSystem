@@ -36,7 +36,7 @@ public class NotificationService {
             Notification original = notificationRepo.findById(repliedNotificationId)
                     .orElseThrow(() -> new NotFoundException("Original notification not found"));
             original.setRead(true);
-            original.setReplied(true); // ✅ علّم أنه تم الرد
+            original.setReplied(true);
             notificationRepo.save(original);
         }
 
@@ -45,7 +45,7 @@ public class NotificationService {
                 .sender(sender)
                 .message(sender.getFullName() + ": " + message)
                 .read(false)
-                .type(NotificationType.MANUAL_MESSAGE) // ✅ نوعها رسالة يدوية
+                .type(NotificationType.MANUAL_MESSAGE)
                 .build();
 
         notificationRepo.save(notification);
@@ -56,13 +56,10 @@ public class NotificationService {
                 .orElseThrow(() -> new NotFoundException("User not found"));
 
         List<Notification> notifications = notificationRepo.findByRecipientOrderByCreatedAtDesc(recipient);
-
-        // ❌ لا تغيّر حالة read هنا
         return notifications.stream()
                 .map(notificationMapper::toDto)
                 .toList();
     }
-
 
     public void sendToUser(UUID recipientId, String message) {
         Client recipient = clientRepo.findById(recipientId)
@@ -70,7 +67,7 @@ public class NotificationService {
 
         Notification notification = Notification.builder()
                 .recipient(recipient)
-                .sender(null) // إشعار نظامي بدون مرسل
+                .sender(null)
                 .message(message)
                 .read(false)
                 .type(NotificationType.SYSTEM)
@@ -105,7 +102,6 @@ public class NotificationService {
         notificationRepo.saveAll(notifications);
     }
 
-    // ✅ نسخة متوافقة مع الكود القديم
     public void markNotificationAsReadByMessage(RoleName roleName, String message) {
         List<Client> clients = clientRepo.findAll().stream()
                 .filter(c -> c.getRoles().stream().anyMatch(r -> r.getName() == roleName))
@@ -116,36 +112,21 @@ public class NotificationService {
             notifications.stream()
                     .filter(n -> n.getMessage().equals(message))
                     .forEach(n -> n.setRead(true));
-
             notificationRepo.saveAll(notifications);
         }
     }
 
-    public void markAsRead(UUID notificationId, UUID currentUserId) {
+    public void markAsRead(UUID notificationId, Client currentUser) {
         Notification notification = notificationRepo.findById(notificationId)
                 .orElseThrow(() -> new NotFoundException("Notification not found with id: " + notificationId));
 
-        if (notification.getType() == NotificationType.SYSTEM) {
-            // 👇 إذا كان المدير أو صاحب الإشعار
-            boolean isManager = clientRepo.findById(currentUserId)
-                    .orElseThrow(() -> new NotFoundException("User not found"))
-                    .getRoles()
-                    .stream()
-                    .anyMatch(r -> r.getName().name().contains("MANAGER"));
-
-            if (!isManager && !notification.getRecipient().getId().equals(currentUserId)) {
-                throw new UnauthorizedException("❌ This SYSTEM notification is not for you");
-            }
-
-            notification.setRead(true);
-            notificationRepo.save(notification);
-            return;
+        if (notification.getType() != NotificationType.MANUAL_MESSAGE) {
+            throw new UnauthorizedException("❌ Only manual messages can be marked as read here");
         }
 
-
-        // ✅ باقي الحالات (MANUAL, CLAIM, EMERGENCY)
-        if (!notification.getRecipient().getId().equals(currentUserId)) {
-            throw new UnauthorizedException("You are not allowed to read this notification");
+        if (notification.getRecipient() == null ||
+                !notification.getRecipient().getId().equals(currentUser.getId())) {
+            throw new UnauthorizedException("❌ This manual message is not yours");
         }
 
         notification.setRead(true);
@@ -153,13 +134,13 @@ public class NotificationService {
     }
 
 
-
-
     public long countUnreadNotifications(UUID recipientId) {
         Client recipient = clientRepo.findById(recipientId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
-        return notificationRepo.countByRecipientAndReadFalse(recipient);
+
+        return notificationRepo.countByRecipientAndTypeAndReadFalse(recipient, NotificationType.MANUAL_MESSAGE);
     }
+
     public long countUnreadEmergencyNotifications(UUID recipientId) {
         Client recipient = clientRepo.findById(recipientId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
@@ -170,7 +151,6 @@ public class NotificationService {
         Notification notification = notificationRepo.findById(notificationId)
                 .orElseThrow(() -> new RuntimeException("Notification not found"));
 
-        // 🔒 تحقق إنو الإشعار فعلاً للمستخدم الحالي
         if (!notification.getRecipient().getId().equals(userId)) {
             throw new RuntimeException("❌ You are not authorized to delete this notification");
         }
@@ -178,8 +158,8 @@ public class NotificationService {
         notificationRepo.delete(notification);
     }
 
-    // ➕ إرسال إشعار بالاسم بدل الـ UUID
-    public void createNotificationByName(String senderUsername, String recipientUsername, String message, NotificationType type, UUID repliedNotificationId) {
+    public void createNotificationByName(String senderUsername, String recipientUsername, String message,
+                                         NotificationType type, UUID repliedNotificationId) {
         Client sender = clientRepo.findByUsername(senderUsername)
                 .orElseThrow(() -> new NotFoundException("Sender not found"));
 
@@ -198,43 +178,21 @@ public class NotificationService {
                 .sender(sender)
                 .message(sender.getFullName() + ": " + message)
                 .read(false)
-                .type(type != null ? type : NotificationType.MANUAL_MESSAGE) // النوع جاي من الـ Frontend
+                .type(type != null ? type : NotificationType.MANUAL_MESSAGE)
                 .build();
 
         notificationRepo.save(notification);
     }
-  // for clinet
-  public void clientMarkAsRead(UUID clientId, UUID notificationId) {
-      Notification notification = notificationRepo.findById(notificationId)
-              .orElseThrow(() -> new NotFoundException("Notification not found"));
-
-      // ✅ إذا كانت System Message → أي Client يقدر يعلّمها مقروءة
-      if (notification.getType() == NotificationType.SYSTEM) {
-          notification.setRead(true);
-          notificationRepo.save(notification);
-          return;
-      }
-
-      // ✅ إذا كانت مش System Message → تحقق من المستلم
-      if (!notification.getRecipient().getId().equals(clientId)) {
-          throw new RuntimeException("Unauthorized: This notification is not yours");
-      }
-
-      notification.setRead(true);
-      notificationRepo.save(notification);
-  }
 
     public void clientDeleteNotification(UUID clientId, UUID notificationId) {
         Notification notification = notificationRepo.findById(notificationId)
                 .orElseThrow(() -> new NotFoundException("Notification not found"));
 
-        // ✅ إذا كانت System Message → اسمح لأي Client يحذفها
         if (notification.getType() == NotificationType.SYSTEM) {
             notificationRepo.delete(notification);
             return;
         }
 
-        // ✅ إذا كانت مش System Message → تحقق من المستلم
         if (!notification.getRecipient().getId().equals(clientId)) {
             throw new RuntimeException("Unauthorized: This notification is not yours");
         }
@@ -242,12 +200,8 @@ public class NotificationService {
         notificationRepo.delete(notification);
     }
 
-    public void createNotificationByFullName(
-            String senderFullName,
-            String recipientFullName,
-            String message,
-            UUID parentId
-    ) {
+    public void createNotificationByFullName(String senderFullName, String recipientFullName,
+                                             String message, UUID parentId) {
         Client sender = clientRepo.findByFullName(senderFullName)
                 .orElseThrow(() -> new RuntimeException("Sender not found with name: " + senderFullName));
 
@@ -266,7 +220,4 @@ public class NotificationService {
 
         notificationRepo.save(notification);
     }
-
-
-
 }
