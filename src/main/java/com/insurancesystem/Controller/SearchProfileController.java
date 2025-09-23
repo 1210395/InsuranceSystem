@@ -83,4 +83,24 @@ public class SearchProfileController {
         return service.getApprovedProfiles();
     }
 
+    // تعديل بروفايل محدد
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('DOCTOR','PHARMACIST','LAB_TECH')")
+    public SearchProfileDto updateById(@PathVariable UUID id, @RequestBody SearchProfileDto dto) {
+        return service.updateProfileById(id, dto);
+    }
+
+    // حذف بروفايل محدد
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('DOCTOR','PHARMACIST','LAB_TECH')")
+    public void deleteById(@PathVariable UUID id) {
+        service.deleteProfileById(id);
+    }
+    @GetMapping("/my-profiles")
+    @PreAuthorize("hasAnyRole('DOCTOR','PHARMACIST','LAB_TECH')")
+    public List<SearchProfileDto> getMyProfiles() {
+        return service.getMyProfiles();
+    }
+
+
 }

@@ -137,4 +137,57 @@ public class SearchProfileService {
 
 
 
+    public List<SearchProfileDto> getMyProfiles() {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        Client currentUser = clientRepository.findByUsername(username)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+
+        return repository.findAllByOwnerId(currentUser.getId())
+                .stream()
+                .map(searchProfileMapper::toDto)
+                .toList();
+    }
+
+    public SearchProfileDto updateProfileById(UUID id, SearchProfileDto dto) {
+        SearchProfile profile = repository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Profile not found"));
+
+        // تحديث البيانات
+        profile.setName(dto.getName());
+        profile.setAddress(dto.getAddress());
+        profile.setContactInfo(dto.getContactInfo());
+        profile.setDescription(dto.getDescription());
+        profile.setLocationLat(dto.getLocationLat());
+        profile.setLocationLng(dto.getLocationLng());
+
+        // ✅ عند أي تعديل، يرجع البروفايل لحالة PENDING
+        profile.setStatus(ProfileStatus.PENDING);
+        profile.setRejectionReason(null);
+
+        SearchProfile updatedProfile = repository.save(profile);
+
+        // 🔔 إشعار لصاحب البروفايل
+        notificationService.sendToUser(
+                profile.getOwner().getId(),
+                "✏️ تم تعديل البروفايل الخاص بك، وهو الآن قيد المراجعة من الإدارة."
+        );
+
+        // 🔔 إشعار لجميع المدراء
+        notificationService.sendToRole(
+                RoleName.INSURANCE_MANAGER,
+                "📢 يوجد تعديل جديد على بروفايل من المستخدم: "
+                        + profile.getOwner().getUsername()
+                        + " (اسم البروفايل: " + profile.getName() + ")"
+        );
+
+        return searchProfileMapper.toDto(updatedProfile);
+    }
+
+    public void deleteProfileById(UUID id) {
+        SearchProfile profile = repository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Profile not found"));
+        repository.delete(profile);
+    }
+
+
 }

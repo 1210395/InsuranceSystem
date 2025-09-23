@@ -6,7 +6,10 @@ import com.insurancesystem.Model.Entity.SearchProfile;
 import com.insurancesystem.Model.Entity.Enums.SearchProfileType;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface SearchProfileRepository extends JpaRepository<SearchProfile, UUID> {
@@ -26,4 +29,8 @@ public interface SearchProfileRepository extends JpaRepository<SearchProfile, UU
     List<SearchProfile> findByStatus(ProfileStatus status);
 
 
+    // ✅ يرجع بروفايل صاحب الـ ID (إن وجد)
+    Optional<SearchProfile> findByOwnerId(UUID ownerId);
+
+    List<SearchProfile> findAllByOwnerId(UUID ownerId);
 }
