@@ -66,39 +66,84 @@ public class AuthService {
         if (email != null && clientRepo.existsByEmail(email))
             throw new BadRequestException("Email already exists");
 
+        // ✅ تحديد الدور المطلوب أو الافتراضي
+        RoleName role = req.getDesiredRole() == null ? RoleName.INSURANCE_CLIENT : req.getDesiredRole();
+
+// ✅ التحقق من الحقول حسب الدور
+        switch (role) {
+            case INSURANCE_CLIENT -> {
+                // العميل يجب أن يُدخل بيانات الجامعة الخاصة به
+                if (req.getEmployeeId() == null || req.getDepartment() == null || req.getFaculty() == null) {
+                    throw new BadRequestException("Insurance client must provide employee ID, department, and faculty");
+                }
+
+                // ويتأكد أنه لا يُرسل معلومات تخص الطبيب أو الصيدلي أو المختبر
+                if (req.getClinicLocation() != null || req.getPharmacyCode() != null || req.getLabCode() != null) {
+                    throw new BadRequestException("Insurance client should not contain clinic/lab/pharmacy info");
+                }
+            }
+
+            case DOCTOR -> {
+                if (req.getSpecialization() == null || req.getClinicLocation() == null)
+                    throw new BadRequestException("Doctor must provide specialization and clinic location");
+            }
+            case PHARMACIST -> {
+                if (req.getPharmacyCode() == null || req.getPharmacyName() == null)
+                    throw new BadRequestException("Pharmacist must provide pharmacy code and name");
+            }
+            case LAB_TECH -> {
+                if (req.getLabCode() == null || req.getLabName() == null)
+                    throw new BadRequestException("Lab technician must provide lab code and name");
+            }
+            case INSURANCE_MANAGER, EMERGENCY_MANAGER -> {
+                throw new BadRequestException("This role can only be created by system administrators");
+            }
+        }
+
+
+        // ✅ رفع صورة البطاقة الجامعية (اختياري)
         String imagePath = null;
         if (universityCard != null && !universityCard.isEmpty()) {
             try {
                 String ext = FilenameUtils.getExtension(universityCard.getOriginalFilename());
                 String filename = UUID.randomUUID().toString() + "." + ext;
-
                 Path uploadDir = Path.of("uploads/cards/");
                 Files.createDirectories(uploadDir);
-
                 Path path = uploadDir.resolve(filename);
                 Files.write(path, universityCard.getBytes());
-
                 imagePath = "/uploads/cards/" + filename;
             } catch (IOException e) {
                 throw new RuntimeException("Failed to upload university card", e);
             }
         }
 
+        // ✅ إنشاء كائن العميل
         Client client = Client.builder()
                 .username(username)
                 .passwordHash(passwordEncoder.encode(req.getPassword()))
                 .fullName(req.getFullName())
                 .email(email)
                 .phone(req.getPhone())
+                .employeeId(req.getEmployeeId())
+                .department(req.getDepartment())
+                .faculty(req.getFaculty())
+                .specialization(req.getSpecialization())
+                .clinicLocation(req.getClinicLocation())
+                .pharmacyCode(req.getPharmacyCode())
+                .pharmacyName(req.getPharmacyName())
+                .pharmacyLocation(req.getPharmacyLocation())
+                .labCode(req.getLabCode())
+                .labName(req.getLabName())
+                .labLocation(req.getLabLocation())
                 .status(MemberStatus.INACTIVE)
                 .roleRequestStatus(RoleRequestStatus.PENDING)
-                .requestedRole(req.getDesiredRole() == null ? RoleName.INSURANCE_CLIENT : req.getDesiredRole())
+                .requestedRole(role)
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .universityCardImage(imagePath)
                 .build();
 
-        if (client.getRequestedRole() == RoleName.INSURANCE_MANAGER || client.getRequestedRole() == RoleName.EMERGENCY_MANAGER) {
+        if (role == RoleName.INSURANCE_MANAGER || role == RoleName.EMERGENCY_MANAGER) {
             throw new BadRequestException("This role can only be created by system administrators");
         }
 
@@ -106,10 +151,10 @@ public class AuthService {
 
         if (imagePath != null) {
             saved.setUniversityCardImage(imagePath);
-            saved = clientRepo.save(saved);
+            clientRepo.save(saved);
         }
 
-        if (client.getRequestedRole() == RoleName.INSURANCE_CLIENT && req.isAgreeToPolicy()) {
+        if (role == RoleName.INSURANCE_CLIENT && req.isAgreeToPolicy()) {
             policyService.assignPolicyByName(saved.getId(), "Birzeit University Premium Plus Plan");
         }
 
@@ -122,9 +167,11 @@ public class AuthService {
 
         return RegisterResponse.builder()
                 .user(dto)
-                .message("Registration submitted. Waiting for Insurance Manager approval.")
+                .message("Registration submitted successfully. Awaiting manager approval.")
                 .build();
     }
+
+
 
     public AuthResponse login(LoginRequest req) {
         String username = req.getUsername().trim().toLowerCase();

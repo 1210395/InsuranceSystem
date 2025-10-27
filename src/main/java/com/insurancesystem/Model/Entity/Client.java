@@ -42,6 +42,41 @@ public class Client {
     @Column(length = 40)
     private String phone;
 
+    // بعد الحقل phone
+    @Column(name = "employee_id", length = 50)
+    private String employeeId;
+
+    @Column(name = "department", length = 150)
+    private String department;
+
+    @Column(name = "faculty", length = 150)
+    private String faculty;
+
+    @Column(name = "specialization", length = 150)
+    private String specialization;
+
+    @Column(name = "clinic_location", length = 200)
+    private String clinicLocation;
+
+    @Column(name = "pharmacy_code", length = 50)
+    private String pharmacyCode;
+
+    @Column(name = "pharmacy_name", length = 150)
+    private String pharmacyName;
+
+    @Column(name = "pharmacy_location", length = 200)
+    private String pharmacyLocation;
+
+    @Column(name = "lab_code", length = 50)
+    private String labCode;
+
+    @Column(name = "lab_name", length = 150)
+    private String labName;
+
+    @Column(name = "lab_location", length = 200)
+    private String labLocation;
+
+
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
