@@ -29,6 +29,17 @@ public class CreateClientDto {
 
     @NotEmpty
     private Set<RoleName> roles;
+    private String employeeId;
+    private String department;
+    private String faculty;
+    private String specialization;
+    private String clinicLocation;
+    private String pharmacyCode;
+    private String pharmacyName;
+    private String pharmacyLocation;
+    private String labCode;
+    private String labName;
+    private String labLocation;
 
 
 }
