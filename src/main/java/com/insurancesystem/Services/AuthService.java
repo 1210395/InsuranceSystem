@@ -50,7 +50,7 @@ public class AuthService {
     // ✅ مكان بسيط لتخزين reset tokens (للتجربة فقط)
     private final Map<String, String> resetTokens = new HashMap<>();
 
-    public RegisterResponse register(String reqJson, MultipartFile universityCard) {
+    public RegisterResponse register(String reqJson, MultipartFile universityCard, boolean isAdminRegister) {
         RegisterRequest req;
         try {
             req = new com.fasterxml.jackson.databind.ObjectMapper().readValue(reqJson, RegisterRequest.class);
@@ -66,23 +66,14 @@ public class AuthService {
         if (email != null && clientRepo.existsByEmail(email))
             throw new BadRequestException("Email already exists");
 
-        // ✅ تحديد الدور المطلوب أو الافتراضي
         RoleName role = req.getDesiredRole() == null ? RoleName.INSURANCE_CLIENT : req.getDesiredRole();
 
-// ✅ التحقق من الحقول حسب الدور
+        // 🟣 التحقق من الحقول المطلوبة (ما زال نفس المنطق)
         switch (role) {
             case INSURANCE_CLIENT -> {
-                // العميل يجب أن يُدخل بيانات الجامعة الخاصة به
-                if (req.getEmployeeId() == null || req.getDepartment() == null || req.getFaculty() == null) {
+                if (req.getEmployeeId() == null || req.getDepartment() == null || req.getFaculty() == null)
                     throw new BadRequestException("Insurance client must provide employee ID, department, and faculty");
-                }
-
-                // ويتأكد أنه لا يُرسل معلومات تخص الطبيب أو الصيدلي أو المختبر
-                if (req.getClinicLocation() != null || req.getPharmacyCode() != null || req.getLabCode() != null) {
-                    throw new BadRequestException("Insurance client should not contain clinic/lab/pharmacy info");
-                }
             }
-
             case DOCTOR -> {
                 if (req.getSpecialization() == null || req.getClinicLocation() == null)
                     throw new BadRequestException("Doctor must provide specialization and clinic location");
@@ -100,13 +91,12 @@ public class AuthService {
             }
         }
 
-
-        // ✅ رفع صورة البطاقة الجامعية (اختياري)
+        // 🟢 رفع الصورة إن وجدت
         String imagePath = null;
         if (universityCard != null && !universityCard.isEmpty()) {
             try {
                 String ext = FilenameUtils.getExtension(universityCard.getOriginalFilename());
-                String filename = UUID.randomUUID().toString() + "." + ext;
+                String filename = UUID.randomUUID() + "." + ext;
                 Path uploadDir = Path.of("uploads/cards/");
                 Files.createDirectories(uploadDir);
                 Path path = uploadDir.resolve(filename);
@@ -117,7 +107,11 @@ public class AuthService {
             }
         }
 
-        // ✅ إنشاء كائن العميل
+        // 🧩 الفرق هنا: نقرر الحالة حسب من سجّل
+        MemberStatus status = isAdminRegister ? MemberStatus.ACTIVE : MemberStatus.INACTIVE;
+        RoleRequestStatus roleStatus = isAdminRegister ? RoleRequestStatus.APPROVED : RoleRequestStatus.PENDING;
+
+        // 🟢 إنشاء الكيان
         Client client = Client.builder()
                 .username(username)
                 .passwordHash(passwordEncoder.encode(req.getPassword()))
@@ -135,39 +129,41 @@ public class AuthService {
                 .labCode(req.getLabCode())
                 .labName(req.getLabName())
                 .labLocation(req.getLabLocation())
-                .status(MemberStatus.INACTIVE)
-                .roleRequestStatus(RoleRequestStatus.PENDING)
+                .status(status)
+                .roleRequestStatus(roleStatus)
                 .requestedRole(role)
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .universityCardImage(imagePath)
                 .build();
 
-        if (role == RoleName.INSURANCE_MANAGER || role == RoleName.EMERGENCY_MANAGER) {
-            throw new BadRequestException("This role can only be created by system administrators");
-        }
-
         Client saved = clientRepo.save(client);
 
-        if (imagePath != null) {
-            saved.setUniversityCardImage(imagePath);
-            clientRepo.save(saved);
+        // 🟣 لو كان مدير، نربط الدور مباشرة
+        if (isAdminRegister) {
+            clientServices.addRoleToClient(saved.getId(), role);
         }
 
-        if (role == RoleName.INSURANCE_CLIENT && req.isAgreeToPolicy()) {
+        // 🟣 لو كان عميل وسجل بنفسه، ننتظر الموافقة
+        if (!isAdminRegister && role == RoleName.INSURANCE_CLIENT && req.isAgreeToPolicy()) {
             policyService.assignPolicyByName(saved.getId(), "Birzeit University Premium Plus Plan");
         }
 
         ClientDto dto = clientMapper.toDTO(saved);
 
-        notificationService.sendToRole(
-                RoleName.INSURANCE_MANAGER,
-                "مستخدم جديد (" + saved.getFullName() + ") سجل وينتظر الموافقة."
-        );
+        // 🟣 إشعار فقط لو كان تسجيل عام
+        if (!isAdminRegister) {
+            notificationService.sendToRole(
+                    RoleName.INSURANCE_MANAGER,
+                    "مستخدم جديد (" + saved.getFullName() + ") سجل وينتظر الموافقة."
+            );
+        }
 
         return RegisterResponse.builder()
                 .user(dto)
-                .message("Registration submitted successfully. Awaiting manager approval.")
+                .message(isAdminRegister
+                        ? "✅ Account created successfully by admin"
+                        : "Registration submitted successfully. Awaiting manager approval.")
                 .build();
     }
 

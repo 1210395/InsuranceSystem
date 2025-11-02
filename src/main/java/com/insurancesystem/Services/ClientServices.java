@@ -190,6 +190,29 @@ public class ClientServices {
 
         return clientMapper.toDTO(updated);
     }
+    // ✅ يستخدمها المدير أو النظام لإضافة دور لمستخدم معين مباشرة
+    @Transactional
+    public void addRoleToClient(UUID clientId, RoleName roleName) {
+        // 🔸 البحث عن المستخدم
+        Client client = clientRepo.findById(clientId)
+                .orElseThrow(() -> new NotFoundException("Client not found"));
+
+        // 🔸 جلب الدور المطلوب من خدمة الأدوار
+        var role = roleService.getByNameOrThrow(roleName);
+
+        // 🔸 إضافة الدور للمستخدم (لو مش مضاف مسبقًا)
+        if (!client.getRoles().contains(role)) {
+            client.getRoles().add(role);
+        }
+
+        // 🔸 تحديث حالة الحساب كمفعّل
+        client.setStatus(MemberStatus.ACTIVE);
+        client.setRoleRequestStatus(RoleRequestStatus.APPROVED);
+        client.setRequestedRole(null);
+        client.setUpdatedAt(Instant.now());
+
+        clientRepo.save(client);
+    }
 
 
 
