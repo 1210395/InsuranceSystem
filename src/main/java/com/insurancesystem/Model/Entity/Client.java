@@ -75,7 +75,14 @@ public class Client {
 
     @Column(name = "lab_location", length = 200)
     private String labLocation;
+    @Column(name = "radiology_code", length = 50)
+    private String radiologyCode;
 
+    @Column(name = "radiology_name", length = 150)
+    private String radiologyName;
+
+    @Column(name = "radiology_location", length = 200)
+    private String radiologyLocation;
 
     @Builder.Default
     @Enumerated(EnumType.STRING)

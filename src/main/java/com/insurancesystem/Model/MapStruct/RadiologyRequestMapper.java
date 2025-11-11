@@ -12,16 +12,17 @@ public interface RadiologyRequestMapper {
     @Mapping(source = "doctor.fullName", target = "doctorName")
     @Mapping(source = "member.id", target = "memberId")
     @Mapping(source = "member.fullName", target = "memberName")
-    @Mapping(source = "radiologist.id", target = "radiologistId")  // 🟢 Added for radiologist
-    @Mapping(source = "radiologist.fullName", target = "radiologistName")  // 🟢 Added for radiologist
+    @Mapping(source = "radiologist.id", target = "radiologistId")
+    @Mapping(source = "radiologist.fullName", target = "radiologistName")
     RadiologyRequestDTO toDto(RadiologyRequest radiologyRequest);
 
     // ✅ DTO → Entity
     @Mapping(source = "memberId", target = "member.id")
     @Mapping(source = "doctorId", target = "doctor.id")
-    @Mapping(source = "radiologistId", target = "radiologist.id")  // 🟢 Added for radiologist
-    @Mapping(target = "doctor", ignore = true)  // The doctor will be added in the service layer
-    @Mapping(target = "radiologist", ignore = true)  // The radiologist will be added in the service layer
-    @Mapping(target = "member", ignore = true)  // The member will be added in the service layer
+    @Mapping(source = "radiologistId", target = "radiologist.id")
+    @Mapping(target = "doctor", ignore = true)  // يضاف من Service
+    @Mapping(target = "radiologist", ignore = true)  // يضاف من Service
+    @Mapping(target = "member", ignore = true)  // يضاف من Service
     RadiologyRequest toEntity(RadiologyRequestDTO radiologyRequestDTO);
+
 }

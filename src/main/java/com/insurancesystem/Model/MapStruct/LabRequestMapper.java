@@ -12,15 +12,19 @@ public interface LabRequestMapper {
     @Mapping(source = "doctor.fullName", target = "doctorName")
     @Mapping(source = "member.id", target = "memberId")
     @Mapping(source = "member.fullName", target = "memberName")
-    @Mapping(source = "labTech.id", target = "labTechId")          // 🟢 أضف هذا
-    @Mapping(source = "labTech.fullName", target = "labTechName")  // 🟢 وأضف هذا
+    @Mapping(source = "labTech.id", target = "labTechId")
+    @Mapping(source = "labTech.fullName", target = "labTechName")
+    @Mapping(source = "test.id", target = "testId")
+    @Mapping(source = "test.testName", target = "testName_test")
+    @Mapping(source = "test.unionPrice", target = "unionPrice")
     LabRequestDTO toDto(LabRequest request);
 
     // ✅ DTO → Entity
     @Mapping(source = "memberId", target = "member.id")
-    @Mapping(target = "doctor", ignore = true)   // يضاف من Service
-    @Mapping(target = "labTech", ignore = true)  // يضاف من Service
-    @Mapping(target = "member", ignore = true)   // يضاف من Service
+    @Mapping(target = "doctor", ignore = true)
+    @Mapping(target = "labTech", ignore = true)
+    @Mapping(target = "member", ignore = true)
+    @Mapping(target = "test", ignore = true)
     LabRequest toEntity(LabRequestDTO dto);
-}
 
+}

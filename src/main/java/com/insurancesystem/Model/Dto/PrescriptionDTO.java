@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -14,26 +15,33 @@ import java.util.UUID;
 @AllArgsConstructor
 public class PrescriptionDTO {
     private UUID id;
-    private String medicine;
-    private String dosage;
-    private String instructions;
+
+    // الحالة
     private String status;
 
+    // الأشخاص المعنيين
     private UUID memberId;
-
-    // ✅ جديد
-    private String doctorName;
     private String memberName;
+
+    private String doctorName;
 
     private UUID pharmacistId;
     private String pharmacistName;
 
+    // 🆕 قائمة الأدوية في الوصفة
+    private List<PrescriptionItemDTO> items;
+
+    // 💰 المجموع الكلي
+    private Double totalPrice;
+
+    private String notes; // ملاحظات
+
     private Instant createdAt;
     private Instant updatedAt;
 
-    // للإحصائيات
-    private long total;
-    private long pending;
-    private long verified;
-    private long rejected;
+    // للإحصائيات فقط (stats endpoints)
+    private Long total;
+    private Long pending;
+    private Long verified;
+    private Long rejected;
 }

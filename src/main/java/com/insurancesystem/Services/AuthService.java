@@ -97,7 +97,7 @@ public class AuthService {
             }
             case RADIOLOGIST -> {
                 // New check for Radiologist
-                if (req.getLabCode() == null || req.getLabName() == null)
+                if (req.getRadiologyCode() == null || req.getRadiologyName() == null)
                     throw new BadRequestException("Radiologist must provide lab code and lab name");
             }
             case INSURANCE_MANAGER, EMERGENCY_MANAGER -> {
@@ -139,6 +139,9 @@ public class AuthService {
                 .labCode(req.getLabCode())
                 .labName(req.getLabName())
                 .labLocation(req.getLabLocation())
+                .radiologyCode(req.getRadiologyCode())        // ✅ أضف هذا
+                .radiologyName(req.getRadiologyName())        // ✅ أضف هذا
+                .radiologyLocation(req.getRadiologyLocation()) // ✅ أضف هذا
                 .status(MemberStatus.INACTIVE)
                 .roleRequestStatus(RoleRequestStatus.PENDING)
                 .requestedRole(role)

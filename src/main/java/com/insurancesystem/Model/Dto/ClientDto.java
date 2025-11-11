@@ -33,6 +33,9 @@ public class ClientDto {
     private String labCode;
     private String labName;
     private String labLocation;
+    private String radiologyCode;
+    private String radiologyName;
+    private String radiologyLocation;
 
 
     private RoleName requestedRole;

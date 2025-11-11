@@ -32,7 +32,7 @@ public class ClaimController {
     @PreAuthorize("hasRole('INSURANCE_CLIENT')")
     @PostMapping(value = "/create", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ClaimDTO> createClaim(Authentication auth, @RequestPart("data") String reqJson,
-            @RequestPart(value = "invoiceImage", required = false) MultipartFile invoiceImage
+                                                @RequestPart(value = "invoiceImage", required = false) MultipartFile invoiceImage
     ) throws IOException {
 
         // جلب المستخدم الحالي من الـ Authentication

@@ -30,10 +30,16 @@ public class MedicalRecordController {
         return recordService.createRecord(dto);
     }
 
-    // 📖 جلب جميع السجلات (Doctor أو Admin)
-    @GetMapping("getAll")
+    // 📖 جلب جميع السجلات (Doctor يشوف سجلاته فقط، Manager يشوف الكل)
+    @GetMapping("/getAll")
     @PreAuthorize("hasAnyRole('DOCTOR','INSURANCE_MANAGER')")
-    public List<MedicalRecordDTO> getAll() {
+    public List<MedicalRecordDTO> getAll(Authentication auth) {
+        // إذا كان الدكتور، يشوف فقط سجلاته هو
+        if (auth.getAuthorities().stream().anyMatch(r -> r.getAuthority().equals("ROLE_DOCTOR"))) {
+            return recordService.getByCurrentDoctor();
+        }
+
+        // إذا كان Manager أو Admin، يشوف الكل
         return recordService.getAll();
     }
 
@@ -64,17 +70,27 @@ public class MedicalRecordController {
     public void delete(@PathVariable UUID id) {
         recordService.deleteRecord(id);
     }
+
     @PatchMapping(value = "/me/update", consumes = "multipart/form-data")
     @PreAuthorize("hasRole('DOCTOR')")
     public ResponseEntity<ClientDto> updateDoctorProfile(
+
             Authentication auth,
+
             @RequestPart("data") @Valid UpdateUserDTO dto,
+
             @RequestPart(value = "universityCard", required = false) MultipartFile universityCard
+
     ) {
+
         String username = auth.getName();
+
         ClientDto updated = recordService.updateProfile(username, dto, universityCard);
+
         return ResponseEntity.ok(updated);
+
     }
+
     @GetMapping("/stats")
     @PreAuthorize("hasRole('DOCTOR')")
     public Map<String, Long> getDoctorStats(Authentication auth) {
@@ -83,3 +99,4 @@ public class MedicalRecordController {
     }
 
 }
+

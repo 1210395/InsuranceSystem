@@ -3,7 +3,7 @@ package com.insurancesystem.Controller;
 import com.insurancesystem.Model.Dto.ClientDto;
 import com.insurancesystem.Model.Dto.RadiologyRequestDTO;
 import com.insurancesystem.Model.Dto.UpdateUserDTO;
-import com.insurancesystem.Services.RadiologyRequestService;  // Ensure correct service is injected
+import com.insurancesystem.Services.RadiologyRequestService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -21,13 +21,13 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class RadiologyRequestController {
 
-    private final RadiologyRequestService radiologyService;  // Inject the service
+    private final RadiologyRequestService radiologyService;
 
     // ➕ Doctor creates a Radiology Request
     @PostMapping("/create")
     @PreAuthorize("hasRole('DOCTOR')")
     public RadiologyRequestDTO create(@RequestBody RadiologyRequestDTO dto) {
-        return radiologyService.create(dto);  // Call the service to create the radiology request
+        return radiologyService.create(dto);
     }
 
     // 📖 Radiologist views pending radiology requests
@@ -35,55 +35,58 @@ public class RadiologyRequestController {
     @PreAuthorize("hasRole('RADIOLOGIST')")
     public List<RadiologyRequestDTO> getPendingForRadiologist() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String currentUsername = auth.getName();  // Get the authenticated username
-        UUID radiologistId = radiologyService.getRadiologistIdByUsername(currentUsername);  // Fetch the Radiologist ID
-        return radiologyService.getPendingRequests(radiologistId);  // Fetch pending requests for that radiologist
+        String currentUsername = auth.getName();
+        UUID radiologistId = radiologyService.getRadiologistIdByUsername(currentUsername);
+        return radiologyService.getPendingRequests(radiologistId);
     }
 
-    // 🧪 Radiologist uploads radiology result
+    // 🧪 Radiologist uploads radiology result with test name and price
     @PatchMapping("/{id}/uploadResult")
     @PreAuthorize("hasRole('RADIOLOGIST')")
-    public RadiologyRequestDTO uploadRadiologyResult(@PathVariable UUID id,
-                                                     @RequestParam("file") MultipartFile file) {
-        return radiologyService.uploadRadiologyResult(id, file);  // Handle file upload and associate with the request
+    public RadiologyRequestDTO uploadRadiologyResult(
+            @PathVariable UUID id,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("testName") String testName,
+            @RequestParam("price") Double enteredPrice) {
+        return radiologyService.uploadRadiologyResult(id, file, testName, enteredPrice);
     }
 
-    // 📖 Member or Doctor views the result of a radiology request
+    // 📖 Member or Doctor views the result
     @GetMapping("/{id}/result")
     @PreAuthorize("hasAnyRole('INSURANCE_CLIENT', 'DOCTOR')")
     public RadiologyRequestDTO getResult(@PathVariable UUID id) {
-        return radiologyService.getResult(id);  // Fetch the result for the given request
+        return radiologyService.getResult(id);
     }
 
     // ✏️ Doctor updates the radiology request
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('DOCTOR')")
     public RadiologyRequestDTO update(@PathVariable UUID id, @RequestBody RadiologyRequestDTO dto) {
-        return radiologyService.update(id, dto);  // Update the radiology request details
+        return radiologyService.update(id, dto);
     }
 
     // ❌ Doctor deletes a radiology request
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('DOCTOR')")
     public void delete(@PathVariable UUID id) {
-        radiologyService.delete(id);  // Delete the radiology request
+        radiologyService.delete(id);
     }
 
     // 📖 Doctor views all their radiology requests
     @GetMapping("/doctor/my")
     @PreAuthorize("hasRole('DOCTOR')")
     public List<RadiologyRequestDTO> getByDoctor() {
-        return radiologyService.getByDoctor();  // Get all radiology requests created by the authenticated doctor
+        return radiologyService.getByDoctor();
     }
 
-    // 📊 Radiologist views stats of radiology requests
+    // 📊 Radiologist views stats
     @GetMapping("/stats")
     @PreAuthorize("hasRole('RADIOLOGIST')")
     public RadiologyRequestDTO getRadiologyStats() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String currentUsername = auth.getName();  // Get the authenticated username
-        UUID radiologistId = radiologyService.getRadiologistIdByUsername(currentUsername);  // Fetch the Radiologist ID
-        return radiologyService.getRadiologyStats(radiologistId);  // Fetch stats for the radiologist
+        String currentUsername = auth.getName();
+        UUID radiologistId = radiologyService.getRadiologistIdByUsername(currentUsername);
+        return radiologyService.getRadiologyStats(radiologistId);
     }
 
     // 👤 Radiologist updates their profile
@@ -94,25 +97,32 @@ public class RadiologyRequestController {
             @RequestPart("data") @Valid UpdateUserDTO dto,
             @RequestPart(value = "universityCard", required = false) MultipartFile universityCard
     ) {
-        String username = auth.getName();  // Get the authenticated username
-        ClientDto updated = radiologyService.updateRadiologistProfile(username, dto, universityCard);  // Update the profile
-        return ResponseEntity.ok(updated);  // Return the updated client information
+        String username = auth.getName();
+        ClientDto updated = radiologyService.updateRadiologistProfile(username, dto, universityCard);
+        return ResponseEntity.ok(updated);
     }
 
-    // 📖 Radiologist views all their radiology requests (pending + completed)
+    // 📖 Radiologist views all their requests
     @GetMapping("/my-requests")
     @PreAuthorize("hasRole('RADIOLOGIST')")
     public List<RadiologyRequestDTO> getMyRadiologyRequests() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String currentUsername = auth.getName();  // Get the authenticated username
-        UUID radiologistId = radiologyService.getRadiologistIdByUsername(currentUsername);  // Fetch the Radiologist ID
-        return radiologyService.getAllForCurrentRadiologist(radiologistId);  // Get all requests for the radiologist
+        String currentUsername = auth.getName();
+        UUID radiologistId = radiologyService.getRadiologistIdByUsername(currentUsername);
+        return radiologyService.getAllForCurrentRadiologist(radiologistId);
+    }
+
+    // 📖 Member views their radiology requests
+    @GetMapping("/getByMember")
+    @PreAuthorize("hasRole('INSURANCE_CLIENT')")
+    public List<RadiologyRequestDTO> getByMember() {
+        return radiologyService.getByMember();
     }
 
     // 📖 Get all radiologists
     @GetMapping("/radiologists")
     @PreAuthorize("hasAnyRole('ADMIN','MANAGER','DOCTOR')")
     public List<ClientDto> getAllRadiologists() {
-        return radiologyService.getAllRadiologists();  // Get a list of all radiologists (admin, manager, doctor roles can access)
+        return radiologyService.getAllRadiologists();
     }
 }

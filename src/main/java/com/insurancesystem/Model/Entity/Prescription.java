@@ -5,6 +5,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -20,13 +22,6 @@ public class Prescription {
     @GeneratedValue
     private UUID id;
 
-    @Column(nullable = false)
-    private String medicine;
-
-    private String dosage;
-
-    private String instructions;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PrescriptionStatus status;
@@ -41,10 +36,20 @@ public class Prescription {
     @JoinColumn(name = "member_id", nullable = false)
     private Client member;
 
-    // ✅ الصيدلي اللي تعامل مع الوصفة (Verify / Reject)
+    // ✅ الصيدلي اللي تعامل مع الوصفة (اختياري - بيصير موجود لما يوافق/يرفض)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "pharmacist_id")
     private Client pharmacist;
+
+    // 🆕 قائمة الأدوية في الوصفة (One-to-Many)
+    @OneToMany(mappedBy = "prescription", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<PrescriptionItem> items = new ArrayList<>();
+
+    // 💰 المجموع الكلي للوصفة
+    private Double totalPrice;
+
+    private String notes; // ملاحظات إضافية من الدكتور
 
     private Instant createdAt;
     private Instant updatedAt;
