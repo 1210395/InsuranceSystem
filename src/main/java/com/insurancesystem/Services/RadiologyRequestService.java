@@ -95,8 +95,10 @@ public class RadiologyRequestService {
 
     // 🧪 Radiologist uploads radiology result
     public RadiologyRequestDTO uploadRadiologyResult(UUID requestId, MultipartFile file) {
-        Client radiologist = clientRepository.findByUsername("radiologistUsername")  // Get radiologist from authentication
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        Client radiologist = clientRepository.findByUsername(username)
                 .orElseThrow(() -> new NotFoundException("Radiologist not found"));
+
 
         RadiologyRequest request = radiologyRequestRepository.findById(requestId)
                 .orElseThrow(() -> new NotFoundException("Radiology request not found"));

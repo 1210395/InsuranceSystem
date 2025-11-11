@@ -87,9 +87,15 @@ public class AuthService {
                     throw new BadRequestException("Lab technician must provide lab code and name");
             }
             case RADIOLOGIST -> {
-                if (req.getLabCode() == null || req.getLabName() == null)
-                    throw new BadRequestException("Radiologist must provide lab code and lab name");
+                if (req.getRadiologyCode() == null || req.getRadiologyName() == null)
+                    throw new BadRequestException("Radiologist must provide radiology code and name");
             }
+            case MEDICAL_ADMIN -> {
+                if (req.getEmployeeId() == null || req.getDepartment() == null || req.getFaculty() == null || req.getClinicLocation() == null)
+                    throw new BadRequestException("Medical admin must provide employee ID, department, faculty, and clinic location");
+            }
+
+
             case INSURANCE_MANAGER, EMERGENCY_MANAGER -> {
                 throw new BadRequestException("This role can only be created by system administrators");
             }
@@ -114,6 +120,10 @@ public class AuthService {
         // 🧩 تحديد الحالة حسب من قام بالتسجيل
         MemberStatus status = isAdminRegister ? MemberStatus.ACTIVE : MemberStatus.INACTIVE;
         RoleRequestStatus roleStatus = isAdminRegister ? RoleRequestStatus.APPROVED : RoleRequestStatus.PENDING;
+        if (role == RoleName.MEDICAL_ADMIN) {
+            status = MemberStatus.ACTIVE;
+            roleStatus = RoleRequestStatus.APPROVED;
+        }
 
         // 🟢 إنشاء الكيان
         Client client = Client.builder()
@@ -133,6 +143,10 @@ public class AuthService {
                 .labCode(req.getLabCode())
                 .labName(req.getLabName())
                 .labLocation(req.getLabLocation())
+                .radiologyCode(req.getRadiologyCode())
+                .radiologyName(req.getRadiologyName())
+                .radiologyLocation(req.getRadiologyLocation())
+
                 .status(status)
                 .roleRequestStatus(roleStatus)
                 .requestedRole(role)
@@ -179,9 +193,15 @@ public class AuthService {
             throw new NotFoundException("User not found");
         }
 
-        if (!"ACTIVE".equalsIgnoreCase(clientDTO.getStatus().name())) {
-            throw new BadRequestException("Account is not active. Please wait for approval.");
+        MemberStatus status = clientDTO.getStatus();
+
+        switch (status) {
+            case ACTIVE -> { /* ✅ يسمح بالدخول */ }
+            case INACTIVE -> throw new BadRequestException("⏳ حسابك بانتظار موافقة الإدارة.");
+            case DEACTIVATED -> throw new BadRequestException("🚫 تم تعطيل حسابك من قبل الإدارة.");
+            default -> throw new BadRequestException("❌ حالة الحساب غير معروفة.");
         }
+
 
         var authToken = new UsernamePasswordAuthenticationToken(username, req.getPassword());
         authenticationManager.authenticate(authToken);

@@ -27,45 +27,52 @@ public class Claim {
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "policy_id")
-    private Policy policy; // البوليصة المرتبطة بالمطالبة
+    private Policy policy; // البوليصة
 
     @Column(nullable = false)
-    private String description; // وصف المطالبة
+    private String description;
 
-    private String diagnosis; // التشخيص
-
-    private String treatmentDetails; // تفاصيل العلاج
-
-    @Column(nullable = false)
-    private Double amount; // قيمة المطالبة
+    private String diagnosis;
+    private String treatmentDetails;
 
     @Column(nullable = false)
-    private LocalDate serviceDate; // تاريخ تقديم الخدمة الطبية
+    private Double amount;
 
-    private String providerName; // اسم المستشفى أو العيادة
+    @Column(nullable = false)
+    private LocalDate serviceDate;
 
-    private String doctorName; // اسم الطبيب
+    private String providerName;
+    private String doctorName;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 30)
     private ClaimStatus status;
 
     @Column(name = "invoice_image_path")
-    private String invoiceImagePath; // مسار صورة الفاتورة
+    private String invoiceImagePath;
 
     private Instant submittedAt;
+    private Instant medicalReviewedAt;
+    private Instant adminReviewedAt;
     private Instant approvedAt;
     private Instant rejectedAt;
 
     @Column(columnDefinition = "text")
     private String rejectionReason;
 
+    // تتبع من راجع الموافقة الطبية والإدارية
+    @ManyToOne
+    @JoinColumn(name = "medical_reviewer_id")
+    private Client medicalReviewer;
+
+    @ManyToOne
+    @JoinColumn(name = "admin_reviewer_id")
+    private Client adminReviewer;
+
     @PrePersist
     void onCreate() {
         this.submittedAt = Instant.now();
-        if (this.status == null) {
+        if (this.status == null)
             this.status = ClaimStatus.PENDING;
-        }
     }
-
 }

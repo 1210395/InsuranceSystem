@@ -45,12 +45,7 @@ public class ClientController {
         return ResponseEntity.ok(clientServices.update(id, dto, universityCard));
     }
 
-    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
-    @DeleteMapping("/delete/{id}")
-    public ResponseEntity<Void> deleteUserById(@PathVariable UUID id) {
-        clientServices.delete(id);
-        return ResponseEntity.noContent().build();
-    }
+
 
     @PreAuthorize("hasRole('INSURANCE_MANAGER')")
     @PatchMapping("/{id}/approve")
@@ -73,7 +68,7 @@ public class ClientController {
     @PreAuthorize("hasRole('INSURANCE_MANAGER')")
     @PatchMapping("/{id}/reject")
     public ResponseEntity<Void> rejectAndDelete(@PathVariable UUID id, @Valid @RequestBody RejectReasonDTO dto) {
-        clientServices.rejectRoleRequestAndDelete(id, dto.getReason());
+        clientServices.rejectRoleRequest(id, dto.getReason());
         return ResponseEntity.noContent().build(); // 204
     }
     @PreAuthorize("hasRole('INSURANCE_CLIENT')")
@@ -89,10 +84,23 @@ public class ClientController {
     }
 
 
+    @PatchMapping("/{id}/deactivate")
+    public ResponseEntity<Void> deactivateClient(
+            @PathVariable UUID id,
+            @RequestBody(required = false) Map<String, String> body
+    ) {
+        String reason = (body != null) ? body.getOrDefault("reason", "No reason provided") : "No reason provided";
+        clientServices.deactivateClient(id, reason);
+        return ResponseEntity.noContent().build();
+    }
 
 
-
-
+    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
+    @PatchMapping("/{id}/reactivate")
+    public ResponseEntity<Void> reactivateClient(@PathVariable UUID id) {
+        clientServices.reactivateClient(id);
+        return ResponseEntity.noContent().build();
+    }
 
 
 

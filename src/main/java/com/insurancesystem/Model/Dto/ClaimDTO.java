@@ -27,5 +27,10 @@ public class ClaimDTO {
     private Instant approvedAt;
     private Instant rejectedAt;
     private String rejectionReason;
+    private String medicalReviewerName;
+    private String adminReviewerName;
+    private Instant medicalReviewedAt;
+    private Instant adminReviewedAt;
+
 
 }

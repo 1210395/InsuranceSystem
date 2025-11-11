@@ -46,4 +46,8 @@ public class RegisterRequest {
     private String labCode;
     private String labName;
     private String labLocation;
+    private String radiologyCode;
+    private String radiologyName;
+    private String radiologyLocation;
+
 }
