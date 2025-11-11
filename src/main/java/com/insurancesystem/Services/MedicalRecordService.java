@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-
 @Service
 @RequiredArgsConstructor
 public class MedicalRecordService {
@@ -38,6 +37,7 @@ public class MedicalRecordService {
     private final MedicalRecordMapper medicalRecordMapper;
     private final PrescriptionRepository prrepo;
     private final LabRequestRepository labrepo;
+
     // ➕ إنشاء سجل جديد (Doctor فقط)
     public MedicalRecordDTO createRecord(MedicalRecordDTO dto) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -52,7 +52,7 @@ public class MedicalRecordService {
                     .orElseThrow(() -> new NotFoundException("Member not found"));
         } else if (dto.getMemberName() != null && !dto.getMemberName().isBlank()) {
             member = clientRepo.findByFullName(dto.getMemberName())
-                    .orElseThrow(() -> new NotFoundException("Member not found with this name"));
+                    .orElseThrow(() -> new NotFoundException("MEMBER_NOT_FOUND"));
         } else {
             throw new IllegalArgumentException("You must provide either memberId or memberName");
         }
@@ -66,15 +66,25 @@ public class MedicalRecordService {
         return medicalRecordMapper.toDto(recordRepo.save(record));
     }
 
-
-
-    //  جلب كل السجلات (Doctor أو Manager)
+    // 📖 جلب كل السجلات (Manager أو Admin فقط)
     public List<MedicalRecordDTO> getAll() {
         return recordRepo.findAll()
                 .stream().map(medicalRecordMapper::toDto).collect(Collectors.toList());
     }
 
-    //  جلب سجلات عضو محدد
+    // 📖 جلب سجلات الدكتور الحالي فقط
+    public List<MedicalRecordDTO> getByCurrentDoctor() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String currentUsername = auth.getName();
+
+        Client doctor = clientRepo.findByUsername(currentUsername)
+                .orElseThrow(() -> new NotFoundException("Doctor not found"));
+
+        return recordRepo.findByDoctorId(doctor.getId())
+                .stream().map(medicalRecordMapper::toDto).collect(Collectors.toList());
+    }
+
+    // 📖 جلب سجلات عضو محدد
     public List<MedicalRecordDTO> getByMember(UUID memberId) {
         Client member = clientRepo.findById(memberId)
                 .orElseThrow(() -> new NotFoundException("Member not found"));
@@ -92,7 +102,7 @@ public class MedicalRecordService {
                 .stream().map(medicalRecordMapper::toDto).collect(Collectors.toList());
     }
 
-    //  جلب سجل واحد
+    // 📖 جلب سجل واحد
     public MedicalRecordDTO getById(UUID id) {
         MedicalRecord record = recordRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException("Medical record not found"));
@@ -109,7 +119,7 @@ public class MedicalRecordService {
         return medicalRecordMapper.toDto(record);
     }
 
-    //  تحديث سجل (Doctor فقط)
+    // ✏️ تحديث سجل (Doctor فقط)
     public MedicalRecordDTO updateRecord(UUID id, MedicalRecordDTO dto) {
         MedicalRecord record = recordRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException("Medical record not found"));
@@ -122,13 +132,14 @@ public class MedicalRecordService {
         return medicalRecordMapper.toDto(recordRepo.save(record));
     }
 
-    //  حذف سجل (Doctor فقط)
+    // ❌ حذف سجل (Doctor فقط)
     public void deleteRecord(UUID id) {
         if (!recordRepo.existsById(id)) {
             throw new NotFoundException("Medical record not found");
         }
         recordRepo.deleteById(id);
     }
+
     public ClientDto updateProfile(String username, UpdateUserDTO dto, MultipartFile universityCard) {
         Client client = clientRepo.findByUsername(username)
                 .orElseThrow(() -> new NotFoundException("User not found"));
@@ -165,6 +176,7 @@ public class MedicalRecordService {
         response.setUniversityCardImage(client.getUniversityCardImage());
         return response;
     }
+
     public Map<String, Long> getDoctorStats(String username) {
         Client doctor = clientRepo.findByUsername(username)
                 .orElseThrow(() -> new NotFoundException("Doctor not found"));
@@ -183,4 +195,6 @@ public class MedicalRecordService {
 
         return stats;
     }
+
 }
+

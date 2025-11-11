@@ -44,6 +44,7 @@ public class Client {
     @Column(length = 40)
     private String phone;
 
+    // بعد الحقل phone
     @Column(name = "employee_id", length = 50)
     private String employeeId;
 
@@ -76,7 +77,6 @@ public class Client {
 
     @Column(name = "lab_location", length = 200)
     private String labLocation;
-
     @Column(name = "radiology_code", length = 50)
     private String radiologyCode;
 

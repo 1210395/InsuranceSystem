@@ -11,10 +11,13 @@ import com.insurancesystem.Model.Entity.Enums.LabRequestStatus;
 import com.insurancesystem.Model.MapStruct.ClientMapper;
 import com.insurancesystem.Model.MapStruct.RadiologyRequestMapper;
 import com.insurancesystem.Repository.ClientRepository;
+
 import com.insurancesystem.Repository.RadiologistRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -26,27 +29,33 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RadiologyRequestService {
 
     private final RadiologistRepository radiologyRequestRepository;
     private final ClientRepository clientRepository;
     private final RadiologyRequestMapper radiologyRequestMapper;
     private final ClientMapper clientMapper;
+    private final NotificationService notificationService;
 
-    // 🧑‍⚕️ Get the radiologist's ID from the username (authentication)
+    // 🧑‍⚕️ Get the radiologist's ID from the username
     public UUID getRadiologistIdByUsername(String username) {
         Client radiologist = clientRepository.findByUsername(username)
                 .orElseThrow(() -> new NotFoundException("Radiologist not found"));
-        return radiologist.getId();  // Return the Radiologist's ID
+        return radiologist.getId();
     }
 
-    // ➕ Create a new Radiology Request
+    // ➕ Create a new Radiology Request (Single Request - NOT duplicated for each radiologist)
+    @Transactional
     public RadiologyRequestDTO create(RadiologyRequestDTO dto) {
+        log.info("🔹 Creating a single radiology request...");
+
         String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        // 🧑‍⚕️ Get the doctor from the authenticated username
+        // 🧑‍⚕️ Get the doctor
         Client doctor = clientRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new NotFoundException("Doctor not found"));
+        log.info("✅ Doctor found: {}", doctor.getFullName());
 
         // 👤 Get the member (patient)
         Client member;
@@ -59,44 +68,58 @@ public class RadiologyRequestService {
         } else {
             throw new RuntimeException("Member info required");
         }
+        log.info("✅ Member found: {}", member.getFullName());
 
-        // 🧑‍🔬 Get the radiologist (lab tech)
-        Client radiologist;
-        if (dto.getRadiologistId() != null) {
-            radiologist = clientRepository.findById(dto.getRadiologistId())
-                    .orElseThrow(() -> new NotFoundException("Radiologist not found"));
-        } else if (dto.getRadiologistName() != null && !dto.getRadiologistName().isBlank()) {
-            radiologist = clientRepository.findByFullName(dto.getRadiologistName())
-                    .orElseThrow(() -> new NotFoundException("Radiologist not found with name: " + dto.getRadiologistName()));
-        } else {
-            throw new RuntimeException("Radiologist info required");
-        }
-
-        // 📝 Create the radiology request
+        // 📝 إنشاء طلب واحد فقط (بدون تخصيص لراديولوجي معين في البداية)
         RadiologyRequest request = radiologyRequestMapper.toEntity(dto);
         request.setDoctor(doctor);
         request.setMember(member);
-        request.setRadiologist(radiologist);  // Set the radiologist for the request
+        request.setRadiologist(null); // سيتم تعيين الراديولوجي عند الرد
         request.setStatus(LabRequestStatus.PENDING);
         request.setCreatedAt(Instant.now());
         request.setUpdatedAt(Instant.now());
 
-        return radiologyRequestMapper.toDto(radiologyRequestRepository.save(request));
+        RadiologyRequest savedRequest = radiologyRequestRepository.save(request);
+        log.info("✅ Radiology request created - Request ID: {}", savedRequest.getId());
+
+        // 🧑‍🔬 جلب جميع الراديولوجيين لإرسال إشعارات
+        List<Client> allRadiologists = clientRepository.findByRoles_Name(RoleName.RADIOLOGIST);
+
+        // 🔔 إرسال إشعار لجميع الراديولوجيين
+        for (Client radiologist : allRadiologists) {
+            notificationService.sendToUser(
+                    radiologist.getId(),
+                    "📋 لديك طلب فحص إشعاعي جديد من الدكتور " + doctor.getFullName() +
+                            " للمريض " + member.getFullName()
+            );
+        }
+
+        // 🔔 إرسال إشعار للمريض
+        notificationService.sendToUser(
+                member.getId(),
+                "📊 تم إنشاء طلب فحص إشعاعي جديد بواسطة الدكتور " + doctor.getFullName()
+        );
+
+        log.info("✅ Radiology request created successfully");
+        return radiologyRequestMapper.toDto(savedRequest);
     }
 
-    // 📖 Radiologist views pending radiology requests
+    // 📖 Radiologist views pending radiology requests (all unassigned requests)
     public List<RadiologyRequestDTO> getPendingRequests(UUID radiologistId) {
-        return radiologyRequestRepository.findByRadiologistId(radiologistId)
+        // جلب جميع الطلبات المعلقة (سواء كانت null radiologist أو لم تكتمل بعد)
+        return radiologyRequestRepository.findByStatus(LabRequestStatus.PENDING)
                 .stream()
-                .filter(request -> request.getStatus() == LabRequestStatus.PENDING)
                 .map(radiologyRequestMapper::toDto)
                 .collect(Collectors.toList());
     }
 
-    // 🧪 Radiologist uploads radiology result
-    public RadiologyRequestDTO uploadRadiologyResult(UUID requestId, MultipartFile file) {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        Client radiologist = clientRepository.findByUsername(username)
+    // 🧪 Radiologist uploads radiology result with test name and price
+    @Transactional
+    public RadiologyRequestDTO uploadRadiologyResult(UUID requestId, MultipartFile file, String testName, Double enteredPrice) {
+        log.info("🔹 Radiologist uploading result for request: {}", requestId);
+
+        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+        Client radiologist = clientRepository.findByUsername(currentUsername)
                 .orElseThrow(() -> new NotFoundException("Radiologist not found"));
 
 
@@ -117,18 +140,37 @@ public class RadiologyRequestService {
             Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
 
             request.setResultUrl("/" + uploadDir + "/" + fileName);
+            request.setTestName(testName);
+            request.setEnteredPrice(enteredPrice);
             request.setStatus(LabRequestStatus.COMPLETED);
             request.setRadiologist(radiologist);
             request.setUpdatedAt(Instant.now());
 
+            log.info("✅ Radiology result uploaded successfully. Test: {}, Price: {}", testName, enteredPrice);
+
         } catch (IOException e) {
+            log.error("❌ Failed to upload radiology result: {}", e.getMessage());
             throw new RuntimeException("Failed to upload radiology result", e);
         }
 
-        return radiologyRequestMapper.toDto(radiologyRequestRepository.save(request));
+        RadiologyRequest saved = radiologyRequestRepository.save(request);
+
+        // 🔔 إرسال إشعار للمريض عند إكمال الفحص
+        notificationService.sendToUser(
+                saved.getMember().getId(),
+                "✅ تم إكمال فحص الأشعة: " + testName + " - السعر: " + enteredPrice + " د.ك"
+        );
+
+        // 🔔 إرسال إشعار للطبيب عند إكمال الفحص
+        notificationService.sendToUser(
+                saved.getDoctor().getId(),
+                "✅ تم إكمال فحص الأشعة للمريض " + saved.getMember().getFullName() + ": " + testName
+        );
+
+        return radiologyRequestMapper.toDto(saved);
     }
 
-    // 📖 Member or Doctor views the result of a radiology request
+    // 📖 Member or Doctor views the result
     public RadiologyRequestDTO getResult(UUID id) {
         RadiologyRequest request = radiologyRequestRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Radiology request not found"));
@@ -137,6 +179,7 @@ public class RadiologyRequestService {
     }
 
     // ✏️ Doctor updates the radiology request
+    @Transactional
     public RadiologyRequestDTO update(UUID id, RadiologyRequestDTO dto) {
         String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
         Client doctor = clientRepository.findByUsername(currentUsername)
@@ -153,7 +196,6 @@ public class RadiologyRequestService {
             throw new RuntimeException("Cannot update a completed radiology request");
         }
 
-        request.setTestName(dto.getTestName());
         request.setNotes(dto.getNotes());
         request.setUpdatedAt(Instant.now());
 
@@ -161,6 +203,7 @@ public class RadiologyRequestService {
     }
 
     // ❌ Doctor deletes a radiology request
+    @Transactional
     public void delete(UUID id) {
         String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
         Client doctor = clientRepository.findByUsername(currentUsername)
@@ -192,9 +235,11 @@ public class RadiologyRequestService {
                 .collect(Collectors.toList());
     }
 
-    // 📊 Radiologist views stats of radiology requests
+    // 📊 Radiologist views stats
     public RadiologyRequestDTO getRadiologyStats(UUID radiologistId) {
-        long pending = radiologyRequestRepository.countByStatusAndRadiologistId(LabRequestStatus.PENDING, radiologistId);
+        // الطلبات المعلقة (كل طلب جديد لم يتم إكماله)
+        long pending = radiologyRequestRepository.findByStatus(LabRequestStatus.PENDING).size();
+        // الطلبات المكتملة من قبل هذا الراديولوجي
         long completed = radiologyRequestRepository.countByStatusAndRadiologistId(LabRequestStatus.COMPLETED, radiologistId);
         long total = pending + completed;
 
@@ -205,9 +250,20 @@ public class RadiologyRequestService {
                 .build();
     }
 
-    // 📖 Radiologist views all their radiology requests (pending + completed)
+    // 📖 Radiologist views all their requests (completed requests where they are assigned)
     public List<RadiologyRequestDTO> getAllForCurrentRadiologist(UUID radiologistId) {
         return radiologyRequestRepository.findByRadiologistId(radiologistId)
+                .stream()
+                .map(radiologyRequestMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
+    // 📖 Member views their radiology requests
+    public List<RadiologyRequestDTO> getByMember() {
+        String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+        Client member = clientRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new NotFoundException("Member not found"));
+        return radiologyRequestRepository.findByMemberId(member.getId())
                 .stream()
                 .map(radiologyRequestMapper::toDto)
                 .collect(Collectors.toList());
@@ -222,6 +278,7 @@ public class RadiologyRequestService {
     }
 
     // 📖 Radiologist updates their profile
+    @Transactional
     public ClientDto updateRadiologistProfile(String username, UpdateUserDTO dto, MultipartFile universityCard) {
         Client radiologist = clientRepository.findByUsername(username)
                 .orElseThrow(() -> new NotFoundException("Radiologist not found"));
@@ -248,7 +305,7 @@ public class RadiologyRequestService {
 
                 radiologist.setUniversityCardImage("/uploads/radiologists/" + fileName);
             } catch (IOException e) {
-                throw new RuntimeException("❌ Failed to save radiologist image", e);
+                throw new RuntimeException("Failed to save radiologist image", e);
             }
         }
 

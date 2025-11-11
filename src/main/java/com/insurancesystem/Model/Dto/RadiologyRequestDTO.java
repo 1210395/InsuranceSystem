@@ -12,30 +12,33 @@ import java.util.UUID;
 @NoArgsConstructor
 public class RadiologyRequestDTO {
 
-    private UUID id;  // Unique identifier for the radiology request
+    private UUID id;
 
-    private String testName;  // Type of radiology test (e.g., X-ray, MRI, CT scan, etc.)
+    private String testName; // اسم الفحص (يدخله الراديولوجي)
 
-    private String notes;  // Notes or comments from the doctor requesting the radiology test
+    private String notes; // ملاحظات من الدكتور
 
-    private String resultUrl;  // URL or path to the result file from the radiology department
+    private String resultUrl; // رابط النتيجة
 
-    private String status;  // Status of the request (e.g., PENDING, COMPLETED)
+    private String status; // حالة الطلب
 
-    private UUID doctorId;  // ID of the doctor who created the radiology request
-    private String doctorName;  // Name of the doctor who created the radiology request
+    private UUID doctorId;
+    private String doctorName;
 
-    private UUID memberId;  // ID of the member (patient) for whom the radiology test is requested
-    private String memberName;  // Name of the member (patient)
+    private UUID memberId;
+    private String memberName;
 
-    private UUID radiologistId;  // ID of the radiologist handling the request
-    private String radiologistName;  // Name of the radiologist handling the request
+    private UUID radiologistId;
+    private String radiologistName;
 
-    private long total;  // Total number of radiology requests (could be useful for reporting)
-    private long pending;  // Number of pending requests
-    private long completed;  // Number of completed requests
+    // 🟢 السعر (يدخله الراديولوجي مباشرة)
+    private Double enteredPrice; // السعر الذي يدخله الراديولوجي
 
-    private Instant createdAt;  // Timestamp when the radiology request was created
-    private Instant updatedAt;  // Timestamp when the radiology request was last updated
+    private long total;
+    private long pending;
+    private long completed;
+
+    private Instant createdAt;
+    private Instant updatedAt;
 
 }

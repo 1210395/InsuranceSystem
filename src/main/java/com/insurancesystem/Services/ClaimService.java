@@ -128,6 +128,7 @@ public class ClaimService {
 
         claim.setRejectionReason(dto.getReason());
         claim.setRejectedAt(Instant.now());
+        claim.setRejectionReason(dto.getReason());
         claimRepo.save(claim);
 
         notificationService.sendToUser(

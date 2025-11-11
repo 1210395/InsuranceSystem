@@ -3,11 +3,14 @@ package com.insurancesystem.Repository;
 import com.insurancesystem.Model.Entity.Prescription;
 import com.insurancesystem.Model.Entity.Enums.PrescriptionStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.UUID;
 
 public interface PrescriptionRepository extends JpaRepository<Prescription, UUID> {
+
     // 🔹 المريض
     List<Prescription> findByMemberId(UUID memberId);
 
@@ -16,17 +19,41 @@ public interface PrescriptionRepository extends JpaRepository<Prescription, UUID
 
     // 🔹 إحصائيات الدكتور
     long countByDoctorId(UUID doctorId);
+
     long countByDoctorIdAndStatus(UUID doctorId, PrescriptionStatus status);
 
     // 🔹 إحصائيات عامة
     long countByStatus(PrescriptionStatus status);
+
     long countByMemberIdAndStatus(UUID memberId, PrescriptionStatus status);
 
     // 🔹 إحصائيات الصيدلي
     long countByPharmacistId(UUID pharmacistId);
+
     long countByPharmacistIdAndStatus(UUID pharmacistId, PrescriptionStatus status);
-    // PrescriptionRepository.java
+
+    // 🔹 الوصفات حسب الدكتور
     List<Prescription> findByDoctorId(UUID doctorId);
+
+    // 🔹 الوصفات حسب الصيدلي
     List<Prescription> findByPharmacistId(UUID pharmacistId);
 
+    // 🔹 البحث عن وصفات المريض حسب الحالة
+    List<Prescription> findByMemberIdAndStatus(UUID memberId, PrescriptionStatus status);
+
+    // 🔹 البحث عن وصفات المريض مع الحالات المتعددة (PENDING و VERIFIED)
+    @Query("SELECT p FROM Prescription p WHERE p.member.id = :memberId AND (p.status = 'PENDING' OR p.status = 'VERIFIED')")
+    List<Prescription> findActivePrescriptionsByMember(@Param("memberId") UUID memberId);
+
+    // 🔹 البحث عن وصفات المريض والدكتور
+    List<Prescription> findByMemberIdAndDoctorId(UUID memberId, UUID doctorId);
+
+    // 🔹 البحث عن وصفات المريض والصيدلي
+    List<Prescription> findByMemberIdAndPharmacistId(UUID memberId, UUID pharmacistId);
+
+    // 🔹 البحث عن وصفات الدكتور والحالة
+    List<Prescription> findByDoctorIdAndStatus(UUID doctorId, PrescriptionStatus status);
+
+    // 🔹 البحث عن وصفات الصيدلي والحالة
+    List<Prescription> findByPharmacistIdAndStatus(UUID pharmacistId, PrescriptionStatus status);
 }

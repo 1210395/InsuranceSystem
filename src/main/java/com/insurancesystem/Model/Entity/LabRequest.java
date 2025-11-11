@@ -21,11 +21,11 @@ public class LabRequest {
     private UUID id;
 
     @Column(nullable = false)
-    private String testName; // نوع الفحص (دم، صورة أشعة..)
+    private String testName; // نوع الفحص
 
     private String notes; // ملاحظات من الدكتور
 
-    private String resultUrl; // رابط أو مسار ملف النتيجة (من المختبر)
+    private String resultUrl; // رابط أو مسار ملف النتيجة
 
     @Enumerated(EnumType.STRING)
     private LabRequestStatus status;
@@ -38,8 +38,17 @@ public class LabRequest {
     @JoinColumn(name = "member_id", nullable = false)
     private Client member;
 
+    // 🟢 علاقة مع جدول الفحصوات
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "test_id")
+    private Test test;
+
+    private Double enteredPrice; // السعر الذي دخله اللاب تِك
+    private Double approvedPrice; // السعر المعتمد (الأقل من النقابي)
+
     private Instant createdAt;
     private Instant updatedAt;
+
     @ManyToOne
     @JoinColumn(name = "lab_tech_id")
     private Client labTech;

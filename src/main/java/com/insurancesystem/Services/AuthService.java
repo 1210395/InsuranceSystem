@@ -149,6 +149,11 @@ public class AuthService {
 
                 .status(status)
                 .roleRequestStatus(roleStatus)
+                .radiologyCode(req.getRadiologyCode())        // ✅ أضف هذا
+                .radiologyName(req.getRadiologyName())        // ✅ أضف هذا
+                .radiologyLocation(req.getRadiologyLocation()) // ✅ أضف هذا
+                .status(MemberStatus.INACTIVE)
+                .roleRequestStatus(RoleRequestStatus.PENDING)
                 .requestedRole(role)
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
@@ -207,6 +212,7 @@ public class AuthService {
         authenticationManager.authenticate(authToken);
 
         var ud = customUserDetailsService.loadUserByUsername(username);
+
         String token = jwtService.generateToken(ud.getUsername());
 
         return AuthResponse.builder()

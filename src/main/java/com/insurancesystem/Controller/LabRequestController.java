@@ -43,12 +43,13 @@ public class LabRequestController {
         return labService.getPending();
     }
 
-    // 🧪 Lab Technician يرفع النتيجة (ملف حقيقي)
+    // 🧪 Lab Technician يرفع النتيجة والسعر
     @PatchMapping("/{id}/upload")
     @PreAuthorize("hasRole('LAB_TECH')")
     public LabRequestDTO uploadResult(@PathVariable UUID id,
-                                      @RequestParam("file") MultipartFile file) {
-        return labService.uploadResult(id, file);
+                                      @RequestParam("file") MultipartFile file,
+                                      @RequestParam("price") Double enteredPrice) {
+        return labService.uploadResult(id, file, enteredPrice);
     }
 
     // 📖 Member أو Doctor يشوف نتيجة
@@ -71,6 +72,7 @@ public class LabRequestController {
     public void delete(@PathVariable UUID id) {
         labService.delete(id);
     }
+
     @GetMapping("/doctor/my")
     @PreAuthorize("hasRole('DOCTOR')")
     public List<LabRequestDTO> getByDoctor() {
@@ -83,6 +85,7 @@ public class LabRequestController {
     public LabRequestDTO getLabStats() {
         return labService.getLabStats();
     }
+
     // 👤 Lab Worker يحدّث بروفايله
     @PatchMapping(value = "/me/update", consumes = "multipart/form-data")
     @PreAuthorize("hasRole('LAB_TECH')")
@@ -105,11 +108,10 @@ public class LabRequestController {
 
     // 📖 جميع الفنيين (Lab Technicians)
     @GetMapping("/labtechs")
-    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','DOCTOR')") // السماح للدكتور كمان
+    @PreAuthorize("hasAnyRole('ADMIN','MANAGER','DOCTOR')")
     public List<ClientDto> getAllLabTechs() {
         return labService.getAllLabTechs();
     }
 
-
-
 }
+
