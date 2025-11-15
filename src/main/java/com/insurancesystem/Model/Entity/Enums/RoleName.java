@@ -8,4 +8,5 @@ public enum RoleName {
     EMERGENCY_MANAGER,
     INSURANCE_MANAGER,
     RADIOLOGIST // إضافة فني أشعة
+    , MEDICAL_ADMIN
 }

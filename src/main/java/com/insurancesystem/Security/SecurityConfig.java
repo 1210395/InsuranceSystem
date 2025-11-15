@@ -32,11 +32,14 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource())) // ✅ إضافة دعم CORS
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll() // السماح بالـ login & register
-                        .requestMatchers("/uploads/**").permitAll() // 👈 اسمح لأي حدا يشوف الصور
+                        .requestMatchers(
+                                "/api/auth/**",
+                                "/uploads/**",
+                                "/ws-chat/**"      // 👈 السماح بالـ WebSocket endpoint
+                        ).permitAll()
                         .anyRequest().authenticated()
-
                 )
+
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

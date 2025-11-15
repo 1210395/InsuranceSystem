@@ -2,10 +2,9 @@ package com.insurancesystem.Controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.insurancesystem.Exception.NotFoundException;
-import com.insurancesystem.Model.Dto.ClaimDTO;
-import com.insurancesystem.Model.Dto.CreateClaimDTO;
-import com.insurancesystem.Model.Dto.RejectClaimDTO;
+import com.insurancesystem.Model.Dto.*;
 import com.insurancesystem.Model.Entity.Client;
+import com.insurancesystem.Model.Entity.Enums.RoleName;
 import com.insurancesystem.Repository.ClientRepository;
 import com.insurancesystem.Services.ClaimService;
 import lombok.RequiredArgsConstructor;
@@ -29,24 +28,26 @@ public class ClaimController {
     private final ClientRepository clientRepo;
     private final ObjectMapper objectMapper;
 
-    @PreAuthorize("hasRole('INSURANCE_CLIENT')")
+    // 🟢 إنشاء مطالبة جديدة من عضو أو طبيب
+    @PreAuthorize("hasAnyRole('DOCTOR', 'INSURANCE_CLIENT')")
     @PostMapping(value = "/create", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ClaimDTO> createClaim(Authentication auth, @RequestPart("data") String reqJson,
-                                                @RequestPart(value = "invoiceImage", required = false) MultipartFile invoiceImage
+    public ResponseEntity<ClaimDTO> createClaim(
+            Authentication auth,
+            @RequestPart("data") String reqJson,
+            @RequestPart(value = "invoiceImage", required = false) MultipartFile invoiceImage
     ) throws IOException {
 
-        // جلب المستخدم الحالي من الـ Authentication
         String username = auth.getName();
         Client client = clientRepo.findByUsername(username)
                 .orElseThrow(() -> new NotFoundException("Client not found"));
 
-        // تحويل JSON إلى DTO
         CreateClaimDTO dto = objectMapper.readValue(reqJson, CreateClaimDTO.class);
 
         return ResponseEntity.ok(claimService.createClaim(client.getId(), dto, invoiceImage));
     }
 
-    @PreAuthorize("hasRole('INSURANCE_CLIENT')")
+    // 📋 عرض كل المطالبات الخاصة بعضو واحد
+    @PreAuthorize("hasAnyRole('INSURANCE_CLIENT', 'MEDICAL_ADMIN', 'INSURANCE_MANAGER')")
     @GetMapping("/allClaimForOneMember")
     public ResponseEntity<List<ClaimDTO>> getMemberClaims(Authentication auth) {
         Client client = clientRepo.findByUsername(auth.getName())
@@ -54,34 +55,77 @@ public class ClaimController {
         return ResponseEntity.ok(claimService.getMemberClaims(client.getId()));
     }
 
-
-    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
+    // 📋 عرض جميع المطالبات (للإداريين فقط)
+    @PreAuthorize("hasAnyRole('INSURANCE_MANAGER', 'MEDICAL_ADMIN')")
     @GetMapping("/allClaimsByManager")
     public ResponseEntity<List<ClaimDTO>> getAllClaims() {
         return ResponseEntity.ok(claimService.getAllClaims());
     }
 
-    @PreAuthorize("hasAnyRole('INSURANCE_MANAGER', 'INSURANCE_CLIENT')")
+    // 📋 عرض مطالبة معينة بالتفصيل
+    @PreAuthorize("hasAnyRole('INSURANCE_CLIENT', 'MEDICAL_ADMIN','INSURANCE_MANAGER')")
     @GetMapping("/ByIdClaim/{id}")
     public ResponseEntity<ClaimDTO> getClaim(@PathVariable UUID id, Authentication auth) {
         String username = auth.getName();
         Client client = clientRepo.findByUsername(username)
                 .orElseThrow(() -> new NotFoundException("Client not found"));
+
         boolean isManager = auth.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_INSURANCE_MANAGER"));
+                .anyMatch(a -> a.getAuthority().equals("ROLE_INSURANCE_MANAGER") ||
+                        a.getAuthority().equals("ROLE_MEDICAL_ADMIN"));
+
         return ResponseEntity.ok(claimService.getClaim(id, client.getId(), isManager));
     }
 
-    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
+    // ✅ موافقة على مطالبة (طبية أو إدارية)
+    @PreAuthorize("hasAnyRole('INSURANCE_MANAGER', 'MEDICAL_ADMIN')")
     @PatchMapping("/{id}/approve")
-    public ResponseEntity<ClaimDTO> approveClaim(@PathVariable UUID id) {
-        return ResponseEntity.ok(claimService.approveClaim(id));
+    public ResponseEntity<ClaimDTO> approveClaim(@PathVariable UUID id, Authentication auth) {
+        String username = auth.getName();
+        Client user = clientRepo.findByUsername(username)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+
+        RoleName role = user.getRoles().stream()
+                .map(r -> r.getName())
+                .filter(r -> r == RoleName.MEDICAL_ADMIN || r == RoleName.INSURANCE_MANAGER)
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException("Unauthorized role"));
+
+        return ResponseEntity.ok(claimService.approveClaim(id, role, user.getId()));
     }
 
-    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
+    // ❌ رفض مطالبة (طبي أو إداري)
+    @PreAuthorize("hasAnyRole('INSURANCE_MANAGER', 'MEDICAL_ADMIN')")
     @PatchMapping("/{id}/reject")
-    public ResponseEntity<ClaimDTO> rejectClaim(@PathVariable UUID id, @RequestBody RejectClaimDTO dto) {
-        return ResponseEntity.ok(claimService.rejectClaim(id, dto));
+    public ResponseEntity<ClaimDTO> rejectClaim(
+            @PathVariable UUID id,
+            @RequestBody RejectClaimDTO dto,
+            Authentication auth
+    ) {
+        String username = auth.getName();
+        Client user = clientRepo.findByUsername(username)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+
+        RoleName role = user.getRoles().stream()
+                .map(r -> r.getName())
+                .filter(r -> r == RoleName.MEDICAL_ADMIN || r == RoleName.INSURANCE_MANAGER)
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException("Unauthorized role"));
+
+        return ResponseEntity.ok(claimService.rejectClaim(id, dto, role, user.getId()));
     }
 
+    // 🩺 المطالبات بانتظار المراجعة الطبية
+    @PreAuthorize("hasRole('MEDICAL_ADMIN')")
+    @GetMapping("/medical-review")
+    public ResponseEntity<List<ClaimDTO>> getClaimsForMedicalReview() {
+        return ResponseEntity.ok(claimService.getClaimsForMedicalReview());
+    }
+
+    // 🧾 المطالبات بانتظار المراجعة الإدارية
+    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
+    @GetMapping("/admin-review")
+    public ResponseEntity<List<ClaimDTO>> getClaimsForAdminReview() {
+        return ResponseEntity.ok(claimService.getClaimsForAdminReview());
+    }
 }

@@ -50,7 +50,7 @@ public class AuthService {
     // ✅ مكان بسيط لتخزين reset tokens (للتجربة فقط)
     private final Map<String, String> resetTokens = new HashMap<>();
 
-    public RegisterResponse register(String reqJson, MultipartFile universityCard) {
+    public RegisterResponse register(String reqJson, MultipartFile universityCard, boolean isAdminRegister) {
         RegisterRequest req;
         try {
             req = new com.fasterxml.jackson.databind.ObjectMapper().readValue(reqJson, RegisterRequest.class);
@@ -66,23 +66,14 @@ public class AuthService {
         if (email != null && clientRepo.existsByEmail(email))
             throw new BadRequestException("Email already exists");
 
-        // ✅ تحديد الدور المطلوب أو الافتراضي
         RoleName role = req.getDesiredRole() == null ? RoleName.INSURANCE_CLIENT : req.getDesiredRole();
 
         // ✅ التحقق من الحقول حسب الدور
         switch (role) {
             case INSURANCE_CLIENT -> {
-                // العميل يجب أن يُدخل بيانات الجامعة الخاصة به
-                if (req.getEmployeeId() == null || req.getDepartment() == null || req.getFaculty() == null) {
+                if (req.getEmployeeId() == null || req.getDepartment() == null || req.getFaculty() == null)
                     throw new BadRequestException("Insurance client must provide employee ID, department, and faculty");
-                }
-
-                // ويتأكد أنه لا يُرسل معلومات تخص الطبيب أو الصيدلي أو المختبر
-                if (req.getClinicLocation() != null || req.getPharmacyCode() != null || req.getLabCode() != null) {
-                    throw new BadRequestException("Insurance client should not contain clinic/lab/pharmacy info");
-                }
             }
-
             case DOCTOR -> {
                 if (req.getSpecialization() == null || req.getClinicLocation() == null)
                     throw new BadRequestException("Doctor must provide specialization and clinic location");
@@ -96,10 +87,15 @@ public class AuthService {
                     throw new BadRequestException("Lab technician must provide lab code and name");
             }
             case RADIOLOGIST -> {
-                // New check for Radiologist
                 if (req.getRadiologyCode() == null || req.getRadiologyName() == null)
-                    throw new BadRequestException("Radiologist must provide lab code and lab name");
+                    throw new BadRequestException("Radiologist must provide radiology code and name");
             }
+            case MEDICAL_ADMIN -> {
+                if (req.getEmployeeId() == null || req.getDepartment() == null || req.getFaculty() == null || req.getClinicLocation() == null)
+                    throw new BadRequestException("Medical admin must provide employee ID, department, faculty, and clinic location");
+            }
+
+
             case INSURANCE_MANAGER, EMERGENCY_MANAGER -> {
                 throw new BadRequestException("This role can only be created by system administrators");
             }
@@ -110,7 +106,7 @@ public class AuthService {
         if (universityCard != null && !universityCard.isEmpty()) {
             try {
                 String ext = FilenameUtils.getExtension(universityCard.getOriginalFilename());
-                String filename = UUID.randomUUID().toString() + "." + ext;
+                String filename = UUID.randomUUID() + "." + ext;
                 Path uploadDir = Path.of("uploads/cards/");
                 Files.createDirectories(uploadDir);
                 Path path = uploadDir.resolve(filename);
@@ -121,7 +117,15 @@ public class AuthService {
             }
         }
 
-        // ✅ إنشاء كائن العميل
+        // 🧩 تحديد الحالة حسب من قام بالتسجيل
+        MemberStatus status = isAdminRegister ? MemberStatus.ACTIVE : MemberStatus.INACTIVE;
+        RoleRequestStatus roleStatus = isAdminRegister ? RoleRequestStatus.APPROVED : RoleRequestStatus.PENDING;
+        if (role == RoleName.MEDICAL_ADMIN) {
+            status = MemberStatus.ACTIVE;
+            roleStatus = RoleRequestStatus.APPROVED;
+        }
+
+        // 🟢 إنشاء الكيان
         Client client = Client.builder()
                 .username(username)
                 .passwordHash(passwordEncoder.encode(req.getPassword()))
@@ -139,6 +143,12 @@ public class AuthService {
                 .labCode(req.getLabCode())
                 .labName(req.getLabName())
                 .labLocation(req.getLabLocation())
+                .radiologyCode(req.getRadiologyCode())
+                .radiologyName(req.getRadiologyName())
+                .radiologyLocation(req.getRadiologyLocation())
+
+                .status(status)
+                .roleRequestStatus(roleStatus)
                 .radiologyCode(req.getRadiologyCode())        // ✅ أضف هذا
                 .radiologyName(req.getRadiologyName())        // ✅ أضف هذا
                 .radiologyLocation(req.getRadiologyLocation()) // ✅ أضف هذا
@@ -150,31 +160,33 @@ public class AuthService {
                 .universityCardImage(imagePath)
                 .build();
 
-        if (role == RoleName.INSURANCE_MANAGER || role == RoleName.EMERGENCY_MANAGER) {
-            throw new BadRequestException("This role can only be created by system administrators");
-        }
-
         Client saved = clientRepo.save(client);
 
-        if (imagePath != null) {
-            saved.setUniversityCardImage(imagePath);
-            clientRepo.save(saved);
+        // لو كان المدير هو اللي أنشأ الحساب، نربط الدور مباشرة
+        if (isAdminRegister) {
+            clientServices.addRoleToClient(saved.getId(), role);
         }
 
-        if (role == RoleName.INSURANCE_CLIENT && req.isAgreeToPolicy()) {
+        // لو عميل سجل بنفسه ووافق على السياسة، نربطه بالخطة تلقائيًا
+        if (!isAdminRegister && role == RoleName.INSURANCE_CLIENT && req.isAgreeToPolicy()) {
             policyService.assignPolicyByName(saved.getId(), "Birzeit University Premium Plus Plan");
         }
 
         ClientDto dto = clientMapper.toDTO(saved);
 
-        notificationService.sendToRole(
-                RoleName.INSURANCE_MANAGER,
-                "مستخدم جديد (" + saved.getFullName() + ") سجل وينتظر الموافقة."
-        );
+        // إشعار للمدير عند التسجيل العام
+        if (!isAdminRegister) {
+            notificationService.sendToRole(
+                    RoleName.INSURANCE_MANAGER,
+                    "مستخدم جديد (" + saved.getFullName() + ") سجل وينتظر الموافقة."
+            );
+        }
 
         return RegisterResponse.builder()
                 .user(dto)
-                .message("Registration submitted successfully. Awaiting manager approval.")
+                .message(isAdminRegister
+                        ? "✅ Account created successfully by admin"
+                        : "Registration submitted successfully. Awaiting manager approval.")
                 .build();
     }
 
@@ -186,9 +198,15 @@ public class AuthService {
             throw new NotFoundException("User not found");
         }
 
-        if (!"ACTIVE".equalsIgnoreCase(clientDTO.getStatus().name())) {
-            throw new BadRequestException("Account is not active. Please wait for approval.");
+        MemberStatus status = clientDTO.getStatus();
+
+        switch (status) {
+            case ACTIVE -> { /* ✅ يسمح بالدخول */ }
+            case INACTIVE -> throw new BadRequestException("⏳ حسابك بانتظار موافقة الإدارة.");
+            case DEACTIVATED -> throw new BadRequestException("🚫 تم تعطيل حسابك من قبل الإدارة.");
+            default -> throw new BadRequestException("❌ حالة الحساب غير معروفة.");
         }
+
 
         var authToken = new UsernamePasswordAuthenticationToken(username, req.getPassword());
         authenticationManager.authenticate(authToken);
@@ -214,17 +232,12 @@ public class AuthService {
         String mobileResetLink = "mobileinsurancesystem://Auth/ResetPassword?token=" + token;
 
         if (isMobile) {
-            // 📱 نبعث بس للموبايل
             sendMobileResetEmail(client, mobileResetLink);
         } else {
-            // 🌐 نبعث بس للويب
             sendWebResetEmail(client, webResetLink);
         }
     }
 
-    // ======================
-// 📌 إرسال لينك الويب فقط
-// ======================
     private void sendWebResetEmail(Client client, String webResetLink) {
         emailService.sendCustomEmail(
                 client.getEmail(),
@@ -232,9 +245,9 @@ public class AuthService {
                 """
                 Dear %s,<br><br>
                 We received a request to reset your password.<br><br>
-    
+
                 🌐 <a href="%s">Reset your password via Web</a><br><br>
-    
+
                 If you didn’t request a password reset, you can safely ignore this email.<br><br>
                 Best regards,<br>
                 Insurance System Team
@@ -242,9 +255,6 @@ public class AuthService {
         );
     }
 
-    // ======================
-// 📌 إرسال لينك الموبايل فقط
-// ======================
     private void sendMobileResetEmail(Client client, String mobileResetLink) {
         emailService.sendCustomEmail(
                 client.getEmail(),
@@ -252,9 +262,9 @@ public class AuthService {
                 """
                 Dear %s,<br><br>
                 We received a request to reset your password.<br><br>
-    
+
                 📱 <a href="%s">Reset your password via Mobile</a><br><br>
-    
+
                 If you didn’t request a password reset, you can safely ignore this email.<br><br>
                 Best regards,<br>
                 Insurance System Team

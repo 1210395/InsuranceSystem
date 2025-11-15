@@ -1,5 +1,6 @@
 package com.insurancesystem.Model.Entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.insurancesystem.Model.Entity.Enums.MemberStatus;
 import com.insurancesystem.Model.Entity.Enums.RoleName;
 import com.insurancesystem.Model.Entity.Enums.RoleRequestStatus;
@@ -8,6 +9,7 @@ import lombok.*;
 
 import java.time.Instant;
 import java.util.*;
+
 @Entity
 @Table(
         name = "clients",
@@ -101,14 +103,18 @@ public class Client {
     @Column(name = "university_card_image")
     private String universityCardImage;
 
+    // ✅ منع إعادة تحميل كامل الـ Policy → Clients → Policy loop
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "policy_id")
     private Policy policy;
 
+    // ✅ منع الدورات التكرارية
+    @JsonIgnore
     @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SearchProfile> searchProfiles = new ArrayList<>();
 
-    // 🟢 أضف هذا
+    @JsonIgnore
     @OneToMany(mappedBy = "recipient", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Notification> notifications = new ArrayList<>();
 
@@ -118,6 +124,7 @@ public class Client {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @JsonIgnore
     @Builder.Default
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
@@ -139,4 +146,10 @@ public class Client {
     void preUpdate() {
         this.updatedAt = Instant.now();
     }
+    // ✅ التحقق من أن المستخدم يمتلك دور معين
+    public boolean hasRole(RoleName roleName) {
+        if (roles == null) return false;
+        return roles.stream().anyMatch(r -> r.getName() == roleName);
+    }
+
 }

@@ -1,5 +1,6 @@
 package com.insurancesystem.Model.Entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.insurancesystem.Model.Entity.Enums.PolicyStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -13,9 +14,15 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "policies")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Policy {
-    @Id @GeneratedValue
+
+    @Id
+    @GeneratedValue
     private UUID id;
 
     @Column(name = "policy_no", nullable = false, unique = true, length = 50)
@@ -52,6 +59,11 @@ public class Policy {
     @Builder.Default
     @OneToMany(mappedBy = "policy", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Coverage> coverages = new ArrayList<>();
+
+    // ✅ إضافة لمنع اللوب
+    @JsonIgnore
+    @OneToMany(mappedBy = "policy", cascade = CascadeType.ALL)
+    private List<Client> clients = new ArrayList<>();
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;

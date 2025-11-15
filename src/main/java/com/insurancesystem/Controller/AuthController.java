@@ -27,9 +27,23 @@ public class AuthController {
     public ResponseEntity<RegisterResponse> register(
             @RequestPart("data") String reqJson,
             @RequestPart(value = "universityCard", required = false) MultipartFile universityCard) {
-        var out = authService.register(reqJson, universityCard);
+
+        // تسجيل المستخدم العادي (ليس مدير)
+        var out = authService.register(reqJson, universityCard, false);
         return ResponseEntity.status(HttpStatus.CREATED).body(out);
     }
+
+    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
+    @PostMapping(value = "/admin/register", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<RegisterResponse> registerByAdmin(
+            @RequestPart("data") String reqJson,
+            @RequestPart(value = "universityCard", required = false) MultipartFile universityCard) {
+
+        // تسجيل عن طريق المدير
+        var out = authService.register(reqJson, universityCard, true);
+        return ResponseEntity.status(HttpStatus.CREATED).body(out);
+    }
+
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest req) {

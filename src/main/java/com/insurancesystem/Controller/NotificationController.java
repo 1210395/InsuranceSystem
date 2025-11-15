@@ -146,18 +146,17 @@ public class NotificationController {
         );
     }
     @GetMapping("/recipients")
-    @PreAuthorize("isAuthenticated()")    public List<RecipientDto> getRecipients() {
+    @PreAuthorize("isAuthenticated()")
+    public List<RecipientDto> getRecipients() {
         return clientRepo.findAll().stream()
-                .filter(c -> c.getRoles().stream().anyMatch(r ->
-                        r.getName() == RoleName.INSURANCE_MANAGER ||
-                                r.getName() == RoleName.EMERGENCY_MANAGER ||
-                                r.getName() == RoleName.DOCTOR ||
-                                r.getName() == RoleName.PHARMACIST ||
-                                r.getName() == RoleName.LAB_TECH
-                ))
+                // 🔹 استبعاد العملاء فقط
+                .filter(c -> c.getRoles().stream()
+                        .noneMatch(r -> r.getName() == RoleName.INSURANCE_CLIENT))
+                // 🔹 تحويلهم إلى DTO (id + fullName)
                 .map(c -> new RecipientDto(c.getId(), c.getFullName()))
                 .toList();
     }
+
 
 
 }

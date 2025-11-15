@@ -49,4 +49,5 @@ public class RegisterRequest {
     private String radiologyCode;
     private String radiologyName;
     private String radiologyLocation;
+
 }

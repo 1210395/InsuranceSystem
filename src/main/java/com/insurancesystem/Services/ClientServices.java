@@ -77,10 +77,7 @@ public class ClientServices {
         return clientMapper.toDTO(user);
     }
 
-    public void delete(UUID id) {
-        if (!clientRepo.existsById(id)) throw new NotFoundException("User not found");
-        clientRepo.deleteById(id);
-    }
+
 
     @Transactional(readOnly = true)
     public ClientDto getByUsername(String username) {
@@ -127,7 +124,7 @@ public class ClientServices {
     }
 
     @Transactional
-    public void rejectRoleRequestAndDelete(UUID clientId, String reason) {
+    public void rejectRoleRequest(UUID clientId, String reason) {
         Client u = clientRepo.findById(clientId)
                 .orElseThrow(() -> new NotFoundException("Client not found"));
 
@@ -136,21 +133,26 @@ public class ClientServices {
             throw new BadRequestException("No pending role request for this client");
         }
 
+        // ✅ تحديث الحالة بدل الحذف
+        u.setRoleRequestStatus(RoleRequestStatus.REJECTED);
+        u.setStatus(MemberStatus.INACTIVE); // يبقى غير مفعل
+        u.setUpdatedAt(Instant.now());
+        clientRepo.save(u);
+
+        // 🔹 إرسال الإشعارات والإيميل
         emailService.sendRoleRejectionEmail(u.getEmail(), u.getFullName(), u.getRequestedRole(), reason);
 
         notificationService.sendToUser(
                 u.getId(),
-                "تم رفض طلب حسابك. السبب: " + reason
+                "❌ تم رفض طلب حسابك. السبب: " + reason
         );
 
         notificationService.markNotificationAsReadByMessage(
                 RoleName.INSURANCE_MANAGER,
                 "مستخدم جديد (" + u.getFullName() + ") سجل وينتظر الموافقة."
         );
-        u.getRoles().clear();
-
-        clientRepo.delete(u);
     }
+
 
 
     // 🔹 تحديث البروفايل بناءً على Username
@@ -190,9 +192,70 @@ public class ClientServices {
 
         return clientMapper.toDTO(updated);
     }
+    // ✅ يستخدمها المدير أو النظام لإضافة دور لمستخدم معين مباشرة
+    @Transactional
+    public void addRoleToClient(UUID clientId, RoleName roleName) {
+        // 🔸 البحث عن المستخدم
+        Client client = clientRepo.findById(clientId)
+                .orElseThrow(() -> new NotFoundException("Client not found"));
+
+        // 🔸 جلب الدور المطلوب من خدمة الأدوار
+        var role = roleService.getByNameOrThrow(roleName);
+
+        // 🔸 إضافة الدور للمستخدم (لو مش مضاف مسبقًا)
+        if (!client.getRoles().contains(role)) {
+            client.getRoles().add(role);
+        }
+
+        // 🔸 تحديث حالة الحساب كمفعّل
+        client.setStatus(MemberStatus.ACTIVE);
+        client.setRoleRequestStatus(RoleRequestStatus.APPROVED);
+        client.setRequestedRole(null);
+        client.setUpdatedAt(Instant.now());
+
+        clientRepo.save(client);
+    }
+
+    @Transactional
+    public void deactivateClient(UUID id, String reason) {
+        Client client = clientRepo.findById(id)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+
+        if (client.getStatus() == MemberStatus.DEACTIVATED) {
+            throw new BadRequestException("الحساب معطل بالفعل.");
+        }
+
+        // ✅ فقط غيّر الحالة إلى DEACTIVATED، ولا تلمس الموافقة
+        client.setStatus(MemberStatus.DEACTIVATED);
+        client.setUpdatedAt(Instant.now());
+        clientRepo.save(client);
+
+        notificationService.sendToUser(
+                client.getId(),
+                "🚫 تم تعطيل حسابك من قبل الإدارة. السبب: " + reason
+        );
+    }
 
 
 
+    @Transactional
+    public void reactivateClient(UUID id) {
+        Client client = clientRepo.findById(id)
+                .orElseThrow(() -> new NotFoundException("User not found"));
 
+        if (client.getStatus() != MemberStatus.DEACTIVATED) {
+            throw new BadRequestException("الحساب ليس معطلًا.");
+        }
+
+        // ✅ أعد تفعيله، وابقِ الـ RoleRequestStatus كما هو (APPROVED)
+        client.setStatus(MemberStatus.ACTIVE);
+        client.setUpdatedAt(Instant.now());
+        clientRepo.save(client);
+
+        notificationService.sendToUser(
+                client.getId(),
+                "✅ تم إعادة تفعيل حسابك بنجاح."
+        );
+    }
 
 }

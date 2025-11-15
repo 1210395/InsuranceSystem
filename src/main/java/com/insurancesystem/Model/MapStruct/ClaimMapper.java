@@ -5,18 +5,23 @@ import com.insurancesystem.Model.Dto.CreateClaimDTO;
 import com.insurancesystem.Model.Entity.Claim;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
-
 @Mapper(componentModel = "spring")
 public interface ClaimMapper {
 
-    // Entity → DTO
     @Mapping(source = "member.id", target = "memberId")
     @Mapping(source = "member.fullName", target = "memberName")
     @Mapping(source = "policy.id", target = "policyId")
     @Mapping(source = "policy.name", target = "policyName")
+
+    // ✅ إضافات مهمة لعرض الأسماء والتواريخ
+    @Mapping(source = "medicalReviewer.fullName", target = "medicalReviewerName")
+    @Mapping(source = "adminReviewer.fullName", target = "adminReviewerName")
+    @Mapping(source = "medicalReviewedAt", target = "medicalReviewedAt")
+    @Mapping(source = "adminReviewedAt", target = "adminReviewedAt")
+
     ClaimDTO toDto(Claim entity);
 
-    // CreateClaimDTO → Entity
+    // إنشاء من DTO
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "member", ignore = true)
     @Mapping(target = "policy", ignore = true)

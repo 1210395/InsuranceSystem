@@ -1,18 +1,11 @@
 package com.insurancesystem.Services;
 
 import com.insurancesystem.Exception.NotFoundException;
-import com.insurancesystem.Model.Dto.ClaimDTO;
-import com.insurancesystem.Model.Dto.CreateClaimDTO;
-import com.insurancesystem.Model.Dto.RejectClaimDTO;
-import com.insurancesystem.Model.Entity.Claim;
-import com.insurancesystem.Model.Entity.Client;
-import com.insurancesystem.Model.Entity.Enums.ClaimStatus;
-import com.insurancesystem.Model.Entity.Enums.RoleName;
-import com.insurancesystem.Model.Entity.Policy;
+import com.insurancesystem.Model.Dto.*;
+import com.insurancesystem.Model.Entity.*;
+import com.insurancesystem.Model.Entity.Enums.*;
 import com.insurancesystem.Model.MapStruct.ClaimMapper;
-import com.insurancesystem.Repository.ClaimRepository;
-import com.insurancesystem.Repository.ClientRepository;
-import com.insurancesystem.Repository.PolicyRepository;
+import com.insurancesystem.Repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -36,23 +29,14 @@ public class ClaimService {
 
     private final String UPLOAD_DIR = "uploads/invoices/";
 
-    // إنشاء مطالبة
-    // إنشاء مطالبة
+    // 🟢 إنشاء مطالبة جديدة
     public ClaimDTO createClaim(UUID memberId, CreateClaimDTO dto, MultipartFile invoiceImage) {
         Client member = clientRepo.findById(memberId)
                 .orElseThrow(() -> new NotFoundException("Member not found"));
 
-        // ✅ جلب الـ Policy باستخدام ID أو Name
-        Policy policy = null;
-        if (dto.getPolicyId() != null) {
-            policy = policyRepo.findById(dto.getPolicyId())
-                    .orElseThrow(() -> new NotFoundException("Policy not found by ID"));
-        } else if (dto.getPolicyName() != null && !dto.getPolicyName().isBlank()) {
-            policy = policyRepo.findByName(dto.getPolicyName())
-                    .orElseThrow(() -> new NotFoundException("Policy not found by Name"));
-        } else {
-            throw new NotFoundException("Policy information (ID or Name) must be provided");
-        }
+        Policy policy = dto.getPolicyId() != null
+                ? policyRepo.findById(dto.getPolicyId()).orElseThrow(() -> new NotFoundException("Policy not found"))
+                : policyRepo.findByName(dto.getPolicyName()).orElseThrow(() -> new NotFoundException("Policy not found"));
 
         Claim claim = claimMapper.toEntity(dto);
         claim.setMember(member);
@@ -65,72 +49,84 @@ public class ClaimService {
 
         claimRepo.save(claim);
 
-        // إشعار المدير
+        // إشعار المراجع الطبي
         notificationService.sendToRole(
-                RoleName.INSURANCE_MANAGER,
-                "مطالبة جديدة من " + member.getFullName() +
-                        " بمبلغ " + dto.getAmount()
+                RoleName.MEDICAL_ADMIN,
+                "مطالبة جديدة بانتظار المراجعة الطبية من " + member.getFullName()
         );
 
         return claimMapper.toDto(claim);
     }
 
+    // 🔹 استعلامات عامة
     public List<ClaimDTO> getMemberClaims(UUID memberId) {
         Client member = clientRepo.findById(memberId)
                 .orElseThrow(() -> new NotFoundException("Member not found"));
-        return claimRepo.findByMember(member).stream()
-                .map(claimMapper::toDto)
-                .toList();
+        return claimRepo.findByMember(member).stream().map(claimMapper::toDto).toList();
     }
 
-
-
-    // جميع المطالبات للمدير
     public List<ClaimDTO> getAllClaims() {
-        return claimRepo.findAll().stream()
-                .map(claimMapper::toDto)
-                .toList();
+        return claimRepo.findAll().stream().map(claimMapper::toDto).toList();
     }
 
-    // مطالبة حسب ID (للعضو أو المدير)
+    // 🔹 عرض مطالبة واحدة
     public ClaimDTO getClaim(UUID claimId, UUID requesterId, boolean isManager) {
         Claim claim = claimRepo.findById(claimId)
                 .orElseThrow(() -> new NotFoundException("Claim not found"));
-
-        if (!isManager && !claim.getMember().getId().equals(requesterId)) {
+        if (!isManager && !claim.getMember().getId().equals(requesterId))
             throw new NotFoundException("Claim not found for this member");
+        return claimMapper.toDto(claim);
+    }
+
+    // ✅ موافقة
+    public ClaimDTO approveClaim(UUID claimId, RoleName role, UUID reviewerId) {
+        Claim claim = claimRepo.findById(claimId)
+                .orElseThrow(() -> new NotFoundException("Claim not found"));
+
+        if (role == RoleName.MEDICAL_ADMIN) {
+            claim.setStatus(ClaimStatus.AWAITING_ADMIN_REVIEW);
+            claim.setMedicalReviewer(clientRepo.findById(reviewerId).orElse(null));
+            claim.setMedicalReviewedAt(Instant.now());
+
+            notificationService.sendToRole(
+                    RoleName.INSURANCE_MANAGER,
+                    "مطالبة جاهزة للمراجعة الإدارية من " + claim.getDoctorName()
+            );
+
+        } else if (role == RoleName.INSURANCE_MANAGER) {
+            if (claim.getStatus() != ClaimStatus.AWAITING_ADMIN_REVIEW &&
+                    claim.getStatus() != ClaimStatus.APPROVED_BY_MEDICAL)
+                throw new NotFoundException("Medical review not completed yet");
+
+            claim.setStatus(ClaimStatus.APPROVED);
+            claim.setAdminReviewer(clientRepo.findById(reviewerId).orElse(null));
+            claim.setAdminReviewedAt(Instant.now());
+            claim.setApprovedAt(Instant.now());
+
+            notificationService.sendToUser(
+                    claim.getMember().getId(),
+                    "تمت الموافقة النهائية على مطالبتك بمبلغ " + claim.getAmount()
+            );
         }
 
-        return claimMapper.toDto(claim);
-    }
-
-    // موافقة على مطالبة
-    public ClaimDTO approveClaim(UUID claimId) {
-        Claim claim = claimRepo.findById(claimId)
-                .orElseThrow(() -> new NotFoundException("Claim not found"));
-
-        claim.setStatus(ClaimStatus.APPROVED);
-        claim.setApprovedAt(Instant.now());
         claimRepo.save(claim);
-
-        notificationService.sendToUser(
-                claim.getMember().getId(),
-                "تمت الموافقة على مطالبتك بمبلغ " + claim.getAmount()
-        );
-        notificationService.markNotificationAsReadByMessage(
-                RoleName.INSURANCE_MANAGER,
-                "مطالبة جديدة من " + claim.getMember().getFullName() + " بمبلغ " + claim.getAmount()
-        );
-
         return claimMapper.toDto(claim);
     }
 
-    // رفض مطالبة
-    public ClaimDTO rejectClaim(UUID claimId, RejectClaimDTO dto) {
+    // ❌ رفض
+    public ClaimDTO rejectClaim(UUID claimId, RejectClaimDTO dto, RoleName role, UUID reviewerId) {
         Claim claim = claimRepo.findById(claimId)
                 .orElseThrow(() -> new NotFoundException("Claim not found"));
 
-        claim.setStatus(ClaimStatus.REJECTED);
+        if (role == RoleName.MEDICAL_ADMIN) {
+            claim.setStatus(ClaimStatus.REJECTED_BY_MEDICAL);
+            claim.setMedicalReviewer(clientRepo.findById(reviewerId).orElse(null));
+        } else {
+            claim.setStatus(ClaimStatus.REJECTED);
+            claim.setAdminReviewer(clientRepo.findById(reviewerId).orElse(null));
+        }
+
+        claim.setRejectionReason(dto.getReason());
         claim.setRejectedAt(Instant.now());
         claim.setRejectionReason(dto.getReason());
         claimRepo.save(claim);
@@ -139,29 +135,30 @@ public class ClaimService {
                 claim.getMember().getId(),
                 "تم رفض مطالبتك. السبب: " + dto.getReason()
         );
-        notificationService.markNotificationAsReadByMessage(
-                RoleName.INSURANCE_MANAGER,
-                "مطالبة جديدة من " + claim.getMember().getFullName() + " بمبلغ " + claim.getAmount()
-        );
+
         return claimMapper.toDto(claim);
     }
 
-    // حفظ الفاتورة
+    // 🧾 حفظ الفاتورة
     private String saveInvoice(MultipartFile file) {
         try {
             Files.createDirectories(Path.of(UPLOAD_DIR));
             String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
             Path path = Path.of(UPLOAD_DIR + fileName);
-
-            // احفظ الملف
             Files.write(path, file.getBytes());
-
-            // ✅ رجع رابط عام للمتصفح
             return "http://localhost:8080/uploads/invoices/" + fileName;
         } catch (IOException e) {
             throw new RuntimeException("Failed to save invoice image", e);
         }
     }
 
+    // 🔹 للمراجع الطبي
+    public List<ClaimDTO> getClaimsForMedicalReview() {
+        return claimRepo.findPendingMedicalClaims().stream().map(claimMapper::toDto).toList();
+    }
 
+    // 🔹 للإداري
+    public List<ClaimDTO> getClaimsForAdminReview() {
+        return claimRepo.findPendingAdminClaims().stream().map(claimMapper::toDto).toList();
+    }
 }
