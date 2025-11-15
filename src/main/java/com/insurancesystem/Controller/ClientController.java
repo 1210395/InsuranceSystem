@@ -88,14 +88,4 @@ public class ClientController {
         return ResponseEntity.ok(updated);
     }
 
-
-
-
-
-
-
-
-
-
-
 }
