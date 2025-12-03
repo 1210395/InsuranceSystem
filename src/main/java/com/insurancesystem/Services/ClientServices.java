@@ -18,7 +18,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.nio.file.*;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -50,21 +49,17 @@ public class ClientServices {
         Client user = clientRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException("User not found"));
 
-        // ✅ تحديث البيانات الأساسية
         clientMapper.updateEntityFromDTO(dto, user);
 
-        // ✅ تخزين الصورة إن وُجدت
         if (universityCard != null && !universityCard.isEmpty()) {
             String fileName = UUID.randomUUID() + "_" + universityCard.getOriginalFilename();
             Path uploadPath = Paths.get("uploads/cards");
-
             try {
                 if (!Files.exists(uploadPath)) {
                     Files.createDirectories(uploadPath);
                 }
                 Path filePath = uploadPath.resolve(fileName);
                 Files.copy(universityCard.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-
                 user.setUniversityCardImage("/uploads/cards/" + fileName);
             } catch (IOException e) {
                 throw new RuntimeException("❌ Failed to save university card image", e);
@@ -73,11 +68,8 @@ public class ClientServices {
 
         user.setUpdatedAt(Instant.now());
         clientRepo.save(user);
-
         return clientMapper.toDTO(user);
     }
-
-
 
     @Transactional(readOnly = true)
     public ClientDto getByUsername(String username) {
@@ -106,19 +98,12 @@ public class ClientServices {
         u.setStatus(MemberStatus.ACTIVE);
         u.setRoleRequestStatus(RoleRequestStatus.APPROVED);
         u.setRequestedRole(null);
-
         clientRepo.save(u);
 
         emailService.sendRoleApprovalEmail(u.getEmail(), u.getFullName(), role.getName());
-
-        notificationService.sendToUser(
-                u.getId(),
-                "تمت الموافقة على حسابك. يمكنك تسجيل الدخول الآن."
-        );
-        notificationService.markNotificationAsReadByMessage(
-                RoleName.INSURANCE_MANAGER,
-                "مستخدم جديد (" + u.getFullName() + ") سجل وينتظر الموافقة."
-        );
+        notificationService.sendToUser(u.getId(), "تمت الموافقة على حسابك. يمكنك تسجيل الدخول الآن.");
+        notificationService.markNotificationAsReadByMessage(RoleName.INSURANCE_MANAGER,
+                "مستخدم جديد (" + u.getFullName() + ") سجل وينتظر الموافقة.");
 
         return clientMapper.toDTO(u);
     }
@@ -128,34 +113,22 @@ public class ClientServices {
         Client u = clientRepo.findById(clientId)
                 .orElseThrow(() -> new NotFoundException("Client not found"));
 
-        if (u.getRoleRequestStatus() == null || u.getRequestedRole() == null
-                || u.getRoleRequestStatus() != RoleRequestStatus.PENDING) {
+        if (u.getRoleRequestStatus() == null || u.getRequestedRole() == null ||
+                u.getRoleRequestStatus() != RoleRequestStatus.PENDING) {
             throw new BadRequestException("No pending role request for this client");
         }
 
-        // ✅ تحديث الحالة بدل الحذف
         u.setRoleRequestStatus(RoleRequestStatus.REJECTED);
-        u.setStatus(MemberStatus.INACTIVE); // يبقى غير مفعل
+        u.setStatus(MemberStatus.INACTIVE);
         u.setUpdatedAt(Instant.now());
         clientRepo.save(u);
 
-        // 🔹 إرسال الإشعارات والإيميل
         emailService.sendRoleRejectionEmail(u.getEmail(), u.getFullName(), u.getRequestedRole(), reason);
-
-        notificationService.sendToUser(
-                u.getId(),
-                "❌ تم رفض طلب حسابك. السبب: " + reason
-        );
-
-        notificationService.markNotificationAsReadByMessage(
-                RoleName.INSURANCE_MANAGER,
-                "مستخدم جديد (" + u.getFullName() + ") سجل وينتظر الموافقة."
-        );
+        notificationService.sendToUser(u.getId(), "❌ تم رفض طلب حسابك. السبب: " + reason);
+        notificationService.markNotificationAsReadByMessage(RoleName.INSURANCE_MANAGER,
+                "مستخدم جديد (" + u.getFullName() + ") سجل وينتظر الموافقة.");
     }
 
-
-
-    // 🔹 تحديث البروفايل بناءً على Username
     public ClientDto updateByUsername(String username, UpdateUserDTO dto, MultipartFile universityCard) {
         Client client = clientRepo.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("Client not found"));
@@ -170,7 +143,6 @@ public class ClientServices {
             client.setPhone(dto.getPhone());
         }
 
-        // ✅ الصورة
         if (universityCard != null && !universityCard.isEmpty()) {
             try {
                 String fileName = UUID.randomUUID() + "_" + universityCard.getOriginalFilename();
@@ -180,7 +152,6 @@ public class ClientServices {
                 }
                 Path filePath = uploadPath.resolve(fileName);
                 Files.copy(universityCard.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-
                 client.setUniversityCardImage("/uploads/profile/" + fileName);
             } catch (IOException e) {
                 throw new RuntimeException("❌ Failed to save profile image", e);
@@ -189,30 +160,23 @@ public class ClientServices {
 
         client.setUpdatedAt(Instant.now());
         Client updated = clientRepo.save(client);
-
         return clientMapper.toDTO(updated);
     }
-    // ✅ يستخدمها المدير أو النظام لإضافة دور لمستخدم معين مباشرة
+
     @Transactional
     public void addRoleToClient(UUID clientId, RoleName roleName) {
-        // 🔸 البحث عن المستخدم
         Client client = clientRepo.findById(clientId)
                 .orElseThrow(() -> new NotFoundException("Client not found"));
 
-        // 🔸 جلب الدور المطلوب من خدمة الأدوار
         var role = roleService.getByNameOrThrow(roleName);
-
-        // 🔸 إضافة الدور للمستخدم (لو مش مضاف مسبقًا)
         if (!client.getRoles().contains(role)) {
             client.getRoles().add(role);
         }
 
-        // 🔸 تحديث حالة الحساب كمفعّل
         client.setStatus(MemberStatus.ACTIVE);
         client.setRoleRequestStatus(RoleRequestStatus.APPROVED);
         client.setRequestedRole(null);
         client.setUpdatedAt(Instant.now());
-
         clientRepo.save(client);
     }
 
@@ -225,18 +189,11 @@ public class ClientServices {
             throw new BadRequestException("الحساب معطل بالفعل.");
         }
 
-        // ✅ فقط غيّر الحالة إلى DEACTIVATED، ولا تلمس الموافقة
         client.setStatus(MemberStatus.DEACTIVATED);
         client.setUpdatedAt(Instant.now());
         clientRepo.save(client);
-
-        notificationService.sendToUser(
-                client.getId(),
-                "🚫 تم تعطيل حسابك من قبل الإدارة. السبب: " + reason
-        );
+        notificationService.sendToUser(client.getId(), "🚫 تم تعطيل حسابك من قبل الإدارة. السبب: " + reason);
     }
-
-
 
     @Transactional
     public void reactivateClient(UUID id) {
@@ -247,15 +204,40 @@ public class ClientServices {
             throw new BadRequestException("الحساب ليس معطلًا.");
         }
 
-        // ✅ أعد تفعيله، وابقِ الـ RoleRequestStatus كما هو (APPROVED)
         client.setStatus(MemberStatus.ACTIVE);
         client.setUpdatedAt(Instant.now());
         clientRepo.save(client);
-
-        notificationService.sendToUser(
-                client.getId(),
-                "✅ تم إعادة تفعيل حسابك بنجاح."
-        );
+        notificationService.sendToUser(client.getId(), "✅ تم إعادة تفعيل حسابك بنجاح.");
     }
 
+ 
+
+    /**
+     * 🆔 Find client by employee ID
+     * Used by doctors to auto-populate patient information in medical forms
+     *
+     * @param employeeId The employee ID to search for
+     * @return ClientDto with patient details (fullName, department, faculty, etc.)
+     */
+    @Transactional(readOnly = true)
+    public ClientDto findByEmployeeId(String employeeId) {
+        Client client = clientRepo.findByEmployeeId(employeeId)
+                .orElseThrow(() -> new NotFoundException("Employee ID not found: " + employeeId));
+        return clientMapper.toDTO(client);
+    }
+
+    /**
+     * 👤 Find client by full name
+     * Fallback method for patient search by name
+     *
+     * @param fullName The full name to search for
+     * @return ClientDto with patient details
+     */
+    @Transactional(readOnly = true)
+    public ClientDto findByFullName(String fullName) {
+        Client client = clientRepo.findByFullName(fullName)
+                .orElseThrow(() -> new NotFoundException("Client not found with name: " + fullName));
+        return clientMapper.toDTO(client);
+    }
 }
+

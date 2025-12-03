@@ -44,6 +44,7 @@ public class LabRequestService {
     // ➕ Doctor ينشئ طلب فحص
     @Transactional
     public LabRequestDTO create(LabRequestDTO dto) {
+
         log.info("🔹 Starting lab request creation...");
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -52,10 +53,12 @@ public class LabRequestService {
         // 🧑‍⚕️ الدكتور
         Client doctor = clientRepo.findByUsername(currentUsername)
                 .orElseThrow(() -> new NotFoundException("Doctor not found"));
+
         log.info("✅ Doctor found: {}", doctor.getFullName());
 
         // 👤 المريض
         Client member;
+
         if (dto.getMemberId() != null) {
             member = clientRepo.findById(dto.getMemberId())
                     .orElseThrow(() -> new NotFoundException("Member not found"));
@@ -65,10 +68,12 @@ public class LabRequestService {
         } else {
             throw new RuntimeException("Member info required");
         }
+
         log.info("✅ Member found: {}", member.getFullName());
 
         // 🧪 الفحص
         Test test;
+
         if (dto.getTestId() != null) {
             test = testRepository.findById(dto.getTestId())
                     .orElseThrow(() -> new NotFoundException("Test not found"));
@@ -78,6 +83,7 @@ public class LabRequestService {
         } else {
             throw new RuntimeException("Test info required");
         }
+
         log.info("✅ Test found: {} (Union Price: {})", test.getTestName(), test.getUnionPrice());
 
         // 📝 بناء الطلب
@@ -91,6 +97,7 @@ public class LabRequestService {
         request.setUpdatedAt(Instant.now());
 
         LabRequest saved = labRepo.save(request);
+
         log.info("✅ Lab request created: {}", saved.getId());
 
         // 🔔 إشعار للمريض
@@ -98,10 +105,12 @@ public class LabRequestService {
                 member.getId(),
                 "تم إنشاء طلب فحص جديد من الدكتور " + doctor.getFullName()
         );
+
         log.info("✅ Notification sent to member");
 
         // 🔔 إشعار لجميع فنيي المختبر
         List<Client> labTechs = clientRepo.findByRoles_Name(RoleName.LAB_TECH);
+
         for (Client labTech : labTechs) {
             notificationService.sendToUser(
                     labTech.getId(),
@@ -110,6 +119,7 @@ public class LabRequestService {
                             " - الفحص: " + test.getTestName()
             );
         }
+
         log.info("✅ Notifications sent to {} lab technicians", labTechs.size());
 
         return labRequestMapper.toDto(saved);
@@ -117,6 +127,7 @@ public class LabRequestService {
 
     // 📖 Doctor يشوف طلباته
     public List<LabRequestDTO> getByDoctor() {
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
 
@@ -131,6 +142,7 @@ public class LabRequestService {
 
     // 📖 Member يشوف طلباته
     public List<LabRequestDTO> getMyLabs() {
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
 
@@ -145,6 +157,7 @@ public class LabRequestService {
 
     // 📖 Lab Tech يشوف الطلبات المعلقة
     public List<LabRequestDTO> getPending() {
+
         return labRepo.findByStatus(LabRequestStatus.PENDING)
                 .stream()
                 .map(labRequestMapper::toDto)
@@ -154,10 +167,12 @@ public class LabRequestService {
     // 🧪 Lab Tech يرفع النتيجة والسعر
     @Transactional
     public LabRequestDTO uploadResult(UUID id, MultipartFile file, Double enteredPrice) {
+
         log.info("🔹 Lab Tech uploading result for request: {}", id);
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
+
         Client labTech = clientRepo.findByUsername(currentUsername)
                 .orElseThrow(() -> new NotFoundException("Lab worker not found"));
 
@@ -169,6 +184,7 @@ public class LabRequestService {
         }
 
         try {
+
             String uploadDir = "uploads/labs";
             Files.createDirectories(Paths.get(uploadDir));
 
@@ -203,13 +219,34 @@ public class LabRequestService {
         }
 
         LabRequest saved = labRepo.save(request);
+
         log.info("✅ Result uploaded successfully. Approved Price: {}", saved.getApprovedPrice());
+
+        // 🔔 إشعار للمريض بإكمال الفحص
+        notificationService.sendToUser(
+                saved.getMember().getId(),
+                "✅ تم إكمال فحص " + saved.getTest().getTestName() +
+                        " - السعر: " + saved.getApprovedPrice() + " دينار ردني"
+        );
+
+        log.info("✅ Notification sent to member");
+
+        // 🔔 إشعار للطبيب بإكمال الفحص
+        notificationService.sendToUser(
+                saved.getDoctor().getId(),
+                "✅ تم إكمال فحص " + saved.getTest().getTestName() +
+                        " للمريض " + saved.getMember().getFullName()
+
+        );
+
+        log.info("✅ Notification sent to doctor");
 
         return labRequestMapper.toDto(saved);
     }
 
     // 📖 Member أو Doctor يشوف نتيجة فحص
     public LabRequestDTO getResult(UUID id) {
+
         LabRequest request = labRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException("Lab request not found"));
 
@@ -219,6 +256,7 @@ public class LabRequestService {
     // ✏️ Doctor يعدل طلب
     @Transactional
     public LabRequestDTO update(UUID id, LabRequestDTO dto) {
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
 
@@ -245,6 +283,7 @@ public class LabRequestService {
     // ❌ Doctor يحذف طلب
     @Transactional
     public void delete(UUID id) {
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
 
@@ -267,6 +306,7 @@ public class LabRequestService {
 
     // 📊 Lab Technician يشوف إحصائيات الطلبات
     public LabRequestDTO getLabStats() {
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
 
@@ -286,6 +326,7 @@ public class LabRequestService {
 
     // 📖 Lab Tech يشوف كل طلباته
     public List<LabRequestDTO> getAllForCurrentLab() {
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
 
@@ -301,30 +342,38 @@ public class LabRequestService {
     // 👤 Lab Worker يحدّث بروفايله
     @Transactional
     public ClientDto updateLabWorkerProfile(String username, UpdateUserDTO dto, MultipartFile universityCard) {
+
         Client labWorker = clientRepo.findByUsername(username)
                 .orElseThrow(() -> new NotFoundException("Lab worker not found"));
 
         if (dto.getFullName() != null && !dto.getFullName().isBlank()) {
             labWorker.setFullName(dto.getFullName());
         }
+
         if (dto.getEmail() != null && !dto.getEmail().isBlank()) {
             labWorker.setEmail(dto.getEmail());
         }
+
         if (dto.getPhone() != null && !dto.getPhone().isBlank()) {
             labWorker.setPhone(dto.getPhone());
         }
 
         if (universityCard != null && !universityCard.isEmpty()) {
+
             try {
+
                 String fileName = UUID.randomUUID() + "_" + universityCard.getOriginalFilename();
                 Path uploadPath = Paths.get("uploads/labworkers");
+
                 if (!Files.exists(uploadPath)) {
                     Files.createDirectories(uploadPath);
                 }
+
                 Path filePath = uploadPath.resolve(fileName);
                 Files.copy(universityCard.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
 
                 labWorker.setUniversityCardImage("/uploads/labworkers/" + fileName);
+
             } catch (IOException e) {
                 throw new RuntimeException("❌ Failed to save lab worker image", e);
             }
@@ -338,6 +387,7 @@ public class LabRequestService {
 
     // 📖 إرجاع كل الفنيين (Lab Technicians)
     public List<ClientDto> getAllLabTechs() {
+
         return clientRepo.findByRoles_Name(RoleName.LAB_TECH)
                 .stream()
                 .map(clientMapper::toDTO)
