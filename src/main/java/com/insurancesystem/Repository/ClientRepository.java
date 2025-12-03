@@ -13,13 +13,24 @@ import java.util.UUID;
 public interface ClientRepository extends JpaRepository<Client, UUID> {
 
     Optional<Client> findByUsername(String username);
+
     Optional<Client> findByEmail(String email);
+
     boolean existsByUsername(String username);
+
     boolean existsByEmail(String email);
+
     List<Client> findByStatus(MemberStatus status);
+
     long countByStatus(MemberStatus status);
+
     List<Client> findByPolicy(Policy policy);
+
     Optional<Client> findByFullName(String fullName);
+
     List<Client> findByRoles_Name(RoleName roleName);
 
+    Optional<Client> findByEmployeeId(String employeeId);
+
 }
+

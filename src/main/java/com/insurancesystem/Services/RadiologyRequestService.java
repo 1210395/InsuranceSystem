@@ -157,7 +157,7 @@ public class RadiologyRequestService {
         // 🔔 إرسال إشعار للمريض عند إكمال الفحص
         notificationService.sendToUser(
                 saved.getMember().getId(),
-                "✅ تم إكمال فحص الأشعة: " + testName + " - السعر: " + enteredPrice + " د.ك"
+                "✅ تم إكمال فحص الأشعة: " + testName + " - السعر: " + enteredPrice + "دينار اردني "
         );
 
         // 🔔 إرسال إشعار للطبيب عند إكمال الفحص

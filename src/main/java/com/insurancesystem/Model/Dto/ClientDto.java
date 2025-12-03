@@ -11,6 +11,7 @@ import java.util.UUID;
 
 @Data @Builder @NoArgsConstructor @AllArgsConstructor
 public class ClientDto {
+
     private UUID id;
     private String username;
     private String fullName;
@@ -20,8 +21,9 @@ public class ClientDto {
     private Set<RoleName> roles;
     private Instant createdAt;
     private Instant updatedAt;
-    private String universityCardImage; // ✅ هذا السطر مهم
+    private String universityCardImage;
 
+    // Employee/Healthcare Provider Information
     private String employeeId;
     private String department;
     private String faculty;
@@ -37,7 +39,8 @@ public class ClientDto {
     private String radiologyName;
     private String radiologyLocation;
 
-
+    // Role Request Information
     private RoleName requestedRole;
-    private RoleRequestStatus roleRequestStatus; // ← Enum وليس String
+    private RoleRequestStatus roleRequestStatus;
 }
+
