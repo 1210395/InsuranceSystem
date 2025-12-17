@@ -6,6 +6,7 @@ import com.insurancesystem.Model.Dto.MedicalRecordDTO;
 import com.insurancesystem.Model.Dto.UpdateUserDTO;
 import com.insurancesystem.Model.Entity.Client;
 import com.insurancesystem.Model.Entity.MedicalRecord;
+import com.insurancesystem.Model.MapStruct.ClientMapper;
 import com.insurancesystem.Model.MapStruct.MedicalRecordMapper;
 import com.insurancesystem.Repository.ClientRepository;
 import com.insurancesystem.Repository.LabRequestRepository;
@@ -37,14 +38,17 @@ public class MedicalRecordService {
     private final MedicalRecordMapper medicalRecordMapper;
     private final PrescriptionRepository prrepo;
     private final LabRequestRepository labrepo;
+    private final ClientMapper clientMapper;
+
 
     // ➕ إنشاء سجل جديد (Doctor فقط)
     public MedicalRecordDTO createRecord(MedicalRecordDTO dto) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
 
-        Client doctor = clientRepo.findByUsername(currentUsername)
+        Client doctor = clientRepo.findByEmail(currentUsername.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Doctor not found"));
+
 
         Client member;
         if (dto.getMemberId() != null) {
@@ -77,8 +81,9 @@ public class MedicalRecordService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
 
-        Client doctor = clientRepo.findByUsername(currentUsername)
+        Client doctor = clientRepo.findByEmail(currentUsername.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Doctor not found"));
+
 
         return recordRepo.findByDoctorId(doctor.getId())
                 .stream().map(medicalRecordMapper::toDto).collect(Collectors.toList());
@@ -93,9 +98,10 @@ public class MedicalRecordService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
         if (auth.getAuthorities().stream().anyMatch(r -> r.getAuthority().equals("ROLE_INSURANCE_CLIENT"))) {
-            if (!member.getUsername().equals(currentUsername)) {
+            if (!member.getEmail().equalsIgnoreCase(currentUsername)) {
                 throw new SecurityException("You can only view your own records!");
             }
+
         }
 
         return recordRepo.findByMemberId(memberId)
@@ -111,9 +117,10 @@ public class MedicalRecordService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth.getAuthorities().stream().anyMatch(r -> r.getAuthority().equals("ROLE_INSURANCE_CLIENT"))) {
             String currentUsername = auth.getName();
-            if (!record.getMember().getUsername().equals(currentUsername)) {
+            if (!record.getMember().getEmail().equalsIgnoreCase(currentUsername)) {
                 throw new SecurityException("You can only view your own record!");
             }
+
         }
 
         return medicalRecordMapper.toDto(record);
@@ -140,46 +147,52 @@ public class MedicalRecordService {
         recordRepo.deleteById(id);
     }
 
-    public ClientDto updateProfile(String username, UpdateUserDTO dto, MultipartFile universityCard) {
-        Client client = clientRepo.findByUsername(username)
+    public ClientDto updateProfile(String username, UpdateUserDTO dto, MultipartFile[] universityCard){
+        Client client = clientRepo.findByEmail(username.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("User not found"));
+
 
         if (dto.getFullName() != null) client.setFullName(dto.getFullName());
         if (dto.getEmail() != null) client.setEmail(dto.getEmail());
         if (dto.getPhone() != null) client.setPhone(dto.getPhone());
 
-        // ✅ تحديث صورة الجامعة إذا المستخدم رفع صورة جديدة
-        if (universityCard != null && !universityCard.isEmpty()) {
+        if (universityCard != null && universityCard.length > 0) {
             try {
                 String uploadDir = "uploads/university-cards";
                 Files.createDirectories(Paths.get(uploadDir));
 
-                String fileName = UUID.randomUUID() + "_" + universityCard.getOriginalFilename();
-                Path filePath = Paths.get(uploadDir, fileName);
+                if (client.getUniversityCardImages() == null) {
+                    client.setUniversityCardImages(new java.util.ArrayList<>());
+                }
 
-                Files.copy(universityCard.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+                for (MultipartFile file : universityCard) {
+                    if (file == null || file.isEmpty()) continue;
 
-                client.setUniversityCardImage("/" + uploadDir + "/" + fileName);
+                    String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
+                    Path filePath = Paths.get(uploadDir, fileName);
+
+                    Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+                    client.getUniversityCardImages().add("/" + uploadDir + "/" + fileName);
+                }
+
             } catch (Exception e) {
                 throw new RuntimeException("Failed to upload university card", e);
             }
         }
 
+
         clientRepo.save(client);
 
-        // 🟢 جهّز DTO للرجوع
-        ClientDto response = new ClientDto();
-        response.setId(client.getId());
-        response.setFullName(client.getFullName());
-        response.setEmail(client.getEmail());
-        response.setPhone(client.getPhone());
-        response.setUniversityCardImage(client.getUniversityCardImage());
-        return response;
+        return clientMapper.toDTO(client);
+
+
     }
 
     public Map<String, Long> getDoctorStats(String username) {
-        Client doctor = clientRepo.findByUsername(username)
+        Client doctor = clientRepo.findByEmail(username.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Doctor not found"));
+
 
         long prescriptionsCount = prrepo.countByDoctorId(doctor.getId());
         long labRequestsCount = labrepo.countByDoctorId(doctor.getId());

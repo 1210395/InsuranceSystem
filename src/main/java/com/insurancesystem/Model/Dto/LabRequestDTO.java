@@ -3,6 +3,7 @@ package com.insurancesystem.Model.Dto;
 import lombok.*;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Getter
@@ -32,7 +33,7 @@ public class LabRequestDTO {
     private UUID memberId;
     private String memberName;
     private String employeeId;
-    private String universityCardImage;
+    private List<String> universityCardImages;
     private UUID labTechId;
     private String labTechName;
 

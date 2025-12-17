@@ -26,10 +26,20 @@ public class AuthController {
     @PostMapping(value = "/register", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<RegisterResponse> register(
             @RequestPart("data") String reqJson,
-            @RequestPart(value = "universityCard", required = false) MultipartFile universityCard) {
+            @RequestPart(value = "universityCard", required = false) MultipartFile[] universityCard,
+            @RequestPart(value = "familyDocuments", required = false) MultipartFile[] familyDocuments,
+            @RequestPart(value = "chronicDocuments", required = false) MultipartFile[] chronicDocuments,
+            @RequestPart(value = "familyDocumentsOwners", required = false) String familyDocumentsOwnersJson
 
-        // تسجيل المستخدم العادي (ليس مدير)
-        var out = authService.register(reqJson, universityCard, false);
+            ) {
+        var out = authService.register(
+                reqJson,
+                universityCard,
+                familyDocuments,
+                chronicDocuments,
+                familyDocumentsOwnersJson,
+                false
+        );
         return ResponseEntity.status(HttpStatus.CREATED).body(out);
     }
 
@@ -37,12 +47,26 @@ public class AuthController {
     @PostMapping(value = "/admin/register", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<RegisterResponse> registerByAdmin(
             @RequestPart("data") String reqJson,
-            @RequestPart(value = "universityCard", required = false) MultipartFile universityCard) {
+            @RequestPart(value = "universityCard", required = false) MultipartFile[] universityCard,
+            @RequestPart(value = "familyDocuments", required = false) MultipartFile[] familyDocuments,
+            @RequestPart(value = "chronicDocuments", required = false) MultipartFile[] chronicDocuments,
+            @RequestPart(value = "familyDocumentsOwners", required = false) String familyDocumentsOwnersJson
 
-        // تسجيل عن طريق المدير
-        var out = authService.register(reqJson, universityCard, true);
+    ) {
+
+        var out = authService.register(
+                reqJson,
+                universityCard,
+                familyDocuments,
+                chronicDocuments,
+                familyDocumentsOwnersJson,
+                true
+        );
+
+
         return ResponseEntity.status(HttpStatus.CREATED).body(out);
     }
+
 
 
     @PostMapping("/login")
@@ -54,9 +78,11 @@ public class AuthController {
     @PreAuthorize("isAuthenticated()")
     @GetMapping("/me")
     public ResponseEntity<ClientDto> me() {
-        String username = org.springframework.security.core.context.SecurityContextHolder
+        String email = org.springframework.security.core.context.SecurityContextHolder
                 .getContext().getAuthentication().getName();
-        return ResponseEntity.ok(clientServices.getByUsername(username));
+
+        return ResponseEntity.ok(clientServices.getByEmail(email));
+
     }
 
     @PreAuthorize("isAuthenticated()")

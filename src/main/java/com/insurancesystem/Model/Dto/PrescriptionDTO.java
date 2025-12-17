@@ -25,7 +25,7 @@ public class PrescriptionDTO {
     private UUID memberId;
     private String memberName;
     private String employeeId;
-    private String universityCardImage;
+    private List<String> universityCardImages;
     private String doctorName;
 
     private UUID pharmacistId;

@@ -52,8 +52,9 @@ public class LabRequestService {
         String currentUsername = auth.getName();
 
         // 🧑‍⚕️ الدكتور
-        Client doctor = clientRepo.findByUsername(currentUsername)
+        Client doctor = clientRepo.findByEmail(currentUsername.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Doctor not found"));
+
 
         log.info("✅ Doctor found: {}", doctor.getFullName());
 
@@ -124,8 +125,9 @@ public class LabRequestService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
 
-        Client doctor = clientRepo.findByUsername(currentUsername)
+        Client doctor = clientRepo.findByEmail(currentUsername.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Doctor not found"));
+
 
         return labRepo.findByDoctorId(doctor.getId())
                 .stream()
@@ -139,7 +141,7 @@ public class LabRequestService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
 
-        Client member = clientRepo.findByUsername(currentUsername)
+        Client member = clientRepo.findByEmail(currentUsername.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Member not found"));
 
         return labRepo.findByMemberId(member.getId())
@@ -166,8 +168,9 @@ public class LabRequestService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
 
-        Client labTech = clientRepo.findByUsername(currentUsername)
+        Client labTech = clientRepo.findByEmail(currentUsername.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Lab worker not found"));
+
 
         LabRequest request = labRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException("Lab request not found"));
@@ -253,8 +256,9 @@ public class LabRequestService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
 
-        Client doctor = clientRepo.findByUsername(currentUsername)
+        Client doctor = clientRepo.findByEmail(currentUsername.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Doctor not found"));
+
 
         LabRequest request = labRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException("Lab request not found"));
@@ -280,7 +284,7 @@ public class LabRequestService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
 
-        Client doctor = clientRepo.findByUsername(currentUsername)
+        Client doctor = clientRepo.findByEmail(currentUsername.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Doctor not found"));
 
         LabRequest request = labRepo.findById(id)
@@ -303,7 +307,7 @@ public class LabRequestService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
 
-        Client labWorker = clientRepo.findByUsername(currentUsername)
+        Client labWorker = clientRepo.findByEmail(currentUsername.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Lab worker not found"));
 
         long pending = labRepo.countByStatusAndLabTechId(LabRequestStatus.PENDING, labWorker.getId());
@@ -323,8 +327,10 @@ public class LabRequestService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
 
-        Client labTech = clientRepo.findByUsername(currentUsername)
+        Client labTech = clientRepo.findByEmail(currentUsername.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Lab worker not found"));
+
+
 
         return labRepo.findByLabTechId(labTech.getId())
                 .stream()
@@ -334,10 +340,12 @@ public class LabRequestService {
 
     // 👤 Lab Worker يحدّث بروفايله
     @Transactional
-    public ClientDto updateLabWorkerProfile(String username, UpdateUserDTO dto, MultipartFile universityCard) {
+    public ClientDto updateLabWorkerProfile(String username, UpdateUserDTO dto, MultipartFile[] universityCard){
 
-        Client labWorker = clientRepo.findByUsername(username)
+        Client labWorker = clientRepo.findByEmail(username.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Lab worker not found"));
+
+
 
         if (dto.getFullName() != null && !dto.getFullName().isBlank()) {
             labWorker.setFullName(dto.getFullName());
@@ -351,26 +359,34 @@ public class LabRequestService {
             labWorker.setPhone(dto.getPhone());
         }
 
-        if (universityCard != null && !universityCard.isEmpty()) {
+        if (universityCard != null && universityCard.length > 0) {
 
             try {
+                String uploadDir = "uploads/labworkers";
+                Files.createDirectories(Paths.get(uploadDir));
 
-                String fileName = UUID.randomUUID() + "_" + universityCard.getOriginalFilename();
-                Path uploadPath = Paths.get("uploads/labworkers");
-
-                if (!Files.exists(uploadPath)) {
-                    Files.createDirectories(uploadPath);
+                // تأكد الليست مش null
+                if (labWorker.getUniversityCardImages() == null) {
+                    labWorker.setUniversityCardImages(new java.util.ArrayList<>());
                 }
 
-                Path filePath = uploadPath.resolve(fileName);
-                Files.copy(universityCard.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+                for (MultipartFile file : universityCard) {
+                    if (file == null || file.isEmpty()) continue;
 
-                labWorker.setUniversityCardImage("/uploads/labworkers/" + fileName);
+                    String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
+                    Path filePath = Paths.get(uploadDir, fileName);
+
+                    Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+                    // خزّن المسار بالـ DB
+                    labWorker.getUniversityCardImages().add("/" + uploadDir + "/" + fileName);
+                }
 
             } catch (IOException e) {
-                throw new RuntimeException("❌ Failed to save lab worker image", e);
+                throw new RuntimeException("❌ Failed to save lab worker images", e);
             }
         }
+
 
         labWorker.setUpdatedAt(Instant.now());
         Client updated = clientRepo.save(labWorker);

@@ -103,8 +103,8 @@ public class PolicyService {
         clientRepo.save(client); // ⬅️ مهم جداً
     }
 
-    public PolicyDTO getPolicyByUsername(String username) {
-        Client client = clientRepo.findByUsername(username)
+    public PolicyDTO getPolicyByEmail(String email) {
+        Client client = clientRepo.findByEmail(email.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Client not found"));
 
         if (client.getPolicy() == null) {
@@ -113,6 +113,7 @@ public class PolicyService {
 
         return policyMapper.toDTO(client.getPolicy());
     }
+
     public PolicyDTO getPolicyByUserId(UUID userId) {
         Client client = clientRepo.findById(userId)
                 .orElseThrow(() -> new NotFoundException("Client not found"));

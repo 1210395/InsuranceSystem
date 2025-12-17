@@ -75,8 +75,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             }
 
             // إذا ما في username أو مصادقة فاضية → رجّع 401
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.getWriter().write("Authentication required");
+            chain.doFilter(request, response);
+
         } catch (ExpiredJwtException e) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.getWriter().write("Token expired");
@@ -89,14 +89,22 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         }
-        // JwtAuthFilter.java
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getServletPath();
         if (path == null) return false;
+
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) return true;
-        return path.equals("/api/auth/login") || path.equals("/api/auth/register");
+
+        // ✅ استثنِ فقط endpoints العامة
+        return path.equals("/api/auth/login")
+                || path.equals("/api/auth/register")
+                || path.equals("/api/auth/forgot-password")
+                || path.equals("/api/auth/reset-password")
+                || path.startsWith("/uploads/")
+                || path.startsWith("/ws-chat/");
     }
+
 
 
 }

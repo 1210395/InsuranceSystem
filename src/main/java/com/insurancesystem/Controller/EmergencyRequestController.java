@@ -35,9 +35,10 @@ public class EmergencyRequestController {
     @PreAuthorize("hasRole('DOCTOR')")
     public ResponseEntity<?> createEmergencyRequest(Authentication auth, @Valid @RequestBody CreateEmergencyRequestDTO dto) {
         try {
-            String username = auth.getName();
-            Client doctor = clientRepo.findByUsername(username)
+            String email = auth.getName().toLowerCase();
+            Client doctor = clientRepo.findByEmail(email)
                     .orElseThrow(() -> new NotFoundException("DOCTOR_NOT_FOUND"));
+
 
             return ResponseEntity.ok(emergencyService.createEmergencyRequest(doctor.getId(), dto));
         } catch (NotFoundException e) {
@@ -56,9 +57,10 @@ public class EmergencyRequestController {
     @PreAuthorize("hasRole('INSURANCE_CLIENT')")
     public ResponseEntity<?> getMemberEmergencyRequests(Authentication auth) {
         try {
-            String username = auth.getName();
-            Client client = clientRepo.findByUsername(username)
+            String email = auth.getName().toLowerCase();
+            Client client = clientRepo.findByEmail(email)
                     .orElseThrow(() -> new NotFoundException("CLIENT_NOT_FOUND"));
+
 
             return ResponseEntity.ok(emergencyService.getMemberEmergencyRequests(client.getId()));
         } catch (NotFoundException e) {
@@ -73,9 +75,10 @@ public class EmergencyRequestController {
     @PreAuthorize("hasRole('DOCTOR')")
     public ResponseEntity<?> getDoctorEmergencyRequests(Authentication auth) {
         try {
-            String username = auth.getName();
-            Client doctor = clientRepo.findByUsername(username)
+            String email = auth.getName().toLowerCase();
+            Client doctor = clientRepo.findByEmail(email)
                     .orElseThrow(() -> new NotFoundException("DOCTOR_NOT_FOUND"));
+
 
             return ResponseEntity.ok(emergencyService.getDoctorEmergencyRequests(doctor.getId()));
         } catch (NotFoundException e) {
@@ -97,9 +100,10 @@ public class EmergencyRequestController {
             @PathVariable UUID id
     ) {
         try {
-            String username = auth.getName();
-            Client doctor = clientRepo.findByUsername(username)
+            String email = auth.getName().toLowerCase();
+            Client doctor = clientRepo.findByEmail(email)
                     .orElseThrow(() -> new NotFoundException("DOCTOR_NOT_FOUND"));
+
 
             return ResponseEntity.ok(emergencyService.getDoctorEmergencyRequest(doctor.getId(), id));
         } catch (NotFoundException e) {

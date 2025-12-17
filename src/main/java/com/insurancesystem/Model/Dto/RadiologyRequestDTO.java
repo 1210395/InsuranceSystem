@@ -3,6 +3,7 @@ package com.insurancesystem.Model.Dto;
 import lombok.*;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 @Getter
 @Setter
@@ -27,10 +28,9 @@ public class RadiologyRequestDTO {
     private UUID memberId;
     private String memberName;
     private String employeeId;
-    private String universityCardImage;
     private UUID radiologistId;
     private String radiologistName;
-
+    private List<String> universityCardImages;
     private Double enteredPrice;  // السعر الذي يدخله الراديولوجي
     private Double approvedPrice; // 🆕 السعر المعتمد (أقل من النقابي)
 

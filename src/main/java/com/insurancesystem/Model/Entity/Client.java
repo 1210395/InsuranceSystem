@@ -1,21 +1,19 @@
 package com.insurancesystem.Model.Entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.insurancesystem.Model.Entity.Enums.DoctorSpecialization;
-import com.insurancesystem.Model.Entity.Enums.MemberStatus;
-import com.insurancesystem.Model.Entity.Enums.RoleName;
-import com.insurancesystem.Model.Entity.Enums.RoleRequestStatus;
+import com.insurancesystem.Model.Entity.Enums.*;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.Period;
 import java.util.*;
 
 @Entity
 @Table(
         name = "clients",
         indexes = {
-                @Index(name = "idx_clients_username", columnList = "username"),
                 @Index(name = "idx_clients_email", columnList = "email")
         }
 )
@@ -30,8 +28,7 @@ public class Client {
     @GeneratedValue
     private UUID id;
 
-    @Column(nullable = false, unique = true, length = 64)
-    private String username;
+
 
     @Column(name = "password_hash", nullable = false, length = 255)
     private String passwordHash;
@@ -45,9 +42,9 @@ public class Client {
     @Column(length = 40)
     private String phone;
 
-    // بعد الحقل phone
-    @Column(name = "employee_id", length = 50)
+    @Column(name = "employee_id", unique = true, length = 50)
     private String employeeId;
+
 
     @Column(name = "department", length = 150)
     private String department;
@@ -101,8 +98,14 @@ public class Client {
     @Column(name = "role_request_status", length = 20, nullable = false)
     private RoleRequestStatus roleRequestStatus = RoleRequestStatus.NONE;
 
-    @Column(name = "university_card_image")
-    private String universityCardImage;
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(
+            name = "client_university_cards",
+            joinColumns = @JoinColumn(name = "client_id")
+    )
+    @Column(name = "image_path")
+    private List<String> universityCardImages = new ArrayList<>();
+
 
     // ✅ منع إعادة تحميل كامل الـ Policy → Clients → Policy loop
     @JsonIgnore
@@ -119,11 +122,21 @@ public class Client {
     @OneToMany(mappedBy = "recipient", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Notification> notifications = new ArrayList<>();
 
+    // داخل Client entity
+
+    @Column(name = "date_of_birth")
+    private LocalDate dateOfBirth;
+
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+    @Column(name = "national_id", unique = true, length = 20)
+    private String nationalId;
+
+
 
     @JsonIgnore
     @Builder.Default
@@ -152,5 +165,29 @@ public class Client {
         if (roles == null) return false;
         return roles.stream().anyMatch(r -> r.getName() == roleName);
     }
+
+
+    @Transient
+    public Integer getAge() {
+        if (this.dateOfBirth == null) return null;
+        return Period.between(this.dateOfBirth, LocalDate.now()).getYears();
+    }
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @Enumerated(EnumType.STRING)
+    @CollectionTable(
+            name = "client_chronic_diseases",
+            joinColumns = @JoinColumn(name = "client_id")
+    )
+    @Column(name = "disease")
+    private Set<ChronicDisease> chronicDiseases = new HashSet<>();
+
+
+    @Builder.Default
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "client_chronic_documents", joinColumns = @JoinColumn(name = "client_id"))
+    @Column(name = "document_path")
+    private List<String> chronicDocumentPaths = new ArrayList<>();
+
 
 }

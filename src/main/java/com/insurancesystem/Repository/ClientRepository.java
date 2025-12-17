@@ -11,12 +11,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface ClientRepository extends JpaRepository<Client, UUID> {
+    boolean existsByEmployeeId(String employeeId);
 
-    Optional<Client> findByUsername(String username);
 
     Optional<Client> findByEmail(String email);
 
-    boolean existsByUsername(String username);
+
+    boolean existsByNationalId(String nationalId);
 
     boolean existsByEmail(String email);
 

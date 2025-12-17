@@ -60,7 +60,7 @@ public class PrescriptionService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String doctorUsername = auth.getName();
 
-        Client doctor = clientRepo.findByUsername(doctorUsername)
+        Client doctor = clientRepo.findByEmail(doctorUsername.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("DOCTOR_NOT_FOUND"));
 
         Client member;
@@ -136,7 +136,7 @@ public class PrescriptionService {
     // Member sees prescriptions
     public List<PrescriptionDTO> getMyPrescriptions() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        Client member = clientRepo.findByUsername(auth.getName())
+        Client member = clientRepo.findByEmail(auth.getName().toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Member not found"));
 
         return prescriptionRepo.findByMemberId(member.getId())
@@ -157,8 +157,9 @@ public class PrescriptionService {
     @Transactional
     public PrescriptionDTO verify(UUID id, List<PrescriptionItemDTO> itemsWithPrices) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        Client pharmacist = clientRepo.findByUsername(auth.getName())
+        Client pharmacist = clientRepo.findByEmail(auth.getName().toLowerCase())
                 .orElseThrow(() -> new NotFoundException("PHARMACIST_NOT_FOUND"));
+
 
         Prescription prescription = prescriptionRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException("PRESCRIPTION_NOT_FOUND"));
@@ -210,8 +211,9 @@ public class PrescriptionService {
     @Transactional
     public PrescriptionDTO reject(UUID id) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        Client pharmacist = clientRepo.findByUsername(auth.getName())
+        Client pharmacist = clientRepo.findByEmail(auth.getName().toLowerCase())
                 .orElseThrow(() -> new NotFoundException("PHARMACIST_NOT_FOUND"));
+
 
         Prescription prescription = prescriptionRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException("PRESCRIPTION_NOT_FOUND"));
@@ -321,7 +323,7 @@ public class PrescriptionService {
     // Doctor stats
     public PrescriptionDTO getDoctorStats() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        Client doctor = clientRepo.findByUsername(auth.getName())
+        Client doctor = clientRepo.findByEmail(auth.getName().toLowerCase())
                 .orElseThrow(() -> new NotFoundException("DOCTOR_NOT_FOUND"));
 
         return PrescriptionDTO.builder()
@@ -335,8 +337,9 @@ public class PrescriptionService {
     // Pharmacist stats
     public PrescriptionDTO getPharmacistStats() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        Client pharmacist = clientRepo.findByUsername(auth.getName())
+        Client pharmacist = clientRepo.findByEmail(auth.getName().toLowerCase())
                 .orElseThrow(() -> new NotFoundException("PHARMACIST_NOT_FOUND"));
+
 
         return PrescriptionDTO.builder()
                 .pending(prescriptionRepo.countByStatus(PrescriptionStatus.PENDING))
@@ -352,28 +355,40 @@ public class PrescriptionService {
 
     // Pharmacist update profile
     @Transactional
-    public ClientDto updatePharmacistProfile(String username, UpdateUserDTO dto, MultipartFile universityCard) {
-        Client pharmacist = clientRepo.findByUsername(username)
+    public ClientDto updatePharmacistProfile(String username, UpdateUserDTO dto, MultipartFile[] universityCard){
+        Client pharmacist = clientRepo.findByEmail(username.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("PHARMACIST_NOT_FOUND"));
 
         if (dto.getFullName() != null) pharmacist.setFullName(dto.getFullName());
         if (dto.getEmail() != null) pharmacist.setEmail(dto.getEmail());
         if (dto.getPhone() != null) pharmacist.setPhone(dto.getPhone());
 
-        if (universityCard != null && !universityCard.isEmpty()) {
+        if (universityCard != null && universityCard.length > 0) {
             try {
-                String fileName = UUID.randomUUID() + "_" + universityCard.getOriginalFilename();
-                Path uploadPath = Paths.get("uploads/pharmacists");
-                if (!Files.exists(uploadPath))
-                    Files.createDirectories(uploadPath);
+                String uploadDir = "uploads/pharmacists";
+                Files.createDirectories(Paths.get(uploadDir));
 
-                Path filePath = uploadPath.resolve(fileName);
-                Files.copy(universityCard.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-                pharmacist.setUniversityCardImage("/uploads/pharmacists/" + fileName);
+                if (pharmacist.getUniversityCardImages() == null) {
+                    pharmacist.setUniversityCardImages(new ArrayList<>());
+                }
+
+                for (MultipartFile file : universityCard) {
+                    if (file == null || file.isEmpty()) continue;
+
+                    String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
+                    Path filePath = Paths.get(uploadDir, fileName);
+
+                    Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+                    pharmacist.getUniversityCardImages()
+                            .add("/" + uploadDir + "/" + fileName);
+                }
+
             } catch (IOException e) {
-                throw new RuntimeException("IMAGE_UPLOAD_FAILED");
+                throw new RuntimeException("IMAGE_UPLOAD_FAILED", e);
             }
         }
+
 
         pharmacist.setUpdatedAt(Instant.now());
         Client saved = clientRepo.save(pharmacist);
@@ -383,8 +398,9 @@ public class PrescriptionService {
     // Doctor sees his prescriptions
     public List<PrescriptionDTO> getByDoctor() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        Client doctor = clientRepo.findByUsername(auth.getName())
+        Client doctor = clientRepo.findByEmail(auth.getName().toLowerCase())
                 .orElseThrow(() -> new NotFoundException("DOCTOR_NOT_FOUND"));
+
 
         return prescriptionRepo.findByDoctorId(doctor.getId())
                 .stream()
@@ -395,7 +411,7 @@ public class PrescriptionService {
     // Pharmacist sees all his prescriptions
     public List<PrescriptionDTO> getAllForCurrentPharmacist() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        Client pharmacist = clientRepo.findByUsername(auth.getName())
+        Client pharmacist = clientRepo.findByEmail(auth.getName().toLowerCase())
                 .orElseThrow(() -> new NotFoundException("PHARMACIST_NOT_FOUND"));
 
         return prescriptionRepo.findByPharmacistId(pharmacist.getId())
@@ -449,8 +465,9 @@ public class PrescriptionService {
     @Transactional
     public PrescriptionDTO bill(UUID id) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        Client pharmacist = clientRepo.findByUsername(auth.getName())
+        Client pharmacist = clientRepo.findByEmail(auth.getName().toLowerCase())
                 .orElseThrow(() -> new NotFoundException("PHARMACIST_NOT_FOUND"));
+
 
         Prescription prescription = prescriptionRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException("PRESCRIPTION_NOT_FOUND"));
