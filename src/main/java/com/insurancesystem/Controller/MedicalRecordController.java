@@ -74,22 +74,15 @@ public class MedicalRecordController {
     @PatchMapping(value = "/me/update", consumes = "multipart/form-data")
     @PreAuthorize("hasRole('DOCTOR')")
     public ResponseEntity<ClientDto> updateDoctorProfile(
-
             Authentication auth,
-
             @RequestPart("data") @Valid UpdateUserDTO dto,
-
-            @RequestPart(value = "universityCard", required = false) MultipartFile universityCard
-
+            @RequestPart(value = "universityCard", required = false) MultipartFile[] universityCard
     ) {
-
         String username = auth.getName();
-
         ClientDto updated = recordService.updateProfile(username, dto, universityCard);
-
         return ResponseEntity.ok(updated);
-
     }
+
 
     @GetMapping("/stats")
     @PreAuthorize("hasRole('DOCTOR')")

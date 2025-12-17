@@ -38,9 +38,10 @@ public class SearchProfileService {
         entity.setIdOrPassportCopy(dto.getIdOrPassportCopy());
 
         // 🧑‍💻 المستخدم الحالي (صاحب الطلب)
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        Client currentUser = clientRepository.findByUsername(username)
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        Client currentUser = clientRepository.findByEmail(email.toLowerCase())
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
 
         entity.setOwner(currentUser);
         entity.setStatus(ProfileStatus.PENDING);
@@ -55,7 +56,7 @@ public class SearchProfileService {
 
         notificationService.sendToRole(
                 RoleName.INSURANCE_MANAGER,
-                "يوجد طلب جديد لإنشاء بروفايل من المستخدم: " + currentUser.getUsername()
+                "يوجد طلب جديد لإنشاء بروفايل من المستخدم: " + currentUser.getEmail()
         );
 
         return searchProfileMapper.toDto(savedProfile);
@@ -141,9 +142,10 @@ public class SearchProfileService {
 
 
     public List<SearchProfileDto> getMyProfiles() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        Client currentUser = clientRepository.findByUsername(username)
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        Client currentUser = clientRepository.findByEmail(email.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("User not found"));
+
 
         return repository.findAllByOwnerId(currentUser.getId())
                 .stream()
@@ -182,10 +184,10 @@ public class SearchProfileService {
 
         notificationService.sendToRole(
                 RoleName.INSURANCE_MANAGER,
-                "📢 يوجد تعديل جديد على بروفايل من المستخدم: "
-                        + profile.getOwner().getUsername()
-                        + " (اسم البروفايل: " + profile.getName() + ")"
+                "📢 يوجد تعديل جديد على بروفايل لصاحب الحساب: " + profile.getOwner().getEmail() +
+                        " (اسم البروفايل: " + profile.getName() + ")"
         );
+
 
         return searchProfileMapper.toDto(updatedProfile);
     }

@@ -5,6 +5,8 @@ import com.insurancesystem.Model.Entity.Enums.MemberStatus;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -22,8 +24,7 @@ public class UpdateUserDTO {
     private String phone;
 
     private MemberStatus status; // للأدمن فقط
-    private String universityCardImage;
-
+    List<String> universityCardImages;
     // 🟢 الحقول الجديدة (ضرورية لتطابق ClientMapper)
     private String employeeId;
     private String department;

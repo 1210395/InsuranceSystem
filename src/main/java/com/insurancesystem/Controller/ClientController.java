@@ -27,7 +27,7 @@ import java.util.UUID;
 public class ClientController {
 
     private final ClientServices clientServices;
-    private final ClientRepository clientRepository; // ✅ Add this to check roles
+    private final ClientRepository clientRepository;
 
     @PreAuthorize("hasRole('INSURANCE_MANAGER')")
     @GetMapping("/list")
@@ -41,12 +41,13 @@ public class ClientController {
         return ResponseEntity.ok(clientServices.getById(id));
     }
 
-    @PreAuthorize("hasAnyRole('INSURANCE_MANAGER', 'EMERGENCY_MANAGER','MEDICAL_ADMIN','DOCTOR' , 'RADIOLOGIST' , 'LAB_TECH' , 'PHARMACIST' , 'DOCTOR' , 'COORDINATION_ADMIN')")
+    // ✅ تعديل: MultipartFile -> MultipartFile[]
+    @PreAuthorize("hasAnyRole('INSURANCE_MANAGER', 'EMERGENCY_MANAGER','MEDICAL_ADMIN', 'RADIOLOGIST' , 'LAB_TECH' , 'PHARMACIST' , 'DOCTOR' , 'COORDINATION_ADMIN')")
     @PatchMapping(value = "/update/{id}", consumes = {"multipart/form-data"})
     public ResponseEntity<ClientDto> updateUserById(
             @PathVariable UUID id,
             @RequestPart("data") @Valid UpdateUserDTO dto,
-            @RequestPart(value = "universityCard", required = false) MultipartFile universityCard
+            @RequestPart(value = "universityCard", required = false) MultipartFile[] universityCard
     ) {
         return ResponseEntity.ok(clientServices.update(id, dto, universityCard));
     }
@@ -76,18 +77,20 @@ public class ClientController {
         return ResponseEntity.noContent().build();
     }
 
+    // ✅ تعديل: MultipartFile -> MultipartFile[]
     @PreAuthorize("hasRole('INSURANCE_CLIENT')")
     @PatchMapping(value = "/me/update", consumes = "multipart/form-data")
     public ResponseEntity<ClientDto> updateMyProfile(
             Authentication auth,
             @RequestPart("data") @Valid UpdateUserDTO dto,
-            @RequestPart(value = "universityCard", required = false) MultipartFile universityCard
+            @RequestPart(value = "universityCard", required = false) MultipartFile[] universityCard
     ) {
-        String username = auth.getName();
-        ClientDto updated = clientServices.updateByUsername(username, dto, universityCard);
+        String email = auth.getName().toLowerCase();
+        ClientDto updated = clientServices.updateByEmail(email, dto, universityCard);
         return ResponseEntity.ok(updated);
-    }
 
+    }
+    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
     @PatchMapping("/{id}/deactivate")
     public ResponseEntity<Void> deactivateClient(
             @PathVariable UUID id,
@@ -107,16 +110,10 @@ public class ClientController {
 
     // ============= NEW ENDPOINTS FOR EMPLOYEE ID LOOKUP =============
 
-    /**
-     * 🆔 Search client by employee ID
-     * Used by doctors to auto-populate patient information in medical forms
-     * ✅ ONLY returns clients with INSURANCE_CLIENT role
-     *
-     * @param employeeId The employee ID to search for
-     * @return Client information (fullName, department, faculty, specialization, etc.)
-     */
     @GetMapping("/search/employeeId/{employeeId}")
+
     @PreAuthorize("hasAnyRole('RADIOLOGIST','LAB_TECH','PHARMACIST','DOCTOR', 'ADMIN', 'INSURANCE_MANAGER', 'MEDICAL_ADMIN')")
+
     public ResponseEntity<?> findByEmployeeId(@PathVariable String employeeId) {
         try {
             if (employeeId == null || employeeId.trim().isEmpty()) {
@@ -124,16 +121,13 @@ public class ClientController {
                         .body(Map.of("error", "Employee ID cannot be empty"));
             }
 
-            // ✅ Get client from repository to check roles
             Client client = clientRepository.findByEmployeeId(employeeId)
                     .orElseThrow(() -> new RuntimeException("Employee ID not found: " + employeeId));
 
-            // ✅ Validate that the user has INSURANCE_CLIENT role ONLY
             boolean hasInsuranceClientRole = client.getRoles().stream()
                     .anyMatch(role -> role.getName() == RoleName.INSURANCE_CLIENT);
 
             if (!hasInsuranceClientRole) {
-                // ❌ User exists but doesn't have INSURANCE_CLIENT role
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(Map.of(
                                 "error", "INVALID_ROLE",
@@ -142,7 +136,6 @@ public class ClientController {
                         ));
             }
 
-            // ✅ Valid INSURANCE_CLIENT - get DTO and return data
             ClientDto clientDto = clientServices.findByEmployeeId(employeeId);
 
             Map<String, Object> response = new HashMap<>();
@@ -158,7 +151,6 @@ public class ClientController {
             return ResponseEntity.ok(response);
 
         } catch (RuntimeException e) {
-            // Employee ID not found
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("error", "NOT_FOUND", "message", "Employee ID not found: " + employeeId));
         } catch (Exception e) {
@@ -167,15 +159,8 @@ public class ClientController {
         }
     }
 
-    /**
-     * 👤 Search client by full name
-     * Fallback search method for patient lookup
-     *
-     * @param fullName The full name to search for
-     * @return Client information
-     */
     @GetMapping("/search/name/{fullName}")
-    @PreAuthorize("hasAnyRole('RADIOLOGIST','LAB_TECH','PHARMACIST','DOCTOR', 'ADMIN', 'INSURANCE_MANAGER', 'INSURANCE_CLIENT')")
+    @PreAuthorize("hasAnyRole('RADIOLOGIST','LAB_TECH','PHARMACIST','DOCTOR', 'INSURANCE_MANAGER', 'INSURANCE_CLIENT')")
     public ResponseEntity<?> findByFullName(@PathVariable String fullName) {
         try {
             if (fullName == null || fullName.trim().isEmpty()) {
@@ -201,5 +186,13 @@ public class ClientController {
                     .body(Map.of("error", "Client not found: " + fullName));
         }
     }
-}
 
+    @PreAuthorize("hasRole('INSURANCE_CLIENT')")
+    @PatchMapping("/me/university-cards/clear")
+    public ResponseEntity<Void> clearMyUniversityCards(Authentication auth) {
+        String email = auth.getName().toLowerCase();
+        clientServices.clearUniversityCardsByEmail(email);
+        return ResponseEntity.noContent().build();
+    }
+
+}

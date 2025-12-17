@@ -72,7 +72,6 @@ public class HealthcareProviderClaimController {
 
             response.put("fullName", client.getFullName());
 
-            response.put("username", client.getUsername());
 
             response.put("email", client.getEmail());
 
@@ -112,8 +111,7 @@ public class HealthcareProviderClaimController {
 
         try {
 
-            Client provider = clientRepo.findByUsername(auth.getName())
-
+            Client provider = clientRepo.findByEmail(auth.getName().toLowerCase())
                     .orElseThrow(() -> new NotFoundException("Provider not found"));
 
             CreateHealthcareProviderClaimDTO dto =
@@ -156,9 +154,9 @@ public class HealthcareProviderClaimController {
 
         try {
 
-            Client client = clientRepo.findByUsername(auth.getName())
-
+            Client client = clientRepo.findByEmail(auth.getName().toLowerCase())
                     .orElseThrow(() -> new NotFoundException("Client not found"));
+
 
             CreateHealthcareProviderClaimDTO dto =
 
@@ -192,9 +190,9 @@ public class HealthcareProviderClaimController {
 
         try {
 
-            Client provider = clientRepo.findByUsername(auth.getName())
-
+            Client provider = clientRepo.findByEmail(auth.getName().toLowerCase())
                     .orElseThrow(() -> new NotFoundException("Provider not found"));
+
 
             return ResponseEntity.ok(claimService.getProviderClaims(provider.getId()));
 
@@ -236,15 +234,14 @@ public class HealthcareProviderClaimController {
 
         try {
 
-            Client requester = clientRepo.findByUsername(auth.getName())
-
+            Client requester = clientRepo.findByEmail(auth.getName().toLowerCase())
                     .orElseThrow(() -> new NotFoundException("Requester not found"));
 
             boolean isManager = auth.getAuthorities().stream()
-
                     .anyMatch(a -> a.getAuthority().equals("ROLE_INSURANCE_MANAGER"));
 
             return ResponseEntity.ok(claimService.getClaim(id, requester.getId(), isManager));
+
 
         } catch (NotFoundException e) {
 
@@ -316,11 +313,11 @@ public class HealthcareProviderClaimController {
 
         try {
 
-            Client reviewer = clientRepo.findByUsername(auth.getName())
-
+            Client reviewer = clientRepo.findByEmail(auth.getName().toLowerCase())
                     .orElseThrow(() -> new NotFoundException("Reviewer not found"));
 
             return ResponseEntity.ok(claimService.approveMedical(id, reviewer.getId()));
+
 
         } catch (NotFoundException e) {
 
@@ -350,11 +347,11 @@ public class HealthcareProviderClaimController {
 
         try {
 
-            Client reviewer = clientRepo.findByUsername(auth.getName())
-
+            Client reviewer = clientRepo.findByEmail(auth.getName().toLowerCase())
                     .orElseThrow(() -> new NotFoundException("Reviewer not found"));
 
             return ResponseEntity.ok(claimService.rejectMedical(id, dto.getReason(), reviewer.getId()));
+
 
         } catch (NotFoundException e) {
 
@@ -378,11 +375,11 @@ public class HealthcareProviderClaimController {
 
         try {
 
-            Client reviewer = clientRepo.findByUsername(auth.getName())
-
+            Client reviewer = clientRepo.findByEmail(auth.getName().toLowerCase())
                     .orElseThrow(() -> new NotFoundException("Reviewer not found"));
 
             return ResponseEntity.ok(claimService.approveAdmin(id, reviewer.getId()));
+
 
         } catch (NotFoundException e) {
 
@@ -412,11 +409,11 @@ public class HealthcareProviderClaimController {
 
         try {
 
-            Client reviewer = clientRepo.findByUsername(auth.getName())
-
+            Client reviewer = clientRepo.findByEmail(auth.getName().toLowerCase())
                     .orElseThrow(() -> new NotFoundException("Reviewer not found"));
 
             return ResponseEntity.ok(claimService.rejectAdmin(id, dto.getReason(), reviewer.getId()));
+
 
         } catch (NotFoundException e) {
 
@@ -464,17 +461,13 @@ public class HealthcareProviderClaimController {
 
     ) {
 
-        Client reviewer = clientRepo.findByUsername(auth.getName())
-
+        Client reviewer = clientRepo.findByEmail(auth.getName().toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Reviewer not found"));
 
         claimService.approveAdminBatch(dto.getClaimIds(), reviewer.getId());
+        return ResponseEntity.ok(Map.of("message", "Batch approval completed successfully"));
 
-        return ResponseEntity.ok(
 
-                Map.of("message", "Batch approval completed successfully")
-
-        );
 
     }
 

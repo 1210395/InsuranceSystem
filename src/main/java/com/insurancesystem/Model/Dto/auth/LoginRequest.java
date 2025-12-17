@@ -3,6 +3,6 @@ import lombok.*;
 
 @Data @NoArgsConstructor @AllArgsConstructor
 public class LoginRequest {
-    private String username;
+    private String email;  // بدل username
     private String password;
 }

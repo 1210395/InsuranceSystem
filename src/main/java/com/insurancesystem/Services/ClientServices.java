@@ -45,24 +45,35 @@ public class ClientServices {
         return clientMapper.toDTO(user);
     }
 
-    public ClientDto update(UUID id, UpdateUserDTO dto, MultipartFile universityCard) {
+    public ClientDto update(UUID id, UpdateUserDTO dto, MultipartFile[] universityCards)
+    {
         Client user = clientRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException("User not found"));
 
         clientMapper.updateEntityFromDTO(dto, user);
 
-        if (universityCard != null && !universityCard.isEmpty()) {
-            String fileName = UUID.randomUUID() + "_" + universityCard.getOriginalFilename();
+        if (universityCards != null && universityCards.length > 0) {
             Path uploadPath = Paths.get("uploads/cards");
             try {
                 if (!Files.exists(uploadPath)) {
                     Files.createDirectories(uploadPath);
                 }
-                Path filePath = uploadPath.resolve(fileName);
-                Files.copy(universityCard.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-                user.setUniversityCardImage("/uploads/cards/" + fileName);
+
+                for (MultipartFile file : universityCards) {
+                    if (file == null || file.isEmpty()) continue;
+
+                    String original = file.getOriginalFilename();
+                    String safeName = original == null ? "file" : original.replaceAll("[^a-zA-Z0-9._-]", "_");
+                    String fileName = UUID.randomUUID() + "_" + safeName;
+                    Path filePath = uploadPath.resolve(fileName);
+
+                    Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+                    // ✅ أضف المسار للقائمة
+                    user.getUniversityCardImages().add("/uploads/cards/" + fileName);
+                }
             } catch (IOException e) {
-                throw new RuntimeException("❌ Failed to save university card image", e);
+                throw new RuntimeException("❌ Failed to save university card images", e);
             }
         }
 
@@ -71,12 +82,7 @@ public class ClientServices {
         return clientMapper.toDTO(user);
     }
 
-    @Transactional(readOnly = true)
-    public ClientDto getByUsername(String username) {
-        var user = clientRepo.findByUsername(username.toLowerCase())
-                .orElseThrow(() -> new NotFoundException("User not found"));
-        return clientMapper.toDTO(user);
-    }
+
 
     @Transactional(readOnly = true)
     public List<ClientDto> listUsersWithPendingRole() {
@@ -129,9 +135,11 @@ public class ClientServices {
                 "مستخدم جديد (" + u.getFullName() + ") سجل وينتظر الموافقة.");
     }
 
-    public ClientDto updateByUsername(String username, UpdateUserDTO dto, MultipartFile universityCard) {
-        Client client = clientRepo.findByUsername(username)
+    public ClientDto updateByEmail(String email, UpdateUserDTO dto, MultipartFile[] universityCards) {
+        Client client = clientRepo.findByEmail(email.toLowerCase())
                 .orElseThrow(() -> new RuntimeException("Client not found"));
+
+
 
         if (dto.getFullName() != null && !dto.getFullName().isBlank()) {
             client.setFullName(dto.getFullName());
@@ -143,20 +151,35 @@ public class ClientServices {
             client.setPhone(dto.getPhone());
         }
 
-        if (universityCard != null && !universityCard.isEmpty()) {
+        if (universityCards != null && universityCards.length > 0) {
             try {
-                String fileName = UUID.randomUUID() + "_" + universityCard.getOriginalFilename();
                 Path uploadPath = Paths.get("uploads/profile");
                 if (!Files.exists(uploadPath)) {
                     Files.createDirectories(uploadPath);
                 }
-                Path filePath = uploadPath.resolve(fileName);
-                Files.copy(universityCard.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-                client.setUniversityCardImage("/uploads/profile/" + fileName);
+
+                // ✅ امسحي القديم قبل ما ترفعي الجديد (حل مشكلتك)
+                client.getUniversityCardImages().clear();
+
+                for (MultipartFile file : universityCards) {
+                    if (file == null || file.isEmpty()) continue;
+
+                    String original = file.getOriginalFilename();
+                    String safeName = original == null ? "file" : original.replaceAll("[^a-zA-Z0-9._-]", "_");
+                    String fileName = UUID.randomUUID() + "_" + safeName;
+                    Path filePath = uploadPath.resolve(fileName);
+
+                    Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+                    // ✅ خزّني فقط المسار الصحيح
+                    client.getUniversityCardImages().add("/uploads/profile/" + fileName);
+                }
+
             } catch (IOException e) {
-                throw new RuntimeException("❌ Failed to save profile image", e);
+                throw new RuntimeException("❌ Failed to save profile images", e);
             }
         }
+
 
         client.setUpdatedAt(Instant.now());
         Client updated = clientRepo.save(client);
@@ -239,5 +262,31 @@ public class ClientServices {
                 .orElseThrow(() -> new NotFoundException("Client not found with name: " + fullName));
         return clientMapper.toDTO(client);
     }
+    @Transactional(readOnly = true)
+    public ClientDto getByEmail(String email) {
+        Client client = clientRepo.findByEmail(email.toLowerCase())
+                .orElseThrow(() -> new NotFoundException("User not found"));
+        return clientMapper.toDTO(client);
+    }
+    public void clearUniversityCardsByEmail(String email) {
+        Client client = clientRepo.findByEmail(email.toLowerCase())
+                .orElseThrow(() -> new RuntimeException("Client not found"));
+        for (String pathStr : client.getUniversityCardImages()) {
+            try {
+                if (pathStr != null && pathStr.startsWith("/uploads/")) {
+                    // pathStr مثل: /uploads/profile/abc.png
+                    Path filePath = Paths.get(pathStr.substring(1)); // remove leading "/"
+                    Files.deleteIfExists(filePath);
+                }
+            } catch (Exception ignored) {}
+        }
+        client.getUniversityCardImages().clear();
+
+        client.getUniversityCardImages().clear();
+        client.setUpdatedAt(Instant.now());
+        clientRepo.save(client);
+    }
+
+
 }
 

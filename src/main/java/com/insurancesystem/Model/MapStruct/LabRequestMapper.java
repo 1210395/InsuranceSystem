@@ -19,12 +19,13 @@ public interface LabRequestMapper {
     @Mapping(source = "labTech.id", target = "labTechId")
     @Mapping(source = "labTech.fullName", target = "labTechName")
 
-    // 🟢 PriceList fields
+    @Mapping(source = "member.universityCardImages", target = "universityCardImages")
+
+
     @Mapping(source = "test.id", target = "testId")
     @Mapping(source = "test.serviceName", target = "serviceName")
     @Mapping(source = "test.price", target = "unionPrice")
     @Mapping(source = "member.employeeId", target = "employeeId")
-    @Mapping(source = "member.universityCardImage", target = "universityCardImage")
     LabRequestDTO toDto(LabRequest request);
 
     // ----------------------------

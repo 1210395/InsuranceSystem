@@ -42,12 +42,12 @@ public class RadiologyRequestService {
     private final ClientMapper clientMapper;
     private final NotificationService notificationService;
 
-    // 🧑‍⚕️ Get the radiologist's ID from the username
-    public UUID getRadiologistIdByUsername(String username) {
-        Client radiologist = clientRepository.findByUsername(username)
+    public UUID getRadiologistIdByEmail(String email) {
+        Client radiologist = clientRepository.findByEmail(email.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Radiologist not found"));
         return radiologist.getId();
     }
+
 
     // ➕ Create a new Radiology Request (linked with PriceList)
     @Transactional
@@ -56,8 +56,9 @@ public class RadiologyRequestService {
 
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        Client doctor = clientRepository.findByUsername(username)
+        Client doctor = clientRepository.findByEmail(username.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Doctor not found"));
+
 
         Client member = clientRepository.findById(dto.getMemberId())
                 .orElseThrow(() -> new NotFoundException("Member not found"));
@@ -110,7 +111,7 @@ public class RadiologyRequestService {
 
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        Client radiologist = clientRepository.findByUsername(username)
+        Client radiologist = clientRepository.findByEmail(username.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Radiologist not found"));
 
         RadiologyRequest request = radiologyRequestRepository.findById(requestId)
@@ -176,8 +177,9 @@ public class RadiologyRequestService {
     public RadiologyRequestDTO update(UUID id, RadiologyRequestDTO dto) {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        Client doctor = clientRepository.findByUsername(username)
+        Client doctor = clientRepository.findByEmail(username.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Doctor not found"));
+
 
         RadiologyRequest request = radiologyRequestRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Radiology request not found"));
@@ -199,8 +201,9 @@ public class RadiologyRequestService {
     public void delete(UUID id) {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        Client doctor = clientRepository.findByUsername(username)
+        Client doctor = clientRepository.findByEmail(username.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Doctor not found"));
+
 
         RadiologyRequest request = radiologyRequestRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Radiology request not found"));
@@ -218,8 +221,9 @@ public class RadiologyRequestService {
     public List<RadiologyRequestDTO> getByDoctor() {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        Client doctor = clientRepository.findByUsername(username)
+        Client doctor = clientRepository.findByEmail(username.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Doctor not found"));
+
 
         return radiologyRequestRepository.findByDoctorId(doctor.getId())
                 .stream()
@@ -251,8 +255,9 @@ public class RadiologyRequestService {
     public List<RadiologyRequestDTO> getByMember() {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        Client member = clientRepository.findByUsername(username)
+        Client member = clientRepository.findByEmail(username.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Member not found"));
+
 
         return radiologyRequestRepository.findByMemberId(member.getId())
                 .stream()
@@ -270,28 +275,43 @@ public class RadiologyRequestService {
 
     // 👤 Radiologist updates profile
     @Transactional
-    public ClientDto updateRadiologistProfile(String username, UpdateUserDTO dto, MultipartFile universityCard) {
+    public ClientDto updateRadiologistProfile(String username, UpdateUserDTO dto, MultipartFile[] universityCard){
 
-        Client radiologist = clientRepository.findByUsername(username)
+        Client radiologist = clientRepository.findByEmail(username.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Radiologist not found"));
+
 
         if (dto.getFullName() != null) radiologist.setFullName(dto.getFullName());
         if (dto.getEmail() != null) radiologist.setEmail(dto.getEmail());
         if (dto.getPhone() != null) radiologist.setPhone(dto.getPhone());
 
-        if (universityCard != null && !universityCard.isEmpty()) {
+        if (universityCard != null && universityCard.length > 0) {
             try {
-                String fileName = UUID.randomUUID() + "_" + universityCard.getOriginalFilename();
-                Path uploadPath = Paths.get("uploads/radiologists");
-                Files.createDirectories(uploadPath);
-                Files.copy(universityCard.getInputStream(), uploadPath.resolve(fileName), StandardCopyOption.REPLACE_EXISTING);
+                String uploadDir = "uploads/radiologists";
+                Files.createDirectories(Paths.get(uploadDir));
 
-                radiologist.setUniversityCardImage("/uploads/radiologists/" + fileName);
+                // تأكد الليست مش null
+                if (radiologist.getUniversityCardImages() == null) {
+                    radiologist.setUniversityCardImages(new java.util.ArrayList<>());
+                }
+
+                for (MultipartFile file : universityCard) {
+                    if (file == null || file.isEmpty()) continue;
+
+                    String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
+                    Path filePath = Paths.get(uploadDir, fileName);
+
+                    Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+                    // خزّن المسار في DB
+                    radiologist.getUniversityCardImages().add("/" + uploadDir + "/" + fileName);
+                }
 
             } catch (IOException e) {
-                throw new RuntimeException("Failed to save radiologist image", e);
+                throw new RuntimeException("Failed to save radiologist images", e);
             }
         }
+
 
         radiologist.setUpdatedAt(Instant.now());
         return clientMapper.toDTO(clientRepository.save(radiologist));
