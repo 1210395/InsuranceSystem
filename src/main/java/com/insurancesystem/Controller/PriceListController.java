@@ -114,8 +114,9 @@ public class PriceListController {
             }
 
             // Get the authenticated user
-            Client doctor = clientRepository.findByUsername(authentication.getName())
+            Client doctor = clientRepository.findByEmail(authentication.getName())
                     .orElse(null);
+
 
             if (doctor == null) {
                 return null;

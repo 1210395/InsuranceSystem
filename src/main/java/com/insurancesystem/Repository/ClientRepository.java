@@ -6,6 +6,7 @@ import com.insurancesystem.Model.Entity.Enums.RoleName;
 import com.insurancesystem.Model.Entity.Policy;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,5 +33,6 @@ public interface ClientRepository extends JpaRepository<Client, UUID> {
     List<Client> findByRoles_Name(RoleName roleName);
 
     Optional<Client> findByEmployeeId(String employeeId);
+
 
 }
