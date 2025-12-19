@@ -16,6 +16,7 @@ public class HealthcareProviderClaimMedicalDTO {
     private UUID clientId;
     private String clientName;
     private String employeeId;
+    private Double amount;
 
     // Provider
     private UUID providerId;

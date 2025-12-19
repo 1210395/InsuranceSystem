@@ -28,6 +28,7 @@ public class HealthcareProviderClaimDTO {
     private String rejectionReason;
     private String medicalReviewerName;
     private Instant medicalReviewedAt;
-
+    private String providerRole;
+    private String employeeId;
 }
 
