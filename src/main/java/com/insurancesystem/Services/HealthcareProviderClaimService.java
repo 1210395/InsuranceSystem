@@ -694,6 +694,7 @@ public class HealthcareProviderClaimService {
         return claims.stream().map(claim -> {
 
             HealthcareProviderClaimDTO dto = claimMapper.toDto(claim);
+            dto.setInvoiceImagePath(claim.getInvoiceImagePath());
 
             // ✅ تحديد دور مقدم الخدمة
             String role;
