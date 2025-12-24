@@ -62,11 +62,14 @@ public interface PrescriptionRepository extends JpaRepository<Prescription, UUID
             "WHERE p.status = :status")
     List<Prescription> findByStatusWithMember(@Param("status") PrescriptionStatus status);
 
+    // ✅ Use JOIN FETCH to eagerly load member with all fields including dateOfBirth and gender
+    // The DISTINCT is needed because JOIN FETCH can create duplicates
     @Query("SELECT DISTINCT p FROM Prescription p " +
-            "LEFT JOIN FETCH p.member m " +
-            "LEFT JOIN FETCH p.doctor d " +
-            "LEFT JOIN FETCH p.pharmacist ph " +
-            "WHERE p.pharmacist.id = :pharmacistId")
+           "LEFT JOIN FETCH p.member m " +
+           "LEFT JOIN FETCH p.doctor d " +
+           "LEFT JOIN FETCH p.pharmacist ph " +
+           "WHERE p.pharmacist.id = :pharmacistId " +
+           "ORDER BY p.createdAt DESC")
     List<Prescription> findByPharmacistIdWithMember(@Param("pharmacistId") UUID pharmacistId);
 
     @Query("SELECT DISTINCT p FROM Prescription p " +

@@ -49,9 +49,9 @@ public class FamilyMemberController {
         familyService.deleteFamilyMember(auth.getName(), memberId);
     }
 
-    /* ===================== DOCTOR - Get Family by Client ID ===================== */
+    /* ===================== DOCTOR / COORDINATION_ADMIN - Get Family by Client ID ===================== */
 
-    @PreAuthorize("hasRole('DOCTOR')")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'COORDINATION_ADMIN')")
     @GetMapping("/client/{clientId}")
     public List<FamilyMemberDTO> getFamilyByClientId(@PathVariable UUID clientId) {
         return familyService.getFamilyForClient(clientId);

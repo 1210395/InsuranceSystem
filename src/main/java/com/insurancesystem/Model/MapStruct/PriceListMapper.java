@@ -16,6 +16,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @Mapper(componentModel = "spring")
 public interface PriceListMapper {
 
+    /**
+     * Maps PriceList entity to PriceListResponseDTO
+     * Note: allowedGenders, minAge, maxAge, and quantity are automatically mapped by MapStruct
+     * since they have the same names and compatible types in both entity and DTO
+     */
     @Mapping(target = "serviceDetails", source = "serviceDetails", qualifiedByName = "convertJson")
     @Mapping(target = "allowedSpecializations", source = "allowedSpecializations", qualifiedByName = "mapSpecializations")
     PriceListResponseDTO toDto(PriceList entity);

@@ -20,5 +20,8 @@ public interface PriceListRepository extends JpaRepository<PriceList, UUID> {
     // فقط العناصر الفعالة
     List<PriceList> findByProviderTypeAndActive(ProviderType providerType, boolean active);
 
+    // ✅ البحث عن خدمة بالاسم والنوع
+    @Query("SELECT p FROM PriceList p WHERE p.providerType = :type AND p.serviceName = :serviceName")
+    List<PriceList> findByProviderTypeAndServiceName(@Param("type") ProviderType type, @Param("serviceName") String serviceName);
 
 }

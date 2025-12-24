@@ -1,10 +1,12 @@
 package com.insurancesystem.Model.MapStruct;
 
-import com.insurancesystem.Model.Dto.PrescriptionDTO;
 import com.insurancesystem.Model.Dto.RadiologyRequestDTO;
-import com.insurancesystem.Model.Entity.Prescription;
 import com.insurancesystem.Model.Entity.RadiologyRequest;
+import com.insurancesystem.Model.Entity.FamilyMember;
+import com.insurancesystem.Repository.FamilyMemberRepository;
 import org.mapstruct.*;
+import java.util.Optional;
+
 @Mapper(componentModel = "spring")
 public interface RadiologyRequestMapper {
 
@@ -34,14 +36,13 @@ public interface RadiologyRequestMapper {
     @Mapping(target = "testName",
             expression = "java(request.getTest() != null ? request.getTest().getServiceName() : null)")
 
-    // انتبه: هاي بتعبي price تبع الاتحاد حتى لو فيه approvedPrice فعلي بالـ entity
     @Mapping(target = "approvedPrice",
             expression = "java(request.getApprovedPrice() != null ? request.getApprovedPrice() : (request.getTest() != null ? request.getTest().getPrice() : null))")
 
     @Mapping(target = "employeeId",
             expression = "java(request.getMember() != null ? request.getMember().getEmployeeId() : null)")
 
-    RadiologyRequestDTO toDto(RadiologyRequest request);
+    RadiologyRequestDTO toDto(RadiologyRequest request, @Context FamilyMemberRepository familyMemberRepo);
 
     // DTO → Entity
     @Mapping(source = "doctorId", target = "doctor.id")
@@ -54,64 +55,192 @@ public interface RadiologyRequestMapper {
     @Mapping(target = "radiologist", ignore = true)
     @Mapping(target = "test", ignore = true)
     @AfterMapping
-    default void extractFamilyMemberInfo(@MappingTarget PrescriptionDTO dto, Prescription entity) {
-        // ✅ Extract main client age and gender (ADD THIS PART)
-        if (entity.getMember() != null) {
-            // Calculate age from date of birth
-            if (entity.getMember().getDateOfBirth() != null) {
+    default void extractFamilyMemberInfo(RadiologyRequest entity, @MappingTarget RadiologyRequestDTO.RadiologyRequestDTOBuilder dto, @Context FamilyMemberRepository familyMemberRepo) {
+        if (entity == null || entity.getMember() == null) {
+            return;
+        }
+        
+        try {
+            com.insurancesystem.Model.Entity.Client member = entity.getMember();
+            String memberName = member.getFullName();
+
+            // Extract university card image (first image from list)
+            if (member.getUniversityCardImages() != null && !member.getUniversityCardImages().isEmpty()) {
+                String firstImage = member.getUniversityCardImages().get(0);
+                dto.universityCardImage(firstImage);
+            }
+
+            // Get dateOfBirth and calculate age
+            java.time.LocalDate birthDate = member.getDateOfBirth();
+            if (birthDate != null) {
                 java.time.LocalDate today = java.time.LocalDate.now();
-                java.time.LocalDate birthDate = entity.getMember().getDateOfBirth();
                 int age = today.getYear() - birthDate.getYear();
                 if (today.getMonthValue() < birthDate.getMonthValue() ||
                         (today.getMonthValue() == birthDate.getMonthValue() && today.getDayOfMonth() < birthDate.getDayOfMonth())) {
                     age--;
                 }
-                dto.setMemberAge(age > 0 ? age + " years" : null);
-            } else {
-                dto.setMemberAge(null);
+                String ageStr = age > 0 ? age + " years" : null;
+                dto.memberAge(ageStr);
             }
 
             // Get gender
-            if (entity.getMember().getGender() != null) {
-                dto.setMemberGender(entity.getMember().getGender().toString());
-            } else {
-                dto.setMemberGender(null);
+            String gender = member.getGender();
+            if (gender != null && !gender.trim().isEmpty()) {
+                dto.memberGender(gender);
             }
+
+            // Extract National ID from member
+            String nationalId = member.getNationalId();
+            if (nationalId != null && !nationalId.trim().isEmpty()) {
+                dto.memberNationalId(nationalId);
+            }
+        } catch (org.hibernate.LazyInitializationException e) {
+            // Silently handle - data will be null
+        } catch (Exception e) {
+            // Silently handle - data will be null
         }
 
-        // Parse family member information from treatment field
-        if (dto.getTreatment() == null || dto.getTreatment().isEmpty()) {
-            dto.setIsFamilyMember(false);
+        // Parse family member information from notes/treatment field
+        dto.isFamilyMember(false);
+        String notes = entity.getNotes();
+        if (notes == null || notes.isEmpty()) {
+            notes = entity.getTreatment();
+        }
+        
+        if (notes == null || notes.isEmpty()) {
             return;
         }
 
-        // Pattern: "Family Member: [Name] ([Relation]) - Insurance: [Insurance Number] - Age: [Age] - Gender: [Gender]"
-        String treatment = dto.getTreatment();
-        String familyMemberPattern = "Family Member:\\s*([^-]+?)\\s*\\(([^)]+)\\)\\s*-\\s*Insurance:\\s*([^-]+?)(?:\\s*-\\s*Age:\\s*([^-]+?))?(?:\\s*-\\s*Gender:\\s*([^\\n\\r]+))?";
-
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(familyMemberPattern, java.util.regex.Pattern.CASE_INSENSITIVE);
-        java.util.regex.Matcher matcher = pattern.matcher(treatment);
-
-        if (matcher.find()) {
-            dto.setIsFamilyMember(true);
-            dto.setFamilyMemberName(matcher.group(1).trim());
-            dto.setFamilyMemberRelation(matcher.group(2).trim());
-            dto.setFamilyMemberInsuranceNumber(matcher.group(3).trim());
-
-            if (matcher.groupCount() >= 4 && matcher.group(4) != null) {
-                dto.setFamilyMemberAge(matcher.group(4).trim());
-            } else {
-                dto.setFamilyMemberAge(null);
-            }
-
-            if (matcher.groupCount() >= 5 && matcher.group(5) != null) {
-                dto.setFamilyMemberGender(matcher.group(5).trim());
-            } else {
-                dto.setFamilyMemberGender(null);
-            }
-        } else {
-            dto.setIsFamilyMember(false);
+        // Normalize: replace newlines with spaces and clean up multiple spaces
+        String normalized = notes.replaceAll("\\r?\\n", " ").replaceAll("\\s+", " ").trim();
+        
+        // Find "Family Member:" (case insensitive)
+        String lowerNormalized = normalized.toLowerCase();
+        int idx = lowerNormalized.indexOf("family member:");
+        if (idx < 0) {
+            return;
         }
+        
+        // Extract section starting from "Family Member:"
+        String section = normalized.substring(idx);
+        
+        // Extract Name: between "Family Member:" and "("
+        int nameStart = "Family Member:".length();
+        int parenStart = section.indexOf('(', nameStart);
+        if (parenStart < 0) {
+            return;
+        }
+        
+        String name = section.substring(nameStart, parenStart).trim();
+        
+        // Extract Relation: between "(" and ")"
+        int parenEnd = section.indexOf(')', parenStart);
+        if (parenEnd < 0) {
+            return;
+        }
+        
+        String relation = section.substring(parenStart + 1, parenEnd).trim();
+        
+        // Try to find the FamilyMember in database to get accurate data
+        try {
+            if (entity.getMember() != null && familyMemberRepo != null) {
+                Optional<FamilyMember> familyMemberOpt = familyMemberRepo.findByClient_IdAndFullNameAndRelation(
+                        entity.getMember().getId(),
+                        name,
+                        com.insurancesystem.Model.Entity.Enums.FamilyRelation.valueOf(relation.toUpperCase())
+                );
+                
+                if (familyMemberOpt.isPresent()) {
+                    FamilyMember familyMember = familyMemberOpt.get();
+                    
+                    String insuranceNumber = familyMember.getInsuranceNumber();
+                    
+                    String ageStr = null;
+                    if (familyMember.getDateOfBirth() != null) {
+                        java.time.LocalDate today = java.time.LocalDate.now();
+                        java.time.LocalDate birthDate = familyMember.getDateOfBirth();
+                        int age = today.getYear() - birthDate.getYear();
+                        if (today.getMonthValue() < birthDate.getMonthValue() ||
+                                (today.getMonthValue() == birthDate.getMonthValue() && today.getDayOfMonth() < birthDate.getDayOfMonth())) {
+                            age--;
+                        }
+                        if (age > 0) {
+                            ageStr = age + " years";
+                        }
+                    }
+                    
+                    String genderStr = null;
+                    if (familyMember.getGender() != null) {
+                        genderStr = familyMember.getGender().toString();
+                    }
+                    
+                    String familyMemberNationalId = familyMember.getNationalId();
+                    
+                    dto.isFamilyMember(true);
+                    dto.familyMemberName(name);
+                    dto.familyMemberRelation(relation);
+                    dto.familyMemberInsuranceNumber(insuranceNumber);
+                    dto.familyMemberAge(ageStr);
+                    dto.familyMemberGender(genderStr);
+                    dto.familyMemberNationalId(familyMemberNationalId);
+                    
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            // Fallback to parsing
+        }
+        
+        // Fallback: Parse from notes/treatment field if database lookup fails
+        int insuranceIdx = section.toLowerCase().indexOf("insurance:", parenEnd);
+        if (insuranceIdx < 0) {
+            return;
+        }
+        
+        int insuranceStart = insuranceIdx + "insurance:".length();
+        String afterInsurance = section.substring(insuranceStart).trim();
+        
+        String insurance = afterInsurance;
+        int dashIdx = insurance.indexOf(" - ");
+        int familyIdx = insurance.toLowerCase().indexOf("family member:");
+        int endIdx = Math.min(dashIdx > 0 ? dashIdx : Integer.MAX_VALUE, 
+                             familyIdx > 0 ? familyIdx : Integer.MAX_VALUE);
+        if (endIdx < Integer.MAX_VALUE) {
+            insurance = insurance.substring(0, endIdx).trim();
+        }
+        
+        String age = null;
+        int ageIdx = section.toLowerCase().indexOf("age:", insuranceIdx);
+        if (ageIdx > 0) {
+            int ageStart = ageIdx + "age:".length();
+            String afterAge = section.substring(ageStart).trim();
+            int ageEnd = afterAge.indexOf(" - ");
+            if (ageEnd > 0) {
+                age = afterAge.substring(0, ageEnd).trim();
+            } else {
+                age = afterAge.trim();
+            }
+        }
+        
+        String gender = null;
+        int genderIdx = section.toLowerCase().indexOf("gender:");
+        if (genderIdx > 0) {
+            int genderStart = genderIdx + "gender:".length();
+            String afterGender = section.substring(genderStart).trim();
+            int genderEnd = afterGender.toLowerCase().indexOf("family member:");
+            if (genderEnd > 0) {
+                gender = afterGender.substring(0, genderEnd).trim();
+            } else {
+                gender = afterGender.trim();
+            }
+        }
+        
+        dto.isFamilyMember(true);
+        dto.familyMemberName(name);
+        dto.familyMemberRelation(relation);
+        dto.familyMemberInsuranceNumber(insurance);
+        dto.familyMemberAge(age);
+        dto.familyMemberGender(gender != null ? gender.toUpperCase() : null);
     }
     RadiologyRequest toEntity(RadiologyRequestDTO dto);
 }

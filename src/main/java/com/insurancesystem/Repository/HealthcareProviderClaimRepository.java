@@ -20,8 +20,22 @@ import java.util.UUID;
 public interface HealthcareProviderClaimRepository extends JpaRepository<HealthcareProviderClaim, UUID> {
 
     List<HealthcareProviderClaim> findByHealthcareProvider(Client provider);
+    
+    @Query(value = """
+        SELECT * FROM healthcare_provider_claims 
+        WHERE provider_id = :providerId 
+        AND status IN ('PENDING_MEDICAL', 'APPROVED_FINAL', 'REJECTED_FINAL', 'RETURNED_FOR_REVIEW')
+    """, nativeQuery = true)
+    List<HealthcareProviderClaim> findByHealthcareProviderId(@Param("providerId") UUID providerId);
 
     List<HealthcareProviderClaim> findByStatus(ClaimStatus status);
+    
+    @Query("""
+        SELECT c FROM HealthcareProviderClaim c
+        JOIN FETCH c.healthcareProvider
+        WHERE c.status = :status
+    """)
+    List<HealthcareProviderClaim> findByStatusWithProvider(@Param("status") ClaimStatus status);
 
     void deleteAllByPolicy(Policy policy);
 
@@ -52,6 +66,13 @@ public interface HealthcareProviderClaimRepository extends JpaRepository<Healthc
     double sumAmountByStatus(@Param("status") ClaimStatus status);
 
     List<HealthcareProviderClaim> findByStatusIn(List<ClaimStatus> statuses);
+    
+    @Query("""
+        SELECT c FROM HealthcareProviderClaim c
+        JOIN FETCH c.healthcareProvider
+        WHERE c.status IN :statuses
+    """)
+    List<HealthcareProviderClaim> findByStatusInWithProvider(@Param("statuses") List<ClaimStatus> statuses);
     @Query("""
     SELECT c FROM HealthcareProviderClaim c
     WHERE c.status = com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL

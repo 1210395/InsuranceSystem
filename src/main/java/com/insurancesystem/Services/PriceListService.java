@@ -28,6 +28,7 @@ public class PriceListService {
                 .serviceName(dto.getServiceName())
                 .serviceCode(dto.getServiceCode())
                 .price(dto.getPrice())
+                .quantity(dto.getQuantity())
                 .notes(dto.getNotes())
                 .serviceDetails(dto.getServiceDetails())
                 .active(true)
@@ -42,6 +43,15 @@ public class PriceListService {
             entity.setAllowedSpecializations(allowedSpecs);
         }
 
+        // Set allowed genders if provided
+        if (dto.getAllowedGenders() != null && !dto.getAllowedGenders().isEmpty()) {
+            entity.setAllowedGenders(dto.getAllowedGenders());
+        }
+
+        // Set age restrictions if provided
+        entity.setMinAge(dto.getMinAge());
+        entity.setMaxAge(dto.getMaxAge());
+
         priceListRepository.save(entity);
         return priceListMapper.toDto(entity);
     }
@@ -53,6 +63,7 @@ public class PriceListService {
         if (dto.getServiceName() != null) price.setServiceName(dto.getServiceName());
         if (dto.getServiceCode() != null) price.setServiceCode(dto.getServiceCode());
         if (dto.getPrice() != null) price.setPrice(dto.getPrice());
+        if (dto.getQuantity() != null) price.setQuantity(dto.getQuantity());
         if (dto.getNotes() != null) price.setNotes(dto.getNotes());
         if (dto.getActive() != null) price.setActive(dto.getActive());
         if (dto.getServiceDetails() != null) price.setServiceDetails(dto.getServiceDetails());
@@ -70,6 +81,23 @@ public class PriceListService {
             }
         }
 
+        // Update allowed genders if provided
+        if (dto.getAllowedGenders() != null) {
+            if (dto.getAllowedGenders().isEmpty()) {
+                price.setAllowedGenders(null); // Clear restrictions (available to all)
+            } else {
+                price.setAllowedGenders(dto.getAllowedGenders());
+            }
+        }
+
+        // Update age restrictions if provided
+        if (dto.getMinAge() != null) {
+            price.setMinAge(dto.getMinAge());
+        }
+        if (dto.getMaxAge() != null) {
+            price.setMaxAge(dto.getMaxAge());
+        }
+
         priceListRepository.save(price);
         return priceListMapper.toDto(price);
     }
@@ -82,10 +110,19 @@ public class PriceListService {
      * Get services by type WITHOUT restrictions (for admin/manager)
      */
     public List<PriceListResponseDTO> getByType(ProviderType type) {
-        return priceListRepository.findByProviderType(type)
+        List<PriceListResponseDTO> result = priceListRepository.findByProviderType(type)
                 .stream()
                 .map(priceListMapper::toDto)
                 .collect(Collectors.toList());
+        
+        // Debug: log quantity for each item
+        for (PriceListResponseDTO dto : result) {
+            System.out.println("🔍 [PriceListService] Item: " + dto.getServiceName() + 
+                ", Quantity: " + dto.getQuantity() + 
+                ", Price: " + dto.getPrice());
+        }
+        
+        return result;
     }
 
     /**

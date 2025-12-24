@@ -24,6 +24,12 @@ public interface FamilyMemberRepository extends JpaRepository<FamilyMember, UUID
     // 🔍 جلب فرد معين للمؤمن (حماية إضافية)
     Optional<FamilyMember> findByIdAndClient_Id(UUID id, UUID clientId);
 
+    // 🔍 البحث عن فرد عائلة بالاسم والعلاقة
+    Optional<FamilyMember> findByClient_IdAndFullNameAndRelation(UUID clientId, String fullName, com.insurancesystem.Model.Entity.Enums.FamilyRelation relation);
+
     // ❌ حذف فرد عائلة للمؤمن (مع التحقق من الملكية)
     void deleteByIdAndClient_Id(UUID id, UUID clientId);
+    
+    // 🔍 البحث عن فرد عائلة بالاسم الكامل
+    Optional<FamilyMember> findByFullName(String fullName);
 }

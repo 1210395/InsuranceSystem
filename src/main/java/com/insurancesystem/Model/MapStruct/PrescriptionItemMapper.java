@@ -16,6 +16,12 @@ public interface PrescriptionItemMapper {
     @Mapping(source = "priceList.id", target = "medicineId")
     @Mapping(source = "priceList.serviceName", target = "medicineName")
     @Mapping(source = "priceList.price", target = "unionPrice")
+    @Mapping(source = "calculatedQuantity", target = "calculatedQuantity")
+    @Mapping(source = "dispensedQuantity", target = "dispensedQuantity")
+    @Mapping(source = "coveredQuantity", target = "coveredQuantity")
+    @Mapping(source = "drugForm", target = "form")
+    @Mapping(source = "unionPricePerUnit", target = "unionPricePerUnit")
+    @Mapping(source = "pharmacistPricePerUnit", target = "pharmacistPricePerUnit")
     PrescriptionItemDTO toDto(PrescriptionItem entity);
 
     @AfterMapping
@@ -26,8 +32,19 @@ public interface PrescriptionItemMapper {
                 Map<String, Object> map = mapper.readValue(entity.getPriceList().getServiceDetails(), Map.class);
                 dto.setScientificName((String) map.get("scientificName"));
                 dto.setMedicineQuantity(map.get("quantity") != null ? (Integer) map.get("quantity") : 1);
+                
+                // Use drugForm from entity if available, otherwise extract from serviceDetails
+                String form = entity.getDrugForm();
+                if (form == null || form.isEmpty()) {
+                    form = (String) map.get("form");
+                }
+                if (form != null && !form.isEmpty()) {
+                    dto.setForm(form);
+                }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            // Silently handle JSON parsing errors - form might already be set from entity
+        }
     }
 
     @Mapping(target = "prescription", ignore = true)

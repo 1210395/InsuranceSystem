@@ -31,7 +31,7 @@ public class PriceListController {
     }
 
     @GetMapping("/{type}")
-    @PreAuthorize("hasAnyRole('INSURANCE_MANAGER','DOCTOR','PHARMACIST')")
+    @PreAuthorize("hasAnyRole('INSURANCE_MANAGER','DOCTOR','PHARMACIST','MEDICAL_ADMIN')")
     public List<PriceListResponseDTO> getByType(
             @PathVariable ProviderType type,
             Authentication authentication

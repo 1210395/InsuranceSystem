@@ -31,6 +31,16 @@ public class PriceList {
     @Column(nullable = false)
     private Double price;
 
+    /**
+     * Quantity of medicine in the package
+     * For Tablet: number of pills in the package
+     * For Syrup: volume in ml
+     * For Injection: number of injections in the package
+     * For Cream: weight in grams
+     * For Drops: volume in ml
+     */
+    private Integer quantity;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 
@@ -49,6 +59,31 @@ public class PriceList {
             inverseJoinColumns = @JoinColumn(name = "specialization_id")
     )
     private List<DoctorSpecializationEntity> allowedSpecializations;
+
+    /**
+     * List of allowed genders for this service (e.g., "MALE", "FEMALE")
+     * If null or empty, the service is available to ALL genders
+     * If it contains genders, only those genders can use this service
+     */
+    @ElementCollection
+    @CollectionTable(
+            name = "price_list_allowed_genders",
+            joinColumns = @JoinColumn(name = "price_list_id")
+    )
+    @Column(name = "gender")
+    private List<String> allowedGenders;
+
+    /**
+     * Minimum age required to use this service
+     * If null, there is no minimum age restriction
+     */
+    private Integer minAge;
+
+    /**
+     * Maximum age allowed to use this service
+     * If null, there is no maximum age restriction
+     */
+    private Integer maxAge;
 
     private boolean active = true;
 

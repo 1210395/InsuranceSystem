@@ -138,14 +138,17 @@ public class RadiologyRequestService {
         request.setUpdatedAt(Instant.now());
 
         RadiologyRequest savedRequest = radiologyRequestRepository.save(request);
+        
+        // Store familyMember reference for later use (before detachment)
+        final FamilyMember savedFamilyMember = familyMember;
 
         // 🔔 إشعار للراديولوجيين
-        String radiologistMessage = familyMember != null
+        String radiologistMessage = savedFamilyMember != null
                 ? String.format(
                 "📋 لديك طلب فحص إشعاعي جديد من الدكتور %s لعضو العائلة %s (%s) - العميل: %s",
                 doctor.getFullName(),
-                familyMember.getFullName(),
-                familyMember.getRelation(),
+                savedFamilyMember.getFullName(),
+                savedFamilyMember.getRelation(),
                 member.getFullName()
         )
                 : "📋 لديك طلب فحص إشعاعي جديد من الدكتور " + doctor.getFullName() +
@@ -158,12 +161,12 @@ public class RadiologyRequestService {
                 ));
 
         // 🔔 إشعار للمريض (main client)
-        String memberNotification = familyMember != null
+        String memberNotification = savedFamilyMember != null
                 ? String.format(
                 "📊 تم إنشاء طلب فحص إشعاعي جديد من الدكتور %s لعضو العائلة %s (%s) - الفحص: %s",
                 doctor.getFullName(),
-                familyMember.getFullName(),
-                familyMember.getRelation(),
+                savedFamilyMember.getFullName(),
+                savedFamilyMember.getRelation(),
                 test.getServiceName()
         )
                 : "📊 تم إنشاء طلب فحص إشعاعي جديد بواسطة الدكتور " + doctor.getFullName() +
@@ -173,15 +176,68 @@ public class RadiologyRequestService {
                 member.getId(),
                 memberNotification
         );
+        
+        // Convert to DTO and explicitly set family member information if applicable
+        RadiologyRequestDTO resultDto = radiologyRequestMapper.toDto(savedRequest, familyMemberRepo);
+        
+        // Explicitly set family member information in DTO (bypasses mapper's parsing)
+        if (savedFamilyMember != null) {
+            resultDto.setIsFamilyMember(true);
+            resultDto.setFamilyMemberId(savedFamilyMember.getId()); // 🆕 Set family member ID
+            resultDto.setFamilyMemberName(savedFamilyMember.getFullName());
+            resultDto.setFamilyMemberRelation(savedFamilyMember.getRelation() != null ? savedFamilyMember.getRelation().toString() : null);
+            resultDto.setFamilyMemberInsuranceNumber(savedFamilyMember.getInsuranceNumber());
+            
+            // Calculate age
+            if (savedFamilyMember.getDateOfBirth() != null) {
+                java.time.LocalDate today = java.time.LocalDate.now();
+                java.time.LocalDate birthDate = savedFamilyMember.getDateOfBirth();
+                int age = today.getYear() - birthDate.getYear();
+                if (today.getMonthValue() < birthDate.getMonthValue() ||
+                        (today.getMonthValue() == birthDate.getMonthValue() && today.getDayOfMonth() < birthDate.getDayOfMonth())) {
+                    age--;
+                }
+                resultDto.setFamilyMemberAge(age > 0 ? age + " years" : null);
+            } else {
+                resultDto.setFamilyMemberAge(null);
+            }
+            
+            // Set gender
+            if (savedFamilyMember.getGender() != null) {
+                resultDto.setFamilyMemberGender(savedFamilyMember.getGender().toString());
+            } else {
+                resultDto.setFamilyMemberGender(null);
+            }
+            
+            log.info("✅ Family member information added to DTO: {} ({}) - Insurance: {}", 
+                    savedFamilyMember.getFullName(), 
+                    savedFamilyMember.getRelation(),
+                    savedFamilyMember.getInsuranceNumber());
+        } else {
+            resultDto.setIsFamilyMember(false);
+            log.info("✅ Main client request (not a family member)");
+        }
 
-        return radiologyRequestMapper.toDto(savedRequest);
+        return resultDto;
     }
 
     // 📖 Radiologist views pending radiology requests
     public List<RadiologyRequestDTO> getPendingRequests(UUID radiologistId) {
-        return radiologyRequestRepository.findByStatus(LabRequestStatus.PENDING)
-                .stream()
-                .map(radiologyRequestMapper::toDto)
+        List<RadiologyRequest> requests = radiologyRequestRepository.findByStatusWithMember(LabRequestStatus.PENDING);
+        
+        // Force initialization of member fields
+        for (RadiologyRequest r : requests) {
+            if (r.getMember() != null) {
+                Client member = r.getMember();
+                String name = member.getFullName();
+                java.time.LocalDate dob = member.getDateOfBirth();
+                String gender = member.getGender();
+                String nationalId = member.getNationalId();
+            }
+        }
+        
+        return requests.stream()
+                .map(r -> radiologyRequestMapper.toDto(r, familyMemberRepo))
                 .collect(Collectors.toList());
     }
 
@@ -234,7 +290,7 @@ public class RadiologyRequestService {
         notificationService.sendToUser(
                 saved.getMember().getId(),
                 "✅ تم إكمال فحص الأشعة: " + saved.getTestName() +
-                        " - السعر المعتمد: " + saved.getApprovedPrice()
+                        " - السعر المعتمد: " + saved.getApprovedPrice() + " شيكل"
         );
 
         // 🔔 إشعار للطبيب
@@ -243,7 +299,7 @@ public class RadiologyRequestService {
                 "✅ تم إكمال فحص الأشعة للمريض " + saved.getMember().getFullName()
         );
 
-        return radiologyRequestMapper.toDto(saved);
+        return radiologyRequestMapper.toDto(saved, familyMemberRepo);
     }
 
     // 📖 Member or Doctor views the result
@@ -251,7 +307,16 @@ public class RadiologyRequestService {
         RadiologyRequest request = radiologyRequestRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Radiology request not found"));
 
-        return radiologyRequestMapper.toDto(request);
+        // Force initialization of member fields
+        if (request.getMember() != null) {
+            Client member = request.getMember();
+            String name = member.getFullName();
+            java.time.LocalDate dob = member.getDateOfBirth();
+            String gender = member.getGender();
+            String nationalId = member.getNationalId();
+        }
+
+        return radiologyRequestMapper.toDto(request, familyMemberRepo);
     }
 
     // ✏️ Doctor updates radiology request notes
@@ -274,7 +339,7 @@ public class RadiologyRequestService {
         request.setNotes(dto.getNotes());
         request.setUpdatedAt(Instant.now());
 
-        return radiologyRequestMapper.toDto(radiologyRequestRepository.save(request));
+        return radiologyRequestMapper.toDto(radiologyRequestRepository.save(request), familyMemberRepo);
     }
 
     // ❌ Doctor deletes radiology request
@@ -304,9 +369,21 @@ public class RadiologyRequestService {
         Client doctor = clientRepository.findByEmail(username.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Doctor not found"));
 
-        return radiologyRequestRepository.findByDoctorId(doctor.getId())
-                .stream()
-                .map(radiologyRequestMapper::toDto)
+        List<RadiologyRequest> requests = radiologyRequestRepository.findByDoctorIdWithMember(doctor.getId());
+        
+        // Force initialization of member fields
+        for (RadiologyRequest r : requests) {
+            if (r.getMember() != null) {
+                Client member = r.getMember();
+                String name = member.getFullName();
+                java.time.LocalDate dob = member.getDateOfBirth();
+                String gender = member.getGender();
+                String nationalId = member.getNationalId();
+            }
+        }
+        
+        return requests.stream()
+                .map(r -> radiologyRequestMapper.toDto(r, familyMemberRepo))
                 .collect(Collectors.toList());
     }
 
@@ -324,9 +401,21 @@ public class RadiologyRequestService {
 
     // 📖 Radiologist views his completed requests
     public List<RadiologyRequestDTO> getAllForCurrentRadiologist(UUID radiologistId) {
-        return radiologyRequestRepository.findByRadiologistId(radiologistId)
-                .stream()
-                .map(radiologyRequestMapper::toDto)
+        List<RadiologyRequest> requests = radiologyRequestRepository.findByRadiologistIdWithMember(radiologistId);
+        
+        // Force initialization of member fields
+        for (RadiologyRequest r : requests) {
+            if (r.getMember() != null) {
+                Client member = r.getMember();
+                String name = member.getFullName();
+                java.time.LocalDate dob = member.getDateOfBirth();
+                String gender = member.getGender();
+                String nationalId = member.getNationalId();
+            }
+        }
+        
+        return requests.stream()
+                .map(r -> radiologyRequestMapper.toDto(r, familyMemberRepo))
                 .collect(Collectors.toList());
     }
 
@@ -337,9 +426,21 @@ public class RadiologyRequestService {
         Client member = clientRepository.findByEmail(username.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Member not found"));
 
-        return radiologyRequestRepository.findByMemberId(member.getId())
-                .stream()
-                .map(radiologyRequestMapper::toDto)
+        List<RadiologyRequest> requests = radiologyRequestRepository.findByMemberIdWithMember(member.getId());
+        
+        // Force initialization of member fields
+        for (RadiologyRequest r : requests) {
+            if (r.getMember() != null) {
+                Client memberEntity = r.getMember();
+                String name = memberEntity.getFullName();
+                java.time.LocalDate dob = memberEntity.getDateOfBirth();
+                String gender = memberEntity.getGender();
+                String nationalId = memberEntity.getNationalId();
+            }
+        }
+        
+        return requests.stream()
+                .map(r -> radiologyRequestMapper.toDto(r, familyMemberRepo))
                 .collect(Collectors.toList());
     }
 

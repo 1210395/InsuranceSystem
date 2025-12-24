@@ -113,7 +113,7 @@ public class ClientController {
 
     @GetMapping("/search/employeeId/{employeeId}")
 
-    @PreAuthorize("hasAnyRole('RADIOLOGIST','LAB_TECH','PHARMACIST','DOCTOR', 'ADMIN', 'INSURANCE_MANAGER', 'MEDICAL_ADMIN')")
+    @PreAuthorize("hasAnyRole('RADIOLOGIST','LAB_TECH','PHARMACIST','DOCTOR', 'ADMIN', 'INSURANCE_MANAGER', 'MEDICAL_ADMIN', 'COORDINATION_ADMIN')")
 
     public ResponseEntity<?> findByEmployeeId(@PathVariable String employeeId) {
         try {
@@ -139,6 +139,23 @@ public class ClientController {
 
             ClientDto clientDto = clientServices.findByEmployeeId(employeeId);
 
+            // Calculate age from dateOfBirth if available
+            String age = "";
+            if (clientDto.getDateOfBirth() != null) {
+                try {
+                    java.time.LocalDate birthDate = clientDto.getDateOfBirth();
+                    java.time.LocalDate today = java.time.LocalDate.now();
+                    int years = today.getYear() - birthDate.getYear();
+                    if (today.getMonthValue() < birthDate.getMonthValue() || 
+                        (today.getMonthValue() == birthDate.getMonthValue() && today.getDayOfMonth() < birthDate.getDayOfMonth())) {
+                        years--;
+                    }
+                    age = years > 0 ? years + " years" : "";
+                } catch (Exception e) {
+                    // If calculation fails, age remains empty
+                }
+            }
+
             Map<String, Object> response = new HashMap<>();
             response.put("id", clientDto.getId());
             response.put("fullName", clientDto.getFullName());
@@ -146,10 +163,22 @@ public class ClientController {
             response.put("faculty", clientDto.getFaculty());
             response.put("specialization", clientDto.getSpecialization());
             response.put("employeeId", clientDto.getEmployeeId());
+            response.put("nationalId", clientDto.getNationalId());
             response.put("email", clientDto.getEmail());
             response.put("phone", clientDto.getPhone());
-            response.put("gender",clientDto.getGender());
-            response.put("dateofbirth",clientDto.getDateOfBirth());
+            response.put("gender", clientDto.getGender());
+            response.put("dateofbirth", clientDto.getDateOfBirth());
+            response.put("dateOfBirth", clientDto.getDateOfBirth()); // Also add camelCase for consistency
+            response.put("age", age); // Add calculated age
+            // Add chronic diseases information
+            response.put("hasChronicDiseases", clientDto.isHasChronicDiseases());
+            if (clientDto.getChronicDiseases() != null && !clientDto.getChronicDiseases().isEmpty()) {
+                response.put("chronicDiseases", clientDto.getChronicDiseases().stream()
+                        .map(Enum::name)
+                        .collect(java.util.stream.Collectors.toList()));
+            } else {
+                response.put("chronicDiseases", java.util.Collections.emptyList());
+            }
             return ResponseEntity.ok(response);
 
         } catch (RuntimeException e) {
@@ -162,7 +191,7 @@ public class ClientController {
     }
 
     @GetMapping("/search/name/{fullName}")
-    @PreAuthorize("hasAnyRole('RADIOLOGIST','LAB_TECH','PHARMACIST','DOCTOR', 'INSURANCE_MANAGER', 'INSURANCE_CLIENT')")
+    @PreAuthorize("hasAnyRole('RADIOLOGIST','LAB_TECH','PHARMACIST','DOCTOR', 'INSURANCE_MANAGER', 'INSURANCE_CLIENT','MEDICAL_ADMIN')")
     public ResponseEntity<?> findByFullName(@PathVariable String fullName) {
         try {
             if (fullName == null || fullName.trim().isEmpty()) {

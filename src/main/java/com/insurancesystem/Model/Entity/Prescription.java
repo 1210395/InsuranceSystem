@@ -33,6 +33,8 @@ public class Prescription {
     @JoinColumn(name = "member_id", nullable = false)
     private Client member;
 
+   
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "pharmacist_id")
     private Client pharmacist;
@@ -52,6 +54,11 @@ public class Prescription {
 
     // ❌ notes لم نعد نستخدمه
     // private String notes;
+
+    // 🆕 Chronic Disease Prescription Flag
+    @Column(name = "is_chronic")
+    @Builder.Default
+    private Boolean isChronic = false;
 
     private Instant createdAt;
     private Instant updatedAt;

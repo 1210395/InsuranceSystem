@@ -83,6 +83,10 @@ public class DoctorSpecializationService {
         existingEntity.setConsultationPrice(requestDto.getConsultationPrice());
         existingEntity.setDiagnoses(requestDto.getDiagnoses());
         existingEntity.setTreatmentPlans(requestDto.getTreatmentPlans());
+        existingEntity.setAllowedGenders(requestDto.getAllowedGenders());
+        existingEntity.setMinAge(requestDto.getMinAge());
+        existingEntity.setMaxAge(requestDto.getMaxAge());
+        existingEntity.setGender(requestDto.getGender());
 
         // Save the updated specialization
         DoctorSpecializationEntity updatedEntity = repository.save(existingEntity);

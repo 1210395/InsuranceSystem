@@ -114,5 +114,13 @@ public class HealthcareProviderClaim {
     @Column(precision = 12, scale = 2)
     private BigDecimal maxCoverageUsed = BigDecimal.ZERO;
 
+    // Follow-up visit flag
+    @Column(name = "is_follow_up", nullable = false)
+    @Builder.Default
+    private Boolean isFollowUp = false;
+
+    // Original consultation fee (for follow-up visits, this is what patient pays)
+    @Column(name = "original_consultation_fee", precision = 12, scale = 2)
+    private BigDecimal originalConsultationFee = BigDecimal.ZERO;
 
 }

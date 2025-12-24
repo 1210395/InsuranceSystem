@@ -45,6 +45,8 @@ public interface HealthcareProviderClaimMapper {
     @Mapping(source = "clientId", target = "clientId")
     @Mapping(source = "medicalReviewerName", target = "medicalReviewerName")
     @Mapping(source = "medicalReviewedAt", target = "medicalReviewedAt")
+    @Mapping(source = "isFollowUp", target = "isFollowUp")
+    @Mapping(source = "originalConsultationFee", target = "originalConsultationFee")
     HealthcareProviderClaimMedicalDTO toMedicalDto(HealthcareProviderClaim claim);
 
 }

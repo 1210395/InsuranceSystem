@@ -20,6 +20,10 @@ public class DoctorSpecializationMapper {
         responseDto.setConsultationPrice(entity.getConsultationPrice());
         responseDto.setDiagnoses(entity.getDiagnoses());
         responseDto.setTreatmentPlans(entity.getTreatmentPlans());
+        responseDto.setAllowedGenders(entity.getAllowedGenders());
+        responseDto.setMinAge(entity.getMinAge());
+        responseDto.setMaxAge(entity.getMaxAge());
+        responseDto.setGender(entity.getGender());
         return responseDto;
     }
 
@@ -34,6 +38,10 @@ public class DoctorSpecializationMapper {
         entity.setConsultationPrice(requestDto.getConsultationPrice());
         entity.setDiagnoses(requestDto.getDiagnoses());
         entity.setTreatmentPlans(requestDto.getTreatmentPlans());
+        entity.setAllowedGenders(requestDto.getAllowedGenders());
+        entity.setMinAge(requestDto.getMinAge());
+        entity.setMaxAge(requestDto.getMaxAge());
+        entity.setGender(requestDto.getGender());
         return entity;
     }
 

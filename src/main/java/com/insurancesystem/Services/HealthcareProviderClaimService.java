@@ -20,6 +20,20 @@ import com.insurancesystem.Model.Entity.Enums.RoleName;
 import com.insurancesystem.Model.MapStruct.HealthcareProviderClaimMapper;
 import com.insurancesystem.Repository.HealthcareProviderClaimRepository;
 import com.insurancesystem.Repository.ClientRepository;
+import com.insurancesystem.Repository.FamilyMemberRepository;
+import com.insurancesystem.Repository.PrescriptionRepository;
+import com.insurancesystem.Repository.LabRequestRepository;
+import com.insurancesystem.Repository.RadiologistRepository;
+import com.insurancesystem.Model.Entity.FamilyMember;
+import com.insurancesystem.Model.Entity.Prescription;
+import com.insurancesystem.Model.Entity.LabRequest;
+import com.insurancesystem.Model.MapStruct.PrescriptionMapper;
+import com.insurancesystem.Model.MapStruct.LabRequestMapper;
+import com.insurancesystem.Model.Dto.PrescriptionDTO;
+import com.insurancesystem.Model.Dto.LabRequestDTO;
+import com.insurancesystem.Model.Dto.RadiologyRequestDTO;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.insurancesystem.Model.Entity.Enums.FamilyRelation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,30 +44,35 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class HealthcareProviderClaimService {
-
     private final HealthcareProviderClaimRepository claimRepo;
     private final ClientRepository clientRepo;
+    private final FamilyMemberRepository familyMemberRepo;
+    private final PrescriptionRepository prescriptionRepo;
+    private final LabRequestRepository labRequestRepo;
+    private final RadiologistRepository radiologyRequestRepo;
+    private final PrescriptionMapper prescriptionMapper;
+    private final LabRequestMapper labRequestMapper;
+    private final com.insurancesystem.Model.MapStruct.RadiologyRequestMapper radiologyRequestMapper;
     private final HealthcareProviderClaimMapper claimMapper;
     private final NotificationService notificationService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final String UPLOAD_DIR = "uploads/healthcare-claims/";
 
-    // ============================================================
-    // 🟢 إنشاء مطالبة
-    // ============================================================
+    // Create claim by healthcare provider (doctor, pharmacist, lab tech, radiologist)
     public HealthcareProviderClaimDTO createClaim(
             UUID providerId,
             CreateHealthcareProviderClaimDTO dto,
             MultipartFile invoiceImage
     ) {
-        log.info("🔹 Creating healthcare provider claim...");
-
         Client provider = clientRepo.findById(providerId)
                 .orElseThrow(() -> new NotFoundException("Healthcare provider not found"));
 
@@ -61,75 +80,609 @@ public class HealthcareProviderClaimService {
         claim.setHealthcareProvider(provider);
         claim.setStatus(ClaimStatus.PENDING_MEDICAL);
 
-        // حفظ اسم المريض
-        Client patient = null;
-        if (claim.getClientId() != null) {
-            patient = clientRepo.findById(claim.getClientId())
-                    .map(c -> {
-                        claim.setClientName(c.getFullName());
-                        return c;
-                    })
-                    .orElse(null);
+        // Check if this is a follow-up visit from roleSpecificData
+        boolean isFollowUp = false;
+        java.math.BigDecimal originalConsultationFee = null;
+        if (dto.getRoleSpecificData() != null) {
+            try {
+                java.util.Map<String, Object> roleData = objectMapper.readValue(
+                        dto.getRoleSpecificData(),
+                        java.util.Map.class
+                );
+                Object isFollowUpObj = roleData.get("isFollowUp");
+                if (isFollowUpObj instanceof Boolean) {
+                    isFollowUp = (Boolean) isFollowUpObj;
+                } else if (isFollowUpObj instanceof String) {
+                    isFollowUp = Boolean.parseBoolean((String) isFollowUpObj);
+                }
+                
+                // If follow-up, store original consultation fee and set amount to 0
+                if (isFollowUp) {
+                    // Get original consultation fee from roleData if available
+                    Object originalFeeObj = roleData.get("originalConsultationFee");
+                    if (originalFeeObj != null) {
+                        if (originalFeeObj instanceof Number) {
+                            double feeValue = ((Number) originalFeeObj).doubleValue();
+                            if (feeValue > 0) {
+                                originalConsultationFee = java.math.BigDecimal.valueOf(feeValue);
+                            }
+                        } else if (originalFeeObj instanceof String) {
+                            try {
+                                double feeValue = Double.parseDouble((String) originalFeeObj);
+                                if (feeValue > 0) {
+                                    originalConsultationFee = new java.math.BigDecimal((String) originalFeeObj);
+                                }
+                            } catch (Exception e) {
+                                log.warn("Error parsing originalConsultationFee: {}", e.getMessage());
+                            }
+                        }
+                    }
+                    
+                    // If still null, try to get from dto amount (but this should be 0 for follow-up, so this is a fallback)
+                    // Actually, for follow-up, dto.getAmount() is 0, so we should NOT use it
+                    // The originalConsultationFee MUST come from roleData
+                    
+                    claim.setAmount(0.0); // Insurance doesn't pay for follow-up consultation
+                    if (originalConsultationFee != null && originalConsultationFee.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                        claim.setOriginalConsultationFee(originalConsultationFee);
+                    } else {
+                        log.warn("Follow-up visit detected but originalConsultationFee is missing or zero. Claim ID: {}", claim.getId());
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Error parsing roleSpecificData for follow-up check: {}", e.getMessage());
+            }
         }
+        
+        claim.setIsFollowUp(isFollowUp);
 
-        // Create final reference for use in lambdas
-        final Client finalPatient = patient;
-        final String patientName = finalPatient != null ? finalPatient.getFullName() : null;
+        // Handle patient info (can be Client or FamilyMember)
+        Client patient = null;
+        String patientName = null;
+        
+        if (claim.getClientId() != null) {
+            Optional<FamilyMember> familyMemberOpt = familyMemberRepo.findById(claim.getClientId());
+            if (familyMemberOpt.isPresent()) {
+                FamilyMember familyMember = familyMemberOpt.get();
+                claim.setClientName(familyMember.getFullName());
+                patientName = familyMember.getFullName();
+                patient = familyMember.getClient();
+            } else {
+                Optional<Client> clientOpt = clientRepo.findById(claim.getClientId());
+                if (clientOpt.isPresent()) {
+                    Client client = clientOpt.get();
+                    
+                    // Extract family member info from role-specific data (pharmacist, lab, radiology)
+                    boolean isPharmacist = provider.getRoles().stream()
+                            .anyMatch(r -> r.getName() == RoleName.PHARMACIST);
+                    
+                    boolean foundFamilyMember = false;
+                    
+                    if (isPharmacist && claim.getRoleSpecificData() != null) {
+                        try {
+                            java.util.Map<String, Object> roleData = objectMapper.readValue(
+                                    claim.getRoleSpecificData(), 
+                                    java.util.Map.class
+                            );
+                            String prescriptionIdStr = (String) roleData.get("prescriptionId");
+                            
+                            if (prescriptionIdStr != null) {
+                                UUID prescriptionId = UUID.fromString(prescriptionIdStr);
+                                Optional<Prescription> prescriptionOpt = prescriptionRepo.findById(prescriptionId);
+                                
+                                if (prescriptionOpt.isPresent()) {
+                                    Prescription prescription = prescriptionOpt.get();
+                                    PrescriptionDTO prescriptionDto = prescriptionMapper.toDto(prescription, familyMemberRepo);
+                                    
+                                    if (prescriptionDto.getIsFamilyMember() != null && prescriptionDto.getIsFamilyMember()) {
+                                        String familyMemberName = prescriptionDto.getFamilyMemberName();
+                                        String familyMemberRelationStr = prescriptionDto.getFamilyMemberRelation();
+                                        
+                                        if (familyMemberName != null && familyMemberRelationStr != null) {
+                                            try {
+                                                FamilyRelation relation = FamilyRelation.valueOf(familyMemberRelationStr.toUpperCase());
+                                                
+                                                Optional<FamilyMember> fmOpt = familyMemberRepo.findByClient_IdAndFullNameAndRelation(
+                                                        client.getId(), 
+                                                        familyMemberName, 
+                                                        relation
+                                                );
+                                                
+                                                if (fmOpt.isPresent()) {
+                                                    FamilyMember fm = fmOpt.get();
+                                                    claim.setClientId(fm.getId());
+                                                    claim.setClientName(fm.getFullName());
+                                                    patientName = fm.getFullName();
+                                                    patient = client;
+                                                    foundFamilyMember = true;
+                                                }
+                                            } catch (IllegalArgumentException e) {
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (Exception e) {
+                        }
+                    }
+                    
+                    if (!foundFamilyMember && isPharmacist && claim.getTreatmentDetails() != null) {
+                        try {
+                            String treatmentDetails = claim.getTreatmentDetails();
+                            String familyMemberPattern = "Family Member:\\s*([^-]+?)\\s*\\(([^)]+)\\)\\s*-\\s*Insurance:";
+                            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(familyMemberPattern, java.util.regex.Pattern.CASE_INSENSITIVE);
+                            java.util.regex.Matcher matcher = pattern.matcher(treatmentDetails);
+                            
+                            if (matcher.find()) {
+                                String familyMemberName = matcher.group(1).trim();
+                                String familyMemberRelationStr = matcher.group(2).trim();
+                                
+                                try {
+                                    FamilyRelation relation = FamilyRelation.valueOf(familyMemberRelationStr.toUpperCase());
+                                    
+                                    Optional<FamilyMember> fmOpt = familyMemberRepo.findByClient_IdAndFullNameAndRelation(
+                                            client.getId(), 
+                                            familyMemberName, 
+                                            relation
+                                    );
+                                    
+                                    if (fmOpt.isPresent()) {
+                                        FamilyMember fm = fmOpt.get();
+                                        claim.setClientId(fm.getId());
+                                        claim.setClientName(fm.getFullName());
+                                        patientName = fm.getFullName();
+                                        patient = client;
+                                        foundFamilyMember = true;
+                                    }
+                                } catch (IllegalArgumentException e) {
+                                }
+                            }
+                        } catch (Exception e) {
+                        }
+                    }
+                    
+                    boolean isLabTech = provider.getRoles().stream()
+                            .anyMatch(r -> r.getName() == RoleName.LAB_TECH);
+                    
+                    if (!foundFamilyMember && isLabTech && claim.getRoleSpecificData() != null) {
+                        try {
+                            java.util.Map<String, Object> roleData = objectMapper.readValue(
+                                    claim.getRoleSpecificData(), 
+                                    java.util.Map.class
+                            );
+                            String testIdStr = (String) roleData.get("testId");
+                            
+                            if (testIdStr != null) {
+                                UUID labRequestId = UUID.fromString(testIdStr);
+                                Optional<LabRequest> labRequestOpt = labRequestRepo.findByIdWithMember(labRequestId);
+                                
+                                if (labRequestOpt.isPresent()) {
+                                    LabRequest labRequest = labRequestOpt.get();
+                                    LabRequestDTO labRequestDto = labRequestMapper.toDto(labRequest, familyMemberRepo);
+                                    
+                                    if ((labRequestDto.getIsFamilyMember() == null || !labRequestDto.getIsFamilyMember()) 
+                                            && (labRequest.getNotes() != null || labRequest.getTreatment() != null)) {
+                                        String textToSearch = labRequest.getNotes() != null ? labRequest.getNotes() : labRequest.getTreatment();
+                                        if (textToSearch != null && textToSearch.toLowerCase().contains("family member:")) {
+                                            String familyMemberPattern = "Family Member:\\s*([^-]+?)\\s*\\(([^)]+)\\)\\s*-\\s*Insurance:\\s*([^-]+?)(?:\\s*-\\s*Age:\\s*([^-]+?))?(?:\\s*-\\s*Gender:\\s*([^\\n\\r]+))?";
+                                            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(familyMemberPattern, java.util.regex.Pattern.CASE_INSENSITIVE);
+                                            java.util.regex.Matcher matcher = pattern.matcher(textToSearch);
+                                            
+                                            if (matcher.find()) {
+                                                String familyMemberName = matcher.group(1).trim();
+                                                String familyMemberRelationStr = matcher.group(2).trim();
+                                                
+                                                try {
+                                                    FamilyRelation relation = FamilyRelation.valueOf(familyMemberRelationStr.toUpperCase());
+                                                    
+                                                    Optional<FamilyMember> fmOpt = familyMemberRepo.findByClient_IdAndFullNameAndRelation(
+                                                            client.getId(), 
+                                                            familyMemberName, 
+                                                            relation
+                                                    );
+                                                    
+                                                    if (fmOpt.isPresent()) {
+                                                        FamilyMember fm = fmOpt.get();
+                                                        claim.setClientId(fm.getId());
+                                                        claim.setClientName(fm.getFullName());
+                                                        patientName = fm.getFullName();
+                                                        patient = client;
+                                                        foundFamilyMember = true;
+                                                    }
+                                                } catch (IllegalArgumentException e) {
+                                                    // Invalid relation value
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    if (labRequestDto.getIsFamilyMember() != null && labRequestDto.getIsFamilyMember()) {
+                                        if (labRequestDto.getFamilyMemberId() != null) {
+                                            Optional<FamilyMember> fmOpt = familyMemberRepo.findById(labRequestDto.getFamilyMemberId());
+                                            
+                                            if (fmOpt.isPresent()) {
+                                                FamilyMember fm = fmOpt.get();
+                                                if (fm.getClient() != null && fm.getClient().getId().equals(client.getId())) {
+                                                    claim.setClientId(fm.getId());
+                                                    claim.setClientName(fm.getFullName());
+                                                    patientName = fm.getFullName();
+                                                    patient = client;
+                                                    foundFamilyMember = true;
+                                                }
+                                            }
+                                        }
+                                        
+                                        if (!foundFamilyMember) {
+                                        String familyMemberName = labRequestDto.getFamilyMemberName();
+                                        String familyMemberRelationStr = labRequestDto.getFamilyMemberRelation();
+                                        
+                                        if (familyMemberName != null && familyMemberRelationStr != null) {
+                                            try {
+                                                FamilyRelation relation = FamilyRelation.valueOf(familyMemberRelationStr.toUpperCase());
+                                                
+                                                Optional<FamilyMember> fmOpt = familyMemberRepo.findByClient_IdAndFullNameAndRelation(
+                                                        client.getId(), 
+                                                        familyMemberName, 
+                                                        relation
+                                                );
+                                                
+                                                if (fmOpt.isPresent()) {
+                                                    FamilyMember fm = fmOpt.get();
+                                                    claim.setClientId(fm.getId());
+                                                    claim.setClientName(fm.getFullName());
+                                                    patientName = fm.getFullName();
+                                                        patient = client;
+                                                    foundFamilyMember = true;
+                                                }
+                                            } catch (IllegalArgumentException e) {
+                                                    // Invalid relation value
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (Exception e) {
+                        }
+                    }
+                    
+                    if (!foundFamilyMember && isLabTech && claim.getTreatmentDetails() != null) {
+                        try {
+                            String treatmentDetails = claim.getTreatmentDetails();
+                            String familyMemberPattern = "Family Member:\\s*([^-]+?)\\s*\\(([^)]+)\\)\\s*-\\s*Insurance:";
+                            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(familyMemberPattern, java.util.regex.Pattern.CASE_INSENSITIVE);
+                            java.util.regex.Matcher matcher = pattern.matcher(treatmentDetails);
+                            
+                            if (matcher.find()) {
+                                String familyMemberName = matcher.group(1).trim();
+                                String familyMemberRelationStr = matcher.group(2).trim();
+                                
+                                try {
+                                    FamilyRelation relation = FamilyRelation.valueOf(familyMemberRelationStr.toUpperCase());
+                                    
+                                    Optional<FamilyMember> fmOpt = familyMemberRepo.findByClient_IdAndFullNameAndRelation(
+                                            client.getId(), 
+                                            familyMemberName, 
+                                            relation
+                                    );
+                                    
+                                    if (fmOpt.isPresent()) {
+                                        FamilyMember fm = fmOpt.get();
+                                        claim.setClientId(fm.getId());
+                                        claim.setClientName(fm.getFullName());
+                                        patientName = fm.getFullName();
+                                        patient = client;
+                                        foundFamilyMember = true;
+                                    }
+                                } catch (IllegalArgumentException e) {
+                                }
+                            }
+                        } catch (Exception e) {
+                        }
+                    }
+                    
+                    boolean isRadiologist = provider.getRoles().stream()
+                            .anyMatch(r -> r.getName() == RoleName.RADIOLOGIST);
+                    
+                    if (!foundFamilyMember && isRadiologist && claim.getRoleSpecificData() != null) {
+                        try {
+                            java.util.Map<String, Object> roleData = objectMapper.readValue(
+                                    claim.getRoleSpecificData(), 
+                                    java.util.Map.class
+                            );
+                            String testIdStr = (String) roleData.get("testId");
+                            
+                            if (testIdStr != null) {
+                                UUID radiologyRequestId = UUID.fromString(testIdStr);
+                                Optional<com.insurancesystem.Model.Entity.RadiologyRequest> radiologyRequestOpt = radiologyRequestRepo.findById(radiologyRequestId);
+                                
+                                if (radiologyRequestOpt.isPresent()) {
+                                    com.insurancesystem.Model.Entity.RadiologyRequest radiologyRequest = radiologyRequestOpt.get();
+                                    RadiologyRequestDTO radiologyRequestDto = radiologyRequestMapper.toDto(radiologyRequest, familyMemberRepo);
+                                    
+                                    if ((radiologyRequestDto.getIsFamilyMember() == null || !radiologyRequestDto.getIsFamilyMember()) 
+                                            && (radiologyRequest.getNotes() != null || radiologyRequest.getTreatment() != null)) {
+                                        String textToSearch = radiologyRequest.getNotes() != null ? radiologyRequest.getNotes() : radiologyRequest.getTreatment();
+                                        if (textToSearch != null && textToSearch.toLowerCase().contains("family member:")) {
+                                            String familyMemberPattern = "Family Member:\\s*([^-]+?)\\s*\\(([^)]+)\\)\\s*-\\s*Insurance:\\s*([^-]+?)(?:\\s*-\\s*Age:\\s*([^-]+?))?(?:\\s*-\\s*Gender:\\s*([^\\n\\r]+))?";
+                                            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(familyMemberPattern, java.util.regex.Pattern.CASE_INSENSITIVE);
+                                            java.util.regex.Matcher matcher = pattern.matcher(textToSearch);
+                                            
+                                            if (matcher.find()) {
+                                                String familyMemberName = matcher.group(1).trim();
+                                                String familyMemberRelationStr = matcher.group(2).trim();
+                                
+                                try {
+                                    FamilyRelation relation = FamilyRelation.valueOf(familyMemberRelationStr.toUpperCase());
+                                    
+                                    Optional<FamilyMember> fmOpt = familyMemberRepo.findByClient_IdAndFullNameAndRelation(
+                                            client.getId(), 
+                                            familyMemberName, 
+                                            relation
+                                    );
+                                    
+                                    if (fmOpt.isPresent()) {
+                                        FamilyMember fm = fmOpt.get();
+                                        claim.setClientId(fm.getId());
+                                        claim.setClientName(fm.getFullName());
+                                        patientName = fm.getFullName();
+                                                        patient = client;
+                                        foundFamilyMember = true;
+                                    }
+                                } catch (IllegalArgumentException e) {
+                                                    // Invalid relation value
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    if (radiologyRequestDto.getIsFamilyMember() != null && radiologyRequestDto.getIsFamilyMember()) {
+                                        if (radiologyRequestDto.getFamilyMemberId() != null) {
+                                            Optional<FamilyMember> fmOpt = familyMemberRepo.findById(radiologyRequestDto.getFamilyMemberId());
+                                            
+                                            if (fmOpt.isPresent()) {
+                                                FamilyMember fm = fmOpt.get();
+                                                if (fm.getClient() != null && fm.getClient().getId().equals(client.getId())) {
+                                                    claim.setClientId(fm.getId());
+                                                    claim.setClientName(fm.getFullName());
+                                                    patientName = fm.getFullName();
+                                                    patient = client;
+                                                    foundFamilyMember = true;
+                                                }
+                                            }
+                                        }
+                                        
+                                        if (!foundFamilyMember) {
+                                            String familyMemberName = radiologyRequestDto.getFamilyMemberName();
+                                            String familyMemberRelationStr = radiologyRequestDto.getFamilyMemberRelation();
+                                            
+                                            if (familyMemberName != null && familyMemberRelationStr != null) {
+                                                try {
+                                                    FamilyRelation relation = FamilyRelation.valueOf(familyMemberRelationStr.toUpperCase());
+                                                    
+                                                    Optional<FamilyMember> fmOpt = familyMemberRepo.findByClient_IdAndFullNameAndRelation(
+                                                            client.getId(), 
+                                                            familyMemberName, 
+                                                            relation
+                                                    );
+                                                    
+                                                    if (fmOpt.isPresent()) {
+                                                        FamilyMember fm = fmOpt.get();
+                                                        claim.setClientId(fm.getId());
+                                                        claim.setClientName(fm.getFullName());
+                                                        patientName = fm.getFullName();
+                                                        patient = client;
+                                                        foundFamilyMember = true;
+                                                    }
+                                                } catch (IllegalArgumentException e) {
+                                                    // Invalid relation value
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (Exception e) {
+                        }
+                    }
+                    
+                    if (!foundFamilyMember && isRadiologist && claim.getTreatmentDetails() != null) {
+                        try {
+                            String treatmentDetails = claim.getTreatmentDetails();
+                            String familyMemberPattern = "Family Member:\\s*([^-]+?)\\s*\\(([^)]+)\\)\\s*-\\s*Insurance:";
+                            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(familyMemberPattern, java.util.regex.Pattern.CASE_INSENSITIVE);
+                            java.util.regex.Matcher matcher = pattern.matcher(treatmentDetails);
+                            
+                            if (matcher.find()) {
+                                String familyMemberName = matcher.group(1).trim();
+                                String familyMemberRelationStr = matcher.group(2).trim();
+                                
+                                try {
+                                    FamilyRelation relation = FamilyRelation.valueOf(familyMemberRelationStr.toUpperCase());
+                                    
+                                    Optional<FamilyMember> fmOpt = familyMemberRepo.findByClient_IdAndFullNameAndRelation(
+                                            client.getId(), 
+                                            familyMemberName, 
+                                            relation
+                                    );
+                                    
+                                    if (fmOpt.isPresent()) {
+                                        FamilyMember fm = fmOpt.get();
+                                        claim.setClientId(fm.getId());
+                                        claim.setClientName(fm.getFullName());
+                                        patientName = fm.getFullName();
+                                        patient = client;
+                                        foundFamilyMember = true;
+                                    }
+                                } catch (IllegalArgumentException e) {
+                                }
+                            }
+                        } catch (Exception e) {
+                        }
+                    }
+                    
+                    if (patientName == null) {
+                        claim.setClientName(client.getFullName());
+                        patientName = client.getFullName();
+                        patient = client;
+                    }
+                } else {
+                    patientName = null;
+                }
+            }
+        }
 
         if (invoiceImage != null && !invoiceImage.isEmpty()) {
             claim.setInvoiceImagePath(saveDocument(invoiceImage));
         }
 
         HealthcareProviderClaim savedClaim = claimRepo.save(claim);
+        final Client finalPatient = patient;
+        final String finalPatientName = patientName;
 
-        // 🔔 إشعار للإداريين الطبيين (جميع الإداريين الطبيين)
+        // Send notification to medical admins
         clientRepo.findByRoles_Name(RoleName.MEDICAL_ADMIN)
-                .forEach(medicalAdmin -> notificationService.sendToUser(
-                        medicalAdmin.getId(),
-                        "📋 مطالبة جديدة من " + provider.getFullName() +
-                                (patientName != null ? " للمريض " + patientName : "") +
-                                " - المبلغ: " + claim.getAmount() + " دينار"
-                ));
+                .forEach(medicalAdmin -> {
+                    String notificationMessage;
+                    // Check if follow-up: either isFollowUp flag is true OR amount is 0 for DOCTOR claims
+                    boolean isFollowUpClaim = (claim.getIsFollowUp() != null && claim.getIsFollowUp()) ||
+                            (provider.getRoles().stream().anyMatch(r -> r.getName() == RoleName.DOCTOR) && 
+                             claim.getAmount() != null && claim.getAmount() == 0.0);
+                    
+                    if (isFollowUpClaim) {
+                        // Follow-up visit notification - only mention it's follow-up with 0 amount, patient pays
+                        notificationMessage = "⚠️ مطالبة زيارة متابعة (Follow-up Visit) من الدكتور " + provider.getFullName() +
+                                (finalPatientName != null ? " للمريض " + finalPatientName : "") +
+                                " - المبلغ للدكتور: 0 شيكل (التأمين لا يدفع - المريض يدفع المبلغ)";
+                    } else {
+                        // Normal visit notification
+                        notificationMessage = "📋 مطالبة جديدة من " + provider.getFullName() +
+                                (finalPatientName != null ? " للمريض " + finalPatientName : "") +
+                                " - المبلغ: " + claim.getAmount() + " شيكل";
+                    }
+                    notificationService.sendToUser(medicalAdmin.getId(), notificationMessage);
+                });
 
-        // 🔔 إشعار لمقدم الخدمة (Provider)
-        notificationService.sendToUser(
-                provider.getId(),
-                "✅ تم إرسال مطالبتك بنجاح - المبلغ: " + claim.getAmount() + " دينار" +
-                        (patientName != null ? " للمريض " + patientName : "") +
-                        " - في انتظار المراجعة الطبية"
-        );
-
-        // 🔔 إشعار للمريض (إن وجد)
-        if (finalPatient != null) {
+        // Check if follow-up for provider notification
+        boolean isFollowUpForProvider = (claim.getIsFollowUp() != null && claim.getIsFollowUp()) ||
+                (provider.getRoles().stream().anyMatch(r -> r.getName() == RoleName.DOCTOR) && 
+                 claim.getAmount() != null && claim.getAmount() == 0.0);
+        
+        if (isFollowUpForProvider) {
+            // Follow-up visit notification for doctor
+            String consultationFee = claim.getOriginalConsultationFee() != null ? 
+                    claim.getOriginalConsultationFee().toString() : "0";
             notificationService.sendToUser(
-                    finalPatient.getId(),
-                    "📋 تم إنشاء مطالبة طبية لك من " + provider.getFullName() +
-                            " - المبلغ: " + claim.getAmount() + " دينار" +
-                            " - في انتظار المراجعة"
+                    provider.getId(),
+                    "✅ تم إرسال مطالبة زيارة متابعة بنجاح - المبلغ للدكتور: 0 شيكل (التأمين لا يدفع)" +
+                            (finalPatientName != null ? " - المريض " + finalPatientName + " يجب أن يدفع سعر الكشفية: " + consultationFee + " شيكل" : 
+                                    " - المريض يجب أن يدفع سعر الكشفية: " + consultationFee + " شيكل") +
+                            " - في انتظار المراجعة الطبية"
+            );
+        } else {
+            // Normal visit notification for provider
+            notificationService.sendToUser(
+                    provider.getId(),
+                    "✅ تم إرسال مطالبتك بنجاح - المبلغ: " + claim.getAmount() + " شيكل" +
+                            (finalPatientName != null ? " للمريض " + finalPatientName : "") +
+                            " - في انتظار المراجعة الطبية"
             );
         }
 
-        return claimMapper.toDto(savedClaim);
+        if (finalPatient != null) {
+            // Check if follow-up for patient notification
+            boolean isFollowUpForPatient = (claim.getIsFollowUp() != null && claim.getIsFollowUp()) ||
+                    (provider.getRoles().stream().anyMatch(r -> r.getName() == RoleName.DOCTOR) && 
+                     claim.getAmount() != null && claim.getAmount() == 0.0);
+            
+            if (isFollowUpForPatient) {
+                // Follow-up visit notification for patient
+                String consultationFee = claim.getOriginalConsultationFee() != null ? 
+                        claim.getOriginalConsultationFee().toString() : "0";
+                notificationService.sendToUser(
+                        finalPatient.getId(),
+                        "📋 تم إنشاء مطالبة طبية لك من " + provider.getFullName() +
+                                " - نوع الزيارة: زيارة متابعة (Follow-up Visit)" +
+                                " - المبلغ للدكتور: 0 شيكل (التأمين لا يدفع)" +
+                                " - يجب عليك دفع سعر الكشفية: " + consultationFee + " شيكل" +
+                                " - في انتظار المراجعة"
+                );
+            } else {
+                // Normal visit notification for patient
+                notificationService.sendToUser(
+                        finalPatient.getId(),
+                        "📋 تم إنشاء مطالبة طبية لك من " + provider.getFullName() +
+                                " - المبلغ: " + claim.getAmount() + " شيكل" +
+                                " - في انتظار المراجعة"
+                );
+            }
+        }
+
+        HealthcareProviderClaimDTO resultDto = claimMapper.toDto(savedClaim);
+        resultDto.setProviderEmployeeId(provider.getEmployeeId());
+        resultDto.setProviderNationalId(provider.getNationalId());
+        
+        populatePatientInfo(savedClaim, resultDto);
+        return resultDto;
     }
 
-    // ============================================================
-    // 🟢 إنشاء مطالبة من قبل العميل (Client Self-Service)
-    // ============================================================
+    // Create self-service claim by client
     public HealthcareProviderClaimDTO createClientClaim(
             UUID clientId,
             CreateHealthcareProviderClaimDTO dto,
             MultipartFile invoiceImage
     ) {
-        log.info("🔹 Creating client self-service claim...");
-
         Client client = clientRepo.findById(clientId)
                 .orElseThrow(() -> new NotFoundException("Client not found"));
 
         HealthcareProviderClaim claim = claimMapper.toEntity(dto);
         claim.setHealthcareProvider(client);
-        claim.setClientId(clientId);
-        claim.setClientName(client.getFullName());
         claim.setStatus(ClaimStatus.PENDING_MEDICAL);
+
+        // Handle beneficiary: can be client themselves or a family member
+        UUID beneficiaryId = dto.getClientId();
+        String beneficiaryName = null;
+        FamilyMember familyMember = null;
+
+        if (beneficiaryId != null) {
+            // First, try to find as a family member
+            Optional<FamilyMember> familyMemberOpt = familyMemberRepo.findById(beneficiaryId);
+            
+            if (familyMemberOpt.isPresent()) {
+                familyMember = familyMemberOpt.get();
+                // Verify that this family member belongs to the authenticated client
+                if (!familyMember.getClient().getId().equals(clientId)) {
+                    throw new BadRequestException("Family member does not belong to this client");
+                }
+                // Verify family member is approved
+                if (familyMember.getStatus() != com.insurancesystem.Model.Entity.Enums.ProfileStatus.APPROVED) {
+                    throw new BadRequestException("Family member is not approved");
+                }
+                claim.setClientId(beneficiaryId);
+                claim.setClientName(familyMember.getFullName());
+                beneficiaryName = familyMember.getFullName();
+            } else {
+                // Try to find as a client
+                Optional<Client> beneficiaryClientOpt = clientRepo.findById(beneficiaryId);
+                if (beneficiaryClientOpt.isPresent()) {
+                    Client beneficiaryClient = beneficiaryClientOpt.get();
+                    // Verify it's the authenticated client themselves
+                    if (!beneficiaryClient.getId().equals(clientId)) {
+                        throw new BadRequestException("Cannot create claim for another client");
+                    }
+                    claim.setClientId(clientId);
+                    claim.setClientName(client.getFullName());
+                    beneficiaryName = client.getFullName();
+                } else {
+                    throw new NotFoundException("Beneficiary not found");
+                }
+            }
+        } else {
+            // No beneficiary specified, use the authenticated client themselves
+            claim.setClientId(clientId);
+            claim.setClientName(client.getFullName());
+            beneficiaryName = client.getFullName();
+        }
 
         if (invoiceImage != null && !invoiceImage.isEmpty()) {
             claim.setInvoiceImagePath(saveDocument(invoiceImage));
@@ -137,29 +690,41 @@ public class HealthcareProviderClaimService {
 
         HealthcareProviderClaim savedClaim = claimRepo.save(claim);
 
-        // 🔔 إشعار للإداريين الطبيين (جميع الإداريين الطبيين)
+        // Notification message
+        String notificationMessage = familyMember != null 
+            ? "📋 مطالبة جديدة من العميل " + client.getFullName() + 
+              " لعضو الأسرة " + beneficiaryName +
+              " - المبلغ: " + claim.getAmount() + " شيكل"
+            : "📋 مطالبة جديدة من العميل " + client.getFullName() +
+              " - المبلغ: " + claim.getAmount() + " شيكل";
+
         clientRepo.findByRoles_Name(RoleName.MEDICAL_ADMIN)
                 .forEach(medicalAdmin -> notificationService.sendToUser(
                         medicalAdmin.getId(),
-                        "📋 مطالبة جديدة من العميل " + client.getFullName() +
-                                " - المبلغ: " + claim.getAmount() + " دينار"
+                        notificationMessage
                 ));
 
-        // 🔔 إشعار للعميل
+        String clientNotificationMessage = familyMember != null
+            ? "✅ تم إرسال مطالبة لعضو الأسرة " + beneficiaryName + " بنجاح - المبلغ: " + claim.getAmount() + " شيكل" +
+              " - في انتظار المراجعة الطبية"
+            : "✅ تم إرسال مطالبتك بنجاح - المبلغ: " + claim.getAmount() + " شيكل" +
+              " - في انتظار المراجعة الطبية";
+
         notificationService.sendToUser(
                 client.getId(),
-                "✅ تم إرسال مطالبتك بنجاح - المبلغ: " + claim.getAmount() + " دينار" +
-                        " - في انتظار المراجعة الطبية"
+                clientNotificationMessage
         );
 
-        return claimMapper.toDto(savedClaim);
+        HealthcareProviderClaimDTO resultDto = claimMapper.toDto(savedClaim);
+        resultDto.setProviderEmployeeId(client.getEmployeeId());
+        resultDto.setProviderNationalId(client.getNationalId());
+        
+        populatePatientInfo(savedClaim, resultDto);
+        return resultDto;
     }
 
-    // ============================================================
-    // 🔍 Provider claims
-    // ============================================================
+    // Get claims for provider or client (different logic for each)
     public List<HealthcareProviderClaimDTO> getProviderClaims(UUID userId) {
-
         Client user = clientRepo.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
 
@@ -170,30 +735,157 @@ public class HealthcareProviderClaimService {
         List<HealthcareProviderClaim> claims;
 
         if (isClient) {
-            // ✅ العميل يرى كل مطالبه (سواء أنشأها بنفسه أو أنشأها المنسق له)
-            claims = claimRepo.findByClientId(user.getId());
+            // Client sees all claims they created (for themselves or family members)
+            // This includes claims where they are the healthcare provider
+            claims = claimRepo.findByHealthcareProviderId(user.getId());
         } else {
-            // ✅ مقدم الخدمة / الطبيب / الصيدلي / المنسق
-            claims = claimRepo.findByHealthcareProvider(user);
+            // Provider sees only their own claims
+            claims = claimRepo.findByHealthcareProviderId(user.getId());
         }
 
-        return claims.stream().map(claim -> {
-            HealthcareProviderClaimDTO dto = claimMapper.toDto(claim);
-            dto.setMedicalReviewerName(claim.getMedicalReviewerName());
-            dto.setMedicalReviewedAt(claim.getMedicalReviewedAt());
-            return dto;
-        }).toList();
-
+        List<HealthcareProviderClaimDTO> result = new ArrayList<>();
+        for (HealthcareProviderClaim claim : claims) {
+            try {
+                if (claim.getStatus() == null) {
+                    claim.setStatus(ClaimStatus.PENDING_MEDICAL);
+                }
+                
+                HealthcareProviderClaimDTO dto = claimMapper.toDto(claim);
+                dto.setMedicalReviewerName(claim.getMedicalReviewerName());
+                dto.setMedicalReviewedAt(claim.getMedicalReviewedAt());
+                populatePatientInfo(claim, dto);
+                result.add(dto);
+            } catch (IllegalArgumentException e) {
+                continue;
+            } catch (Exception e) {
+                continue;
+            }
+        }
+        return result;
     }
 
+    private void populatePatientInfo(HealthcareProviderClaim claim, HealthcareProviderClaimDTO dto) {
+        if (claim.getClientId() == null) {
+            return;
+        }
 
-    // ============================================================
-    // 🔍 جميع المطالبات
-    // ============================================================
+        Optional<FamilyMember> familyMemberOpt = familyMemberRepo.findById(claim.getClientId());
+        
+        if (familyMemberOpt.isPresent()) {
+            FamilyMember familyMember = familyMemberOpt.get();
+            
+            dto.setFamilyMemberId(familyMember.getId());
+            dto.setFamilyMemberName(familyMember.getFullName());
+            dto.setFamilyMemberRelation(familyMember.getRelation() != null ? familyMember.getRelation().toString() : null);
+            dto.setFamilyMemberAge(calculateAge(familyMember.getDateOfBirth()));
+            dto.setFamilyMemberGender(familyMember.getGender() != null ? familyMember.getGender().toString() : null);
+            dto.setFamilyMemberInsuranceNumber(familyMember.getInsuranceNumber());
+            dto.setFamilyMemberNationalId(familyMember.getNationalId());
+            
+            Client mainClient = familyMember.getClient();
+            if (mainClient != null) {
+                dto.setClientId(mainClient.getId());
+                dto.setClientName(mainClient.getFullName());
+                Integer mainClientAge = calculateAge(mainClient.getDateOfBirth());
+                dto.setClientAge(mainClientAge);
+                dto.setClientGender(mainClient.getGender() != null ? mainClient.getGender().toString() : null);
+                dto.setClientEmployeeId(mainClient.getEmployeeId());
+                dto.setClientNationalId(mainClient.getNationalId());
+                dto.setClientFaculty(mainClient.getFaculty());
+                dto.setClientDepartment(mainClient.getDepartment());
+            }
+        } else {
+            clientRepo.findById(claim.getClientId()).ifPresent(client -> {
+                dto.setClientId(client.getId());
+                dto.setClientName(client.getFullName());
+                Integer clientAge = calculateAge(client.getDateOfBirth());
+                dto.setClientAge(clientAge);
+                dto.setClientGender(client.getGender() != null ? client.getGender().toString() : null);
+                dto.setClientEmployeeId(client.getEmployeeId());
+                dto.setClientNationalId(client.getNationalId());
+                dto.setClientFaculty(client.getFaculty());
+                dto.setClientDepartment(client.getDepartment());
+            });
+        }
+    }
+
+    private void populatePatientInfoForMedicalDTO(HealthcareProviderClaim claim, HealthcareProviderClaimMedicalDTO dto) {
+        if (claim.getClientId() == null) {
+            return;
+        }
+
+        Optional<FamilyMember> familyMemberOpt = familyMemberRepo.findById(claim.getClientId());
+        
+        if (familyMemberOpt.isPresent()) {
+            FamilyMember familyMember = familyMemberOpt.get();
+            dto.setFamilyMemberId(familyMember.getId());
+            dto.setFamilyMemberName(familyMember.getFullName());
+            dto.setFamilyMemberRelation(familyMember.getRelation() != null ? familyMember.getRelation().toString() : null);
+            dto.setFamilyMemberAge(calculateAge(familyMember.getDateOfBirth()));
+            dto.setFamilyMemberGender(familyMember.getGender() != null ? familyMember.getGender().toString() : null);
+            dto.setFamilyMemberInsuranceNumber(familyMember.getInsuranceNumber());
+            dto.setFamilyMemberNationalId(familyMember.getNationalId());
+            
+            Client mainClient = familyMember.getClient();
+            if (mainClient != null) {
+                dto.setClientId(mainClient.getId());
+                dto.setClientName(mainClient.getFullName());
+                dto.setClientAge(calculateAge(mainClient.getDateOfBirth()));
+                dto.setClientGender(mainClient.getGender() != null ? mainClient.getGender().toString() : null);
+                dto.setEmployeeId(mainClient.getEmployeeId());
+                dto.setClientNationalId(mainClient.getNationalId());
+                dto.setClientFaculty(mainClient.getFaculty());
+                dto.setClientDepartment(mainClient.getDepartment());
+            }
+        } else {
+            clientRepo.findById(claim.getClientId()).ifPresent(client -> {
+                dto.setClientId(client.getId());
+                dto.setClientName(client.getFullName());
+                dto.setClientAge(calculateAge(client.getDateOfBirth()));
+                dto.setClientGender(client.getGender() != null ? client.getGender().toString() : null);
+                dto.setEmployeeId(client.getEmployeeId());
+                dto.setClientNationalId(client.getNationalId());
+                dto.setClientFaculty(client.getFaculty());
+                dto.setClientDepartment(client.getDepartment());
+            });
+        }
+    }
+
+    private Integer calculateAge(java.time.LocalDate dateOfBirth) {
+        if (dateOfBirth == null) {
+            return null;
+        }
+        java.time.LocalDate today = java.time.LocalDate.now();
+        int age = today.getYear() - dateOfBirth.getYear();
+        if (today.getMonthValue() < dateOfBirth.getMonthValue() ||
+                (today.getMonthValue() == dateOfBirth.getMonthValue() && today.getDayOfMonth() < dateOfBirth.getDayOfMonth())) {
+            age--;
+        }
+        return age > 0 ? age : null;
+    }
+
+    // Helper: Get provider role (handles self-service client claims)
+    private String getProviderRole(HealthcareProviderClaim claim) {
+        if (claim.getClientId() != null &&
+                claim.getHealthcareProvider().getId().equals(claim.getClientId())) {
+            return "INSURANCE_CLIENT";
+        }
+        return claim.getHealthcareProvider()
+                .getRoles()
+                .stream()
+                .findFirst()
+                .map(r -> r.getName().name())
+                .orElse("UNKNOWN");
+    }
+
     public List<HealthcareProviderClaimDTO> getAllClaims() {
         return claimRepo.findAll()
                 .stream()
-                .map(claimMapper::toDto)
+                .map(claim -> {
+                    HealthcareProviderClaimDTO dto = claimMapper.toDto(claim);
+                    populatePatientInfo(claim, dto);
+                    return dto;
+                })
                 .toList();
     }
 
@@ -204,22 +896,18 @@ public class HealthcareProviderClaimService {
         if (!isManager && !claim.getHealthcareProvider().getId().equals(requesterId))
             throw new NotFoundException("Claim not found for this provider");
 
-        return claimMapper.toDto(claim);
+        HealthcareProviderClaimDTO dto = claimMapper.toDto(claim);
+        populatePatientInfo(claim, dto);
+        return dto;
     }
 
-    // ============================================================
-    // ❌ رفض طبي
-    // ============================================================
+    // Medical admin rejects claim
     public HealthcareProviderClaimDTO rejectMedical(UUID claimId, String reason, UUID reviewerId) {
-        log.info("🔹 Rejecting claim medically...");
-
         HealthcareProviderClaim claim = claimRepo.findById(claimId)
                 .orElseThrow(() -> new NotFoundException("Claim not found"));
 
-        if (
-                claim.getStatus() != ClaimStatus.PENDING_MEDICAL &&
-                        claim.getStatus() != ClaimStatus.RETURNED_FOR_REVIEW
-        ) {
+        if (claim.getStatus() != ClaimStatus.PENDING_MEDICAL &&
+                claim.getStatus() != ClaimStatus.RETURNED_FOR_REVIEW) {
             throw new BadRequestException("Claim was already processed");
         }
 
@@ -235,15 +923,13 @@ public class HealthcareProviderClaimService {
 
         HealthcareProviderClaim savedClaim = claimRepo.save(claim);
 
-        // 🔔 إشعار لمقدم الخدمة
         notificationService.sendToUser(
                 claim.getHealthcareProvider().getId(),
                 "❌ تم رفض مطالبتك من المراجع الطبي " + reviewer.getFullName() +
-                        " - المبلغ: " + claim.getAmount() + " دينار" +
+                        " - المبلغ: " + claim.getAmount() + " شيكل" +
                         (reason != null && !reason.isEmpty() ? "\nالسبب: " + reason : "")
         );
 
-        // 🔔 إشعار للمريض (إن وجد)
         if (claim.getClientId() != null) {
             clientRepo.findById(claim.getClientId()).ifPresent(patient ->
                     notificationService.sendToUser(
@@ -254,27 +940,21 @@ public class HealthcareProviderClaimService {
             );
         }
 
-        return claimMapper.toDto(savedClaim);
+        HealthcareProviderClaimDTO resultDto = claimMapper.toDto(savedClaim);
+        populatePatientInfo(savedClaim, resultDto);
+        return resultDto;
     }
 
-    // ============================================================
-    // 🟩 موافقة طبية → تنتقل للإداري
-    // ============================================================
+    // Medical admin approves claim (final approval)
     public HealthcareProviderClaimDTO approveMedical(UUID claimId, UUID reviewerId) {
-        log.info("🔹 Approving claim medically...");
-
         HealthcareProviderClaim claim = claimRepo.findById(claimId)
                 .orElseThrow(() -> new NotFoundException("Claim not found"));
 
-        if (
-                claim.getStatus() != ClaimStatus.PENDING_MEDICAL &&
-                        claim.getStatus() != ClaimStatus.RETURNED_FOR_REVIEW
-        ) {
+        if (claim.getStatus() != ClaimStatus.PENDING_MEDICAL &&
+                claim.getStatus() != ClaimStatus.RETURNED_FOR_REVIEW) {
             throw new BadRequestException("Claim already processed");
         }
 
-
-        // ✔ تم تعيين بيانات المراجع الطبي
         Client reviewer = clientRepo.findById(reviewerId)
                 .orElseThrow(() -> new NotFoundException("Reviewer not found"));
 
@@ -286,17 +966,22 @@ public class HealthcareProviderClaimService {
 
         HealthcareProviderClaim savedClaim = claimRepo.save(claim);
 
-        // 🔔 إشعار لمقدم الخدمة
+        // 🔔 إشعار لمقدم الخدمة مع معلومات follow-up
+        String notificationMessage = "✅ تمت الموافقة على مطالبتك من المراجع الطبي " + reviewer.getFullName();
+        if (claim.getIsFollowUp() != null && claim.getIsFollowUp()) {
+            notificationMessage += " - ⚠️ زيارة متابعة (Follow-up): المريض يجب أن يدفع سعر الكشفية (" + 
+                    (claim.getOriginalConsultationFee() != null ? claim.getOriginalConsultationFee() : "0") + 
+                    " دينار). التأمين لا يدفع الكشفية في زيارة المتابعة.";
+        } else {
+            notificationMessage += " - المبلغ: " + claim.getAmount() + " شيكل";
+        }
+        notificationMessage += " - تمت الموافقة النهائية";
+        
         notificationService.sendToUser(
                 claim.getHealthcareProvider().getId(),
-                "✅ تمت الموافقة على مطالبتك من المراجع الطبي " + reviewer.getFullName() +
-                        " - المبلغ: " + claim.getAmount() + " دينار" +
-                        " - تمت الموافقة النهائية"
+                notificationMessage
         );
 
-
-
-        // 🔔 إشعار للمريض (إن وجد)
         if (claim.getClientId() != null) {
             clientRepo.findById(claim.getClientId()).ifPresent(patient ->
                     notificationService.sendToUser(
@@ -307,79 +992,49 @@ public class HealthcareProviderClaimService {
             );
         }
 
-        return claimMapper.toDto(savedClaim);
+        HealthcareProviderClaimDTO resultDto = claimMapper.toDto(savedClaim);
+        populatePatientInfo(savedClaim, resultDto);
+        return resultDto;
     }
-    // ============================================================
-    // Medical Review List
-    // ============================================================
+
+    // Get claims pending medical review
     public List<HealthcareProviderClaimMedicalDTO> getClaimsForMedicalReview() {
-        List<HealthcareProviderClaim> claims =
-                claimRepo.findByStatusIn(
-                        List.of(
-                                ClaimStatus.PENDING_MEDICAL,
-                                ClaimStatus.RETURNED_FOR_REVIEW
-                        )
+        List<HealthcareProviderClaim> claims = claimRepo.findByStatusInWithProvider(
+                List.of(ClaimStatus.PENDING_MEDICAL, ClaimStatus.RETURNED_FOR_REVIEW)
                 );
 
         return claims.stream().map(claim -> {
             HealthcareProviderClaimMedicalDTO dto = claimMapper.toMedicalDto(claim);
 
-            // ⭐ إضافة التشخيص والعلاج
             dto.setDiagnosis(claim.getDiagnosis());
-            dto.setTreatmentDetails(claim.getTreatmentDetails());
-
-            if (claim.getClientId() != null) {
-                clientRepo.findById(claim.getClientId()).ifPresent(client -> {
-                    dto.setClientName(client.getFullName());
-                    dto.setEmployeeId(client.getEmployeeId());
-                });
-            }
-
-            // ⭐ المهم جداً: أرجع الـ role كما هو بدون أي mapping
-            // Check if this is a client self-service claim (provider and patient are the same)
-            String role;
-            if (claim.getClientId() != null &&
-                    claim.getHealthcareProvider().getId().equals(claim.getClientId())) {
-                // This is a client self-service claim
-                role = "INSURANCE_CLIENT";
-            } else {
-                // Regular provider claim - get role from provider
-                role = claim.getHealthcareProvider()
-                        .getRoles()
-                        .stream()
-                        .findFirst()
-                        .map(r -> r.getName().name())
-                        .orElse("UNKNOWN");
-            }
-
-            dto.setProviderRole(role);
-
-            // ⭐ Ensure description is included in DTO
+            dto.setTreatmentDetails(cleanTreatmentDetails(claim.getTreatmentDetails()));
+            populatePatientInfoForMedicalDTO(claim, dto);
+            dto.setProviderRole(getProviderRole(claim));
+            populateProviderInfo(claim, dto);
             dto.setDescription(claim.getDescription());
-
-            // ⭐ Ensure roleSpecificData (contains medicines for pharmacist claims) is included in DTO
             dto.setRoleSpecificData(claim.getRoleSpecificData());
+            dto.setIsFollowUp(claim.getIsFollowUp());
+            dto.setOriginalConsultationFee(claim.getOriginalConsultationFee());
 
             return dto;
         }).toList();
     }
 
-    // ============================================================
-    // Final Decisions Page
-    // ============================================================
+    // Get final decisions (approved/rejected by medical admin)
     public List<HealthcareProviderClaimMedicalDTO> getFinalDecisions() {
         List<ClaimStatus> statuses = List.of(
                 ClaimStatus.APPROVED_FINAL,
                 ClaimStatus.REJECTED_FINAL
         );
 
-        List<HealthcareProviderClaim> claims = claimRepo.findByStatusIn(statuses);
+        List<HealthcareProviderClaim> claims = claimRepo.findByStatusInWithProvider(statuses);
 
         return claims.stream().map(claim -> {
             HealthcareProviderClaimMedicalDTO dto = claimMapper.toMedicalDto(claim);
             dto.setAmount(claim.getAmount());
+            dto.setIsFollowUp(claim.getIsFollowUp());
+            dto.setOriginalConsultationFee(claim.getOriginalConsultationFee());
 
-// ⭐ distinguish claims returned by coordination admin
             if (claim.getStatus() == ClaimStatus.RETURNED_FOR_REVIEW) {
                 dto.setReturnedByCoordinator(true);
                 dto.setCoordinatorNote(claim.getRejectionReason());
@@ -387,47 +1042,89 @@ public class HealthcareProviderClaimService {
                 dto.setReturnedByCoordinator(false);
                 dto.setCoordinatorNote(null);
             }
-            if (claim.getClientId() != null) {
-                clientRepo.findById(claim.getClientId())
-                        .ifPresent(c -> {
-                            dto.setClientName(c.getFullName());
-                            dto.setEmployeeId(c.getEmployeeId()); // ✅ هذا هو المهم
-                        });
-            }
-
-            // اسم المريض
-            if (claim.getClientId() != null) {
-                clientRepo.findById(claim.getClientId())
-                        .ifPresent(c -> dto.setClientName(c.getFullName()));
-            }
-
-            // Provider Role
-            // Check if this is a client self-service claim (provider and patient are the same)
-            String role;
-            if (claim.getClientId() != null &&
-                    claim.getHealthcareProvider().getId().equals(claim.getClientId())) {
-                // This is a client self-service claim
-                role = "INSURANCE_CLIENT";
-            } else {
-                // Regular provider claim - get role from provider
-                role = claim.getHealthcareProvider()
-                        .getRoles()
-                        .stream()
-                        .findFirst()
-                        .map(r -> r.getName().name())
-                        .orElse("UNKNOWN");
-            }
-
-            dto.setProviderRole(role);
-
-            // ⭐ Ensure description is included in DTO
+            
+            populatePatientInfoForMedicalDTO(claim, dto);
+            dto.setProviderRole(getProviderRole(claim));
+            populateProviderInfo(claim, dto);
             dto.setDescription(claim.getDescription());
-
-            // ⭐ Ensure roleSpecificData (contains medicines for pharmacist claims) is included in DTO
             dto.setRoleSpecificData(claim.getRoleSpecificData());
+            dto.setIsFollowUp(claim.getIsFollowUp());
+            dto.setOriginalConsultationFee(claim.getOriginalConsultationFee());
 
             return dto;
         }).toList();
+    }
+
+    private void populateProviderInfo(HealthcareProviderClaim claim, HealthcareProviderClaimMedicalDTO dto) {
+        Client provider = claim.getHealthcareProvider();
+        if (provider != null) {
+            String employeeId = provider.getEmployeeId();
+            String nationalId = provider.getNationalId();
+            
+            dto.setProviderEmployeeId(employeeId);
+            dto.setProviderNationalId(nationalId);
+            
+            String role = dto.getProviderRole();
+            
+            // For client claims (outside network), extract provider and doctor name from roleSpecificData
+            if (role != null && role.equals("INSURANCE_CLIENT") && claim.getRoleSpecificData() != null) {
+                try {
+                    java.util.Map<String, Object> roleData = objectMapper.readValue(
+                            claim.getRoleSpecificData(), 
+                            java.util.Map.class
+                    );
+                    String providerName = (String) roleData.get("providerName");
+                    String doctorName = (String) roleData.get("doctorName");
+                    
+                    if (providerName != null && !providerName.trim().isEmpty()) {
+                        dto.setProviderName(providerName);
+                    } else {
+                        dto.setProviderName(provider.getFullName());
+                    }
+                    
+                    // Set doctor name if available
+                    if (doctorName != null && !doctorName.trim().isEmpty()) {
+                        dto.setDoctorName(doctorName);
+                    }
+                } catch (Exception e) {
+                    // If parsing fails, use provider's name
+                    dto.setProviderName(provider.getFullName());
+                }
+            } else {
+                // For regular providers, use their name
+                dto.setProviderName(provider.getFullName());
+            }
+            
+            if (role != null) {
+                if (role.equals("DOCTOR")) {
+                    dto.setProviderSpecialization(provider.getSpecialization());
+                } else if (role.equals("PHARMACIST")) {
+                    dto.setProviderPharmacyCode(provider.getPharmacyCode() != null && !provider.getPharmacyCode().trim().isEmpty() 
+                            ? provider.getPharmacyCode() : null);
+                } else if (role.equals("LAB_TECH")) {
+                    dto.setProviderLabCode(provider.getLabCode() != null && !provider.getLabCode().trim().isEmpty() 
+                            ? provider.getLabCode() : null);
+                } else if (role.equals("RADIOLOGIST")) {
+                    dto.setProviderRadiologyCode(provider.getRadiologyCode() != null && !provider.getRadiologyCode().trim().isEmpty() 
+                            ? provider.getRadiologyCode() : null);
+                }
+            }
+        }
+    }
+
+    private String cleanTreatmentDetails(String treatmentDetails) {
+        if (treatmentDetails == null || treatmentDetails.isEmpty()) {
+            return treatmentDetails;
+        }
+        
+        String cleaned = treatmentDetails.replaceAll("(?i)(\\r?\\n)?\\s*Family\\s+Member:.*?-\\s*Insurance:.*?-\\s*Age:.*?-\\s*Gender:.*?(?=\\r?\\n|$|\\z)", "");
+        cleaned = cleaned.replaceAll("(?i)(\\r?\\n)?\\s*Family\\s+Member:.*?-\\s*Insurance:.*?-\\s*Age:.*?-\\s*Gender:.*$", "");
+        cleaned = cleaned.replaceAll("(?i)^\\s*Family\\s+Member:.*?-\\s*Insurance:.*?-\\s*Age:.*?-\\s*Gender:.*?(?=\\r?\\n|$)", "");
+        cleaned = cleaned.replaceAll("\\r?\\n\\r?\\n+", "\n");
+        cleaned = cleaned.replaceAll("\\s+", " ");
+        cleaned = cleaned.trim();
+        
+        return cleaned.isEmpty() ? null : cleaned;
     }
 
     private String saveDocument(MultipartFile file) {
@@ -441,16 +1138,9 @@ public class HealthcareProviderClaimService {
             throw new RuntimeException("Failed to save document", e);
         }
     }
-
-
-
-    // ============================================================
-// 📤 Export Approved Claims as PDF
-// ============================================================
+    // 📤 Export Approved Claims as PDF
     public byte[] exportApprovedClaimsPdf() {
-
-        List<HealthcareProviderClaim> claims =
-                claimRepo.findAllApprovedClaims();
+        List<HealthcareProviderClaim> claims = claimRepo.findAllApprovedClaims();
 
         try {
             ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -477,17 +1167,9 @@ public class HealthcareProviderClaimService {
 
             for (HealthcareProviderClaim claim : claims) {
                 table.addCell(claim.getId().toString());
-                table.addCell(
-                        claim.getClientName() != null ? claim.getClientName() : "-"
-                );
-                table.addCell(
-                        claim.getHealthcareProvider().getFullName()
-                );
-                table.addCell(
-                        claim.getMedicalReviewerName() != null
-                                ? claim.getMedicalReviewerName()
-                                : "-"
-                );
+                table.addCell(claim.getClientName() != null ? claim.getClientName() : "-");
+                table.addCell(claim.getHealthcareProvider().getFullName());
+                table.addCell(claim.getMedicalReviewerName() != null ? claim.getMedicalReviewerName() : "-");
                 table.addCell(claim.getAmount() + " NIS");
                 table.addCell(claim.getServiceDate().toString());
             }
@@ -502,11 +1184,7 @@ public class HealthcareProviderClaimService {
         }
     }
 
-    private byte[] generatePdf(
-            ReportType reportType,
-            List<HealthcareProviderClaim> claims
-    ) {
-
+    private byte[] generatePdf(ReportType reportType, List<HealthcareProviderClaim> claims) {
         boolean hideClientName = reportType != ReportType.CLIENT;
 
         try {
@@ -517,20 +1195,15 @@ public class HealthcareProviderClaimService {
             document.open();
 
             Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16);
-            document.add(new Paragraph(
-                    reportType.name() + " Claims Report",
-                    titleFont
-            ));
+            document.add(new Paragraph(reportType.name() + " Claims Report", titleFont));
             document.add(new Paragraph(" "));
             document.add(new Paragraph("Generated by Coordination Admin"));
             document.add(new Paragraph(" "));
 
-            // عدد الأعمدة حسب نوع التقرير
             int columns = hideClientName ? 5 : 6;
             PdfPTable table = new PdfPTable(columns);
             table.setWidthPercentage(100);
 
-            // ===== Header =====
             table.addCell("Claim ID");
             table.addCell("Provider Name");
 
@@ -542,27 +1215,17 @@ public class HealthcareProviderClaimService {
             table.addCell("Status");
             table.addCell("Service Date");
 
-            // ===== Data =====
             for (HealthcareProviderClaim claim : claims) {
-
                 table.addCell(claim.getId().toString());
                 table.addCell(claim.getHealthcareProvider().getFullName());
 
                 if (!hideClientName) {
-                    table.addCell(
-                            claim.getClientName() != null
-                                    ? claim.getClientName()
-                                    : "-"
-                    );
+                    table.addCell(claim.getClientName() != null ? claim.getClientName() : "-");
                 }
 
                 table.addCell(claim.getAmount() + " NIS");
                 table.addCell(claim.getStatus().name());
-                table.addCell(
-                        claim.getServiceDate() != null
-                                ? claim.getServiceDate().toString()
-                                : "-"
-                );
+                table.addCell(claim.getServiceDate() != null ? claim.getServiceDate().toString() : "-");
             }
 
             document.add(table);
@@ -575,15 +1238,7 @@ public class HealthcareProviderClaimService {
         }
     }
 
-
-    public byte[] exportReportPdf(
-            ReportType reportType,
-            ClaimStatus status,
-            LocalDate from,
-            LocalDate to
-    )
- {
-
+    public byte[] exportReportPdf(ReportType reportType, ClaimStatus status, LocalDate from, LocalDate to) {
         RoleName roleFilter = switch (reportType) {
             case DOCTOR -> RoleName.DOCTOR;
             case PHARMACY -> RoleName.PHARMACIST;
@@ -592,22 +1247,20 @@ public class HealthcareProviderClaimService {
             case CLIENT -> null; // clients handled separately
         };
 
-        List<HealthcareProviderClaim> claims =
-                claimRepo.filterClaims(status, from, to, roleFilter);
+        List<HealthcareProviderClaim> claims = claimRepo.filterClaims(status, from, to, roleFilter);
 
         return generatePdf(reportType, claims);
     }
 
+    // Coordination admin creates claim on behalf of client
     public HealthcareProviderClaimDTO createClaimByCoordinationAdmin(
             UUID adminId,
             CreateHealthcareProviderClaimDTO dto,
             MultipartFile invoiceImage
     ) {
-
         Client admin = clientRepo.findById(adminId)
                 .orElseThrow(() -> new NotFoundException("Coordination admin not found"));
 
-        // ✅ تأكيد الدور
         boolean isCoordinator = admin.getRoles().stream()
                 .anyMatch(r -> r.getName() == RoleName.COORDINATION_ADMIN);
 
@@ -615,44 +1268,105 @@ public class HealthcareProviderClaimService {
             throw new BadRequestException("Only coordination admin can create claims this way");
         }
 
-        // ✅ clientId إلزامي
         if (dto.getClientId() == null) {
             throw new BadRequestException("Client ID is required for coordination admin claim");
         }
 
-        Client client = clientRepo.findById(dto.getClientId())
-                .orElseThrow(() -> new NotFoundException("Client not found"));
+        // First, try to find as a family member
+        Optional<FamilyMember> familyMemberOpt = familyMemberRepo.findById(dto.getClientId());
+        Client client;
+        FamilyMember familyMember = null;
+        String beneficiaryName;
+        
+        if (familyMemberOpt.isPresent()) {
+            // It's a family member
+            familyMember = familyMemberOpt.get();
+            // Verify family member is approved
+            if (familyMember.getStatus() != com.insurancesystem.Model.Entity.Enums.ProfileStatus.APPROVED) {
+                throw new BadRequestException("Family member is not approved");
+            }
+            client = familyMember.getClient();
+            beneficiaryName = familyMember.getFullName();
+        } else {
+            // It's a regular client
+            client = clientRepo.findById(dto.getClientId())
+                    .orElseThrow(() -> new NotFoundException("Client not found"));
+            beneficiaryName = client.getFullName();
+        }
 
         HealthcareProviderClaim claim = claimMapper.toEntity(dto);
-
-        // 🔴 إدخال منسق
-        claim.setHealthcareProvider(admin);
-
-        // 🟢 تثبيت بيانات المؤمن
-        claim.setClientId(client.getId());
-        claim.setClientName(client.getFullName());
-
-        claim.setStatus(ClaimStatus.PENDING_MEDICAL);
-        claim.setApprovedAt(null);
-
-
-        // ❌ لا مراجع طبي
-        claim.setMedicalReviewerId(null);
-        claim.setMedicalReviewerName(null);
-        claim.setMedicalReviewedAt(null);
+        // Set healthcare provider to the client (not admin) so it shows in client's claims
+        claim.setHealthcareProvider(client);
+        
+        if (familyMember != null) {
+            // Claim is for family member
+            claim.setClientId(familyMember.getId());
+            claim.setClientName(familyMember.getFullName());
+        } else {
+            // Claim is for client themselves
+            claim.setClientId(client.getId());
+            claim.setClientName(client.getFullName());
+        }
+        
+        // Coordinator admin creates claim with APPROVED status directly
+        claim.setStatus(ClaimStatus.APPROVED_FINAL);
+        claim.setApprovedAt(Instant.now());
+        claim.setMedicalReviewerId(admin.getId());
+        claim.setMedicalReviewerName(admin.getFullName());
+        claim.setMedicalReviewedAt(Instant.now());
 
         if (invoiceImage != null && !invoiceImage.isEmpty()) {
             claim.setInvoiceImagePath(saveDocument(invoiceImage));
         }
 
-        return claimMapper.toDto(claimRepo.save(claim));
+        HealthcareProviderClaim savedClaim = claimRepo.save(claim);
+        
+        // Notification message for client
+        String clientNotificationMessage = familyMember != null 
+            ? "✅ تم إنشاء واعتماد مطالبة من المنسق الإداري " + admin.getFullName() + 
+              " لعضو الأسرة " + beneficiaryName +
+              " - المبلغ: " + claim.getAmount() + " شيكل" +
+              " - تمت الموافقة مباشرة"
+            : "✅ تم إنشاء واعتماد مطالبة من المنسق الإداري " + admin.getFullName() +
+              " للعميل " + beneficiaryName +
+              " - المبلغ: " + claim.getAmount() + " شيكل" +
+              " - تمت الموافقة مباشرة";
+
+        // Notify the client
+        notificationService.sendToUser(
+                client.getId(),
+                clientNotificationMessage
+        );
+        
+        // Notify medical admins about the approved claim created by coordinator
+        String medicalAdminNotificationMessage = familyMember != null
+            ? "✅ تم إنشاء واعتماد مطالبة من المنسق الإداري " + admin.getFullName() +
+              " لعضو الأسرة " + beneficiaryName + " (العميل: " + client.getFullName() + ")" +
+              " - المبلغ: " + claim.getAmount() + " شيكل" +
+              " - تمت الموافقة مباشرة من المنسق الإداري"
+            : "✅ تم إنشاء واعتماد مطالبة من المنسق الإداري " + admin.getFullName() +
+              " للعميل " + beneficiaryName +
+              " - المبلغ: " + claim.getAmount() + " شيكل" +
+              " - تمت الموافقة مباشرة من المنسق الإداري";
+        
+        clientRepo.findByRoles_Name(RoleName.MEDICAL_ADMIN)
+                .forEach(medicalAdmin -> notificationService.sendToUser(
+                        medicalAdmin.getId(),
+                        medicalAdminNotificationMessage
+                ));
+        
+        HealthcareProviderClaimDTO resultDto = claimMapper.toDto(savedClaim);
+        
+        if (claim.getHealthcareProvider() != null) {
+            resultDto.setProviderEmployeeId(claim.getHealthcareProvider().getEmployeeId());
+            resultDto.setProviderNationalId(claim.getHealthcareProvider().getNationalId());
+        }
+        
+        populatePatientInfo(savedClaim, resultDto);
+        return resultDto;
     }
 
-    public HealthcareProviderClaimDTO returnToMedical(
-            UUID claimId,
-            String reason,
-            UUID coordinatorId
-    ) {
+    public HealthcareProviderClaimDTO returnToMedical(UUID claimId, String reason, UUID coordinatorId) {
         HealthcareProviderClaim claim = claimRepo.findById(claimId)
                 .orElseThrow(() -> new NotFoundException("Claim not found"));
 
@@ -660,14 +1374,12 @@ public class HealthcareProviderClaimService {
             throw new BadRequestException("Only finally approved claims can be returned");
         }
 
-
         claim.setStatus(ClaimStatus.RETURNED_FOR_REVIEW);
-        claim.setRejectionReason(reason); // أو returnReason لو تحب تفصل
+        claim.setRejectionReason(reason);
         claim.setRejectedAt(Instant.now());
 
         HealthcareProviderClaim saved = claimRepo.save(claim);
 
-        // 🔔 notify medical admins (URGENT)
         clientRepo.findByRoles_Name(RoleName.MEDICAL_ADMIN)
                 .forEach(admin ->
                         notificationService.sendToUser(
@@ -678,51 +1390,31 @@ public class HealthcareProviderClaimService {
                         )
                 );
 
-        // 🔔 إشعار لمقدم الطلب
         notificationService.sendToUser(
                 claim.getHealthcareProvider().getId(),
                 "⚠️ تمت إعادة مطالبتك للمراجعة الطبية بسبب ملاحظة إدارية:\n" + reason
         );
 
-        return claimMapper.toDto(saved);
+        HealthcareProviderClaimDTO resultDto = claimMapper.toDto(saved);
+        populatePatientInfo(saved, resultDto);
+        return resultDto;
     }
-    public List<HealthcareProviderClaimDTO> getClaimsForCoordinationReview() {
 
-        List<HealthcareProviderClaim> claims =
-                claimRepo.findByStatus(ClaimStatus.APPROVED_FINAL);
+    // Get claims approved by medical admin for coordination review
+    public List<HealthcareProviderClaimDTO> getClaimsForCoordinationReview() {
+        List<HealthcareProviderClaim> claims = claimRepo.findByStatus(ClaimStatus.APPROVED_FINAL);
 
         return claims.stream().map(claim -> {
-
             HealthcareProviderClaimDTO dto = claimMapper.toDto(claim);
-
-            // ✅ تحديد دور مقدم الخدمة
-            String role;
-            if (claim.getClientId() != null &&
-                    claim.getHealthcareProvider().getId().equals(claim.getClientId())) {
-
-                // Self-service client claim
-                role = RoleName.INSURANCE_CLIENT.name();
-
-            } else {
-                // Provider claim
-                role = claim.getHealthcareProvider()
-                        .getRoles()
-                        .stream()
-                        .findFirst()
-                        .map(r -> r.getName().name())
-                        .orElse("UNKNOWN");
-            }
+            populatePatientInfo(claim, dto);
+            dto.setProviderRole(getProviderRole(claim));
+            
             if (claim.getClientId() != null) {
                 clientRepo.findById(claim.getClientId())
                         .ifPresent(c -> dto.setEmployeeId(c.getEmployeeId()));
             }
-            dto.setProviderRole(role);
 
             return dto;
-
         }).toList();
     }
-
-
 }
-

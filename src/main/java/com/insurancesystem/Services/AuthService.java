@@ -20,6 +20,7 @@ import com.insurancesystem.Repository.FamilyMemberRepository;
 import com.insurancesystem.Security.CustomUserDetailsService;
 import com.insurancesystem.Security.JwtService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FilenameUtils;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -41,6 +42,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class AuthService {
 
     private final ClientRepository clientRepo;
@@ -263,24 +265,36 @@ public class AuthService {
         // ===============================
         // 🟢 Create Client entity
         // ===============================
+        // ✅ Log all fields to ensure they're stored separately
+        log.info("🔍 Registering user - Role: {}, EmployeeId: {}, PharmacyCode: {}, LabCode: {}, RadiologyCode: {}", 
+                req.getDesiredRole(), 
+                req.getEmployeeId(), 
+                req.getPharmacyCode(), 
+                req.getLabCode(), 
+                req.getRadiologyCode());
+        
         Client client = Client.builder()
                 .passwordHash(passwordEncoder.encode(req.getPassword()))
                 .fullName(req.getFullName())
                 .nationalId(req.getNationalId())
                 .email(email)
                 .phone(req.getPhone())
+                // ✅ Store employeeId separately (for all roles)
                 .employeeId(req.getEmployeeId())
                 .department(req.getDepartment())
                 .faculty(req.getFaculty())
                 .specialization(req.getSpecialization())
                 .clinicLocation(req.getClinicLocation())
+                // ✅ Store pharmacyCode separately (for PHARMACIST)
                 .pharmacyCode(req.getPharmacyCode())
                 .pharmacyName(req.getPharmacyName())
                 .pharmacyLocation(req.getPharmacyLocation())
                 .gender(req.getGender())  // إضافة الجنس
+                // ✅ Store labCode separately (for LAB_TECH)
                 .labCode(req.getLabCode())
                 .labName(req.getLabName())
                 .labLocation(req.getLabLocation())
+                // ✅ Store radiologyCode separately (for RADIOLOGIST)
                 .radiologyCode(req.getRadiologyCode())
                 .radiologyName(req.getRadiologyName())
                 .radiologyLocation(req.getRadiologyLocation())
@@ -292,8 +306,18 @@ public class AuthService {
                 .updatedAt(Instant.now())
                 .universityCardImages(cardPaths)
                 .build();
+        
+        Client savedClient = clientRepo.save(client);
+        
+        // ✅ Verify all fields are stored correctly
+        log.info("✅ User registered - ID: {}, EmployeeId: {}, PharmacyCode: {}, LabCode: {}, RadiologyCode: {}", 
+                savedClient.getId(),
+                savedClient.getEmployeeId(),
+                savedClient.getPharmacyCode(),
+                savedClient.getLabCode(),
+                savedClient.getRadiologyCode());
 
-        Client saved = clientRepo.save(client);
+        Client saved = savedClient; // ✅ Use the already saved client
 
 
         if (role == RoleName.INSURANCE_CLIENT && req.isHasChronicDiseases()) {

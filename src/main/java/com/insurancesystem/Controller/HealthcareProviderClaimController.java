@@ -196,17 +196,32 @@ public class HealthcareProviderClaimController {
     public ResponseEntity<?> getProviderClaims(Authentication auth) {
 
         try {
+            String email = auth.getName();
+            if (email == null || email.trim().isEmpty()) {
+                return ResponseEntity.status(401).body(Map.of("message", "Authentication failed: email not found"));
+            }
 
-            Client provider = clientRepo.findByEmail(auth.getName().toLowerCase())
-                    .orElseThrow(() -> new NotFoundException("Provider not found"));
+            Client provider = clientRepo.findByEmail(email.toLowerCase())
+                    .orElseThrow(() -> new NotFoundException("Provider not found: " + email));
 
-
-            return ResponseEntity.ok(claimService.getProviderClaims(provider.getId()));
+            try {
+                return ResponseEntity.ok(claimService.getProviderClaims(provider.getId()));
+            } catch (IllegalArgumentException e) {
+                // Handle enum conversion errors - might be due to invalid status in database
+                if (e.getMessage() != null && e.getMessage().contains("No enum constant")) {
+                    return ResponseEntity.status(500).body(Map.of(
+                            "message", "Database contains invalid claim status values. Please contact administrator.",
+                            "error", "INVALID_ENUM_VALUE",
+                            "details", e.getMessage()
+                    ));
+                }
+                throw e; // Re-throw if it's a different IllegalArgumentException
+            }
 
         } catch (NotFoundException e) {
-
             return ResponseEntity.status(404).body(Map.of("message", e.getMessage()));
-
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("message", "Error fetching claims: " + e.getMessage()));
         }
 
     }
