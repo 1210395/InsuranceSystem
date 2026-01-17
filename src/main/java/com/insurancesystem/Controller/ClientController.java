@@ -111,7 +111,7 @@ public class ClientController {
      * @return Client information (fullName, department, faculty, specialization, etc.)
      */
     @GetMapping("/search/employeeId/{employeeId}")
-    @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN', 'INSURANCE_MANAGER', 'INSURANCE_CLIENT')")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'PHARMACIST', 'LAB_TECH', 'RADIOLOGIST', 'ADMIN', 'INSURANCE_MANAGER', 'INSURANCE_CLIENT')")
     public ResponseEntity<?> findByEmployeeId(@PathVariable String employeeId) {
         try {
             if (employeeId == null || employeeId.trim().isEmpty()) {
@@ -147,7 +147,7 @@ public class ClientController {
      * @return Client information
      */
     @GetMapping("/search/name/{fullName}")
-    @PreAuthorize("hasAnyRole('DOCTOR', 'ADMIN', 'INSURANCE_MANAGER', 'INSURANCE_CLIENT')")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'PHARMACIST', 'LAB_TECH', 'RADIOLOGIST', 'ADMIN', 'INSURANCE_MANAGER', 'INSURANCE_CLIENT')")
     public ResponseEntity<?> findByFullName(@PathVariable String fullName) {
         try {
             if (fullName == null || fullName.trim().isEmpty()) {

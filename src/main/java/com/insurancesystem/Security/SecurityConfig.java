@@ -34,6 +34,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/api/auth/**",
+                                "/api/doctor-specializations/**",  // للتسجيل
+                                "/api/policies/public/**",         // للتسجيل
                                 "/uploads/**",
                                 "/ws-chat/**"      // 👈 السماح بالـ WebSocket endpoint
                         ).permitAll()

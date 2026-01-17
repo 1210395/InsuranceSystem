@@ -163,5 +163,118 @@ public class HealthcareProviderClaimService {
             throw new RuntimeException("Failed to save document", e);
         }
     }
+
+    // Get claims for medical review (PENDING or RETURNED_FOR_REVIEW)
+    public List<HealthcareProviderClaimDTO> getClaimsForMedicalReview() {
+        List<ClaimStatus> statuses = List.of(
+                ClaimStatus.PENDING,
+                ClaimStatus.PENDING_MEDICAL,
+                ClaimStatus.RETURNED_FOR_REVIEW
+        );
+        return claimRepo.findByStatusIn(statuses).stream()
+                .map(claimMapper::toDto)
+                .toList();
+    }
+
+    // Get claims for coordination review
+    public List<HealthcareProviderClaimDTO> getClaimsForCoordinationReview() {
+        return claimRepo.findClaimsForCoordinationReview().stream()
+                .map(claimMapper::toDto)
+                .toList();
+    }
+
+    // Get final decisions
+    public List<HealthcareProviderClaimDTO> getFinalDecisions() {
+        return claimRepo.findFinalDecisions().stream()
+                .map(claimMapper::toDto)
+                .toList();
+    }
+
+    // Medical approve claim
+    public HealthcareProviderClaimDTO approveMedical(UUID claimId) {
+        HealthcareProviderClaim claim = claimRepo.findById(claimId)
+                .orElseThrow(() -> new NotFoundException("Claim not found"));
+
+        claim.setStatus(ClaimStatus.APPROVED_MEDICAL);
+        claim.setMedicalReviewedAt(Instant.now());
+        claimRepo.save(claim);
+
+        notificationService.sendToRole(
+                RoleName.COORDINATION_ADMIN,
+                "Medical approved claim from " + claim.getHealthcareProvider().getFullName()
+        );
+
+        return claimMapper.toDto(claim);
+    }
+
+    // Medical reject claim
+    public HealthcareProviderClaimDTO rejectMedical(UUID claimId, String reason) {
+        HealthcareProviderClaim claim = claimRepo.findById(claimId)
+                .orElseThrow(() -> new NotFoundException("Claim not found"));
+
+        claim.setStatus(ClaimStatus.REJECTED_MEDICAL);
+        claim.setRejectedAt(Instant.now());
+        claim.setRejectionReason(reason);
+        claimRepo.save(claim);
+
+        notificationService.sendToUser(
+                claim.getHealthcareProvider().getId(),
+                "Your claim was rejected by medical review. Reason: " + reason
+        );
+
+        return claimMapper.toDto(claim);
+    }
+
+    // Final approve claim (coordination admin)
+    public HealthcareProviderClaimDTO approveFinal(UUID claimId) {
+        HealthcareProviderClaim claim = claimRepo.findById(claimId)
+                .orElseThrow(() -> new NotFoundException("Claim not found"));
+
+        claim.setStatus(ClaimStatus.APPROVED_FINAL);
+        claim.setApprovedAt(Instant.now());
+        claimRepo.save(claim);
+
+        notificationService.sendToUser(
+                claim.getHealthcareProvider().getId(),
+                "Your claim of " + claim.getAmount() + " has been fully approved!"
+        );
+
+        return claimMapper.toDto(claim);
+    }
+
+    // Final reject claim (coordination admin)
+    public HealthcareProviderClaimDTO rejectFinal(UUID claimId, String reason) {
+        HealthcareProviderClaim claim = claimRepo.findById(claimId)
+                .orElseThrow(() -> new NotFoundException("Claim not found"));
+
+        claim.setStatus(ClaimStatus.REJECTED_FINAL);
+        claim.setRejectedAt(Instant.now());
+        claim.setRejectionReason(reason);
+        claimRepo.save(claim);
+
+        notificationService.sendToUser(
+                claim.getHealthcareProvider().getId(),
+                "Your claim was rejected. Reason: " + reason
+        );
+
+        return claimMapper.toDto(claim);
+    }
+
+    // Return to medical for review
+    public HealthcareProviderClaimDTO returnToMedical(UUID claimId, String reason) {
+        HealthcareProviderClaim claim = claimRepo.findById(claimId)
+                .orElseThrow(() -> new NotFoundException("Claim not found"));
+
+        claim.setStatus(ClaimStatus.RETURNED_FOR_REVIEW);
+        claim.setRejectionReason(reason);
+        claimRepo.save(claim);
+
+        notificationService.sendToRole(
+                RoleName.MEDICAL_ADMIN,
+                "Claim returned for medical review. Reason: " + reason
+        );
+
+        return claimMapper.toDto(claim);
+    }
 }
 

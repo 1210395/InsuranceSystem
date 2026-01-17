@@ -89,13 +89,22 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         }
-        // JwtAuthFilter.java
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getServletPath();
         if (path == null) return false;
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) return true;
-        return path.equals("/api/auth/login") || path.equals("/api/auth/register");
+
+        // Only skip public auth endpoints - NOT /me or /logout which require authentication
+        return path.equals("/api/auth/login")
+            || path.equals("/api/auth/register")
+            || path.equals("/api/auth/forgot-password")
+            || path.equals("/api/auth/reset-password")
+            || path.equals("/api/auth/verify-email")
+            || path.startsWith("/api/doctor-specializations/")
+            || path.startsWith("/api/policies/public/")
+            || path.startsWith("/uploads/")
+            || path.startsWith("/ws-chat/");
     }
 
 

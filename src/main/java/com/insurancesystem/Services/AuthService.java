@@ -191,12 +191,14 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest req) {
-        String username = req.getUsername().trim().toLowerCase();
+        String email = req.getEmail().trim().toLowerCase();
 
-        ClientDto clientDTO = clientServices.getByUsername(username);
-        if (clientDTO == null) {
-            throw new NotFoundException("User not found");
-        }
+        // Find user by email
+        Client client = clientRepo.findByEmail(email)
+                .orElseThrow(() -> new NotFoundException("User not found"));
+
+        String username = client.getUsername();
+        ClientDto clientDTO = clientMapper.toDTO(client);
 
         MemberStatus status = clientDTO.getStatus();
 

@@ -28,5 +28,16 @@ public interface HealthcareProviderClaimRepository extends JpaRepository<Healthc
 
     @Query("SELECT COALESCE(SUM(c.amount),0) FROM HealthcareProviderClaim c WHERE c.status = :status")
     double sumAmountByStatus(@Param("status") ClaimStatus status);
+
+    // Find claims by multiple statuses (for medical review - PENDING + RETURNED_FOR_REVIEW)
+    List<HealthcareProviderClaim> findByStatusIn(List<ClaimStatus> statuses);
+
+    // Find claims for coordination review (APPROVED_MEDICAL or APPROVED_BY_MEDICAL)
+    @Query("SELECT c FROM HealthcareProviderClaim c WHERE c.status IN (com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_MEDICAL, com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_BY_MEDICAL, com.insurancesystem.Model.Entity.Enums.ClaimStatus.AWAITING_COORDINATION_REVIEW)")
+    List<HealthcareProviderClaim> findClaimsForCoordinationReview();
+
+    // Find final decisions (APPROVED or REJECTED)
+    @Query("SELECT c FROM HealthcareProviderClaim c WHERE c.status IN (com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED, com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL, com.insurancesystem.Model.Entity.Enums.ClaimStatus.REJECTED, com.insurancesystem.Model.Entity.Enums.ClaimStatus.REJECTED_FINAL)")
+    List<HealthcareProviderClaim> findFinalDecisions();
 }
 

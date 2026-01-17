@@ -50,7 +50,7 @@ public class Claim {
     private String doctorName;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 30)
+    @Column(nullable = false, length = 50)
     private ClaimStatus status;
 
     @ElementCollection

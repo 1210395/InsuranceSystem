@@ -77,7 +77,7 @@ public class SearchProfileController {
     }
 
     @GetMapping("/approved")
-    @PreAuthorize("hasAnyRole('INSURANCE_CLIENT','DOCTOR','PHARMACIST','LAB_TECH','RADIOLOGIST','EMERGENCY_MANAGER','INSURANCE_MANAGER')")
+    @PreAuthorize("hasAnyRole('INSURANCE_CLIENT','DOCTOR','PHARMACIST','LAB_TECH','RADIOLOGIST','EMERGENCY_MANAGER','INSURANCE_MANAGER','MEDICAL_ADMIN')")
     public List<SearchProfileDto> getApprovedProfiles() {
         return service.getApprovedProfiles();
     }

@@ -162,5 +162,102 @@ public class HealthcareProviderClaimController {
             return ResponseEntity.status(404).body(null);
         }
     }
+
+    // ===== NEW ENDPOINTS FOR MEDICAL REVIEW WORKFLOW =====
+
+    // ✅ جلب المطالبات لمراجعة طبية (PENDING + RETURNED_FOR_REVIEW)
+    @PreAuthorize("hasAnyRole('MEDICAL_ADMIN', 'INSURANCE_MANAGER')")
+    @GetMapping("/medical-review")
+    public ResponseEntity<List<HealthcareProviderClaimDTO>> getClaimsForMedicalReview() {
+        return ResponseEntity.ok(claimService.getClaimsForMedicalReview());
+    }
+
+    // ✅ جلب المطالبات لمراجعة التنسيق (APPROVED_MEDICAL)
+    @PreAuthorize("hasAnyRole('COORDINATION_ADMIN', 'INSURANCE_MANAGER')")
+    @GetMapping("/coordination-review")
+    public ResponseEntity<List<HealthcareProviderClaimDTO>> getClaimsForCoordinationReview() {
+        return ResponseEntity.ok(claimService.getClaimsForCoordinationReview());
+    }
+
+    // ✅ جلب القرارات النهائية
+    @PreAuthorize("hasAnyRole('COORDINATION_ADMIN', 'MEDICAL_ADMIN', 'INSURANCE_MANAGER')")
+    @GetMapping("/final-decisions")
+    public ResponseEntity<List<HealthcareProviderClaimDTO>> getFinalDecisions() {
+        return ResponseEntity.ok(claimService.getFinalDecisions());
+    }
+
+    // ✅ موافقة طبية على المطالبة
+    @PreAuthorize("hasAnyRole('MEDICAL_ADMIN', 'INSURANCE_MANAGER')")
+    @PatchMapping("/{id}/approve-medical")
+    public ResponseEntity<HealthcareProviderClaimDTO> approveMedical(@PathVariable UUID id) {
+        try {
+            return ResponseEntity.ok(claimService.approveMedical(id));
+        } catch (NotFoundException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(404).body(null);
+        }
+    }
+
+    // ✅ رفض طبي للمطالبة
+    @PreAuthorize("hasAnyRole('MEDICAL_ADMIN', 'INSURANCE_MANAGER')")
+    @PatchMapping("/{id}/reject-medical")
+    public ResponseEntity<HealthcareProviderClaimDTO> rejectMedical(
+            @PathVariable UUID id,
+            @RequestBody RejectClaimDTO dto
+    ) {
+        try {
+            return ResponseEntity.ok(claimService.rejectMedical(id, dto.getReason()));
+        } catch (NotFoundException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(404).body(null);
+        }
+    }
+
+    // ✅ موافقة نهائية (تنسيق)
+    @PreAuthorize("hasAnyRole('COORDINATION_ADMIN', 'INSURANCE_MANAGER')")
+    @PatchMapping("/{id}/approve-final")
+    public ResponseEntity<HealthcareProviderClaimDTO> approveFinal(@PathVariable UUID id) {
+        try {
+            return ResponseEntity.ok(claimService.approveFinal(id));
+        } catch (NotFoundException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(404).body(null);
+        }
+    }
+
+    // ✅ رفض نهائي (تنسيق)
+    @PreAuthorize("hasAnyRole('COORDINATION_ADMIN', 'INSURANCE_MANAGER')")
+    @PatchMapping("/{id}/reject-final")
+    public ResponseEntity<HealthcareProviderClaimDTO> rejectFinal(
+            @PathVariable UUID id,
+            @RequestBody RejectClaimDTO dto
+    ) {
+        try {
+            return ResponseEntity.ok(claimService.rejectFinal(id, dto.getReason()));
+        } catch (NotFoundException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(404).body(null);
+        }
+    }
+
+    // ✅ إرجاع للمراجعة الطبية
+    @PreAuthorize("hasAnyRole('COORDINATION_ADMIN', 'INSURANCE_MANAGER')")
+    @PatchMapping("/{id}/return-to-medical")
+    public ResponseEntity<HealthcareProviderClaimDTO> returnToMedical(
+            @PathVariable UUID id,
+            @RequestBody RejectClaimDTO dto
+    ) {
+        try {
+            return ResponseEntity.ok(claimService.returnToMedical(id, dto.getReason()));
+        } catch (NotFoundException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(404).body(null);
+        }
+    }
 }
 

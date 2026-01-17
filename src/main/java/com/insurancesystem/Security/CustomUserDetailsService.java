@@ -1,11 +1,15 @@
 package com.insurancesystem.Security;
 
+import com.insurancesystem.Model.Entity.Enums.RoleRequestStatus;
 import com.insurancesystem.Repository.ClientRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -19,11 +23,19 @@ public class CustomUserDetailsService implements UserDetailsService {
         var user = clientRepo.findByUsername(username.toLowerCase())
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
+        // Get authorities from roles
+        List<SimpleGrantedAuthority> authorities = new ArrayList<>(
+                user.getRoles().stream()
+                        .map(r -> new SimpleGrantedAuthority("ROLE_" + r.getName().name()))
+                        .toList()
+        );
 
-        var authorities = user.getRoles().stream()
-                .map(r -> new SimpleGrantedAuthority("ROLE_" + r.getName().name()))
-                .toList();
-
+        // Fallback: if roles collection is empty but requestedRole is approved, use that
+        if (authorities.isEmpty() &&
+            user.getRequestedRole() != null &&
+            user.getRoleRequestStatus() == RoleRequestStatus.APPROVED) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_" + user.getRequestedRole().name()));
+        }
 
         return org.springframework.security.core.userdetails.User
                 .withUsername(user.getUsername())
@@ -32,7 +44,5 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .accountLocked(false)
                 .disabled(false)
                 .build();
-
     }
-
 }
