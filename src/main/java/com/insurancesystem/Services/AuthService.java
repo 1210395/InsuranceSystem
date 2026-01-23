@@ -86,7 +86,7 @@ public class AuthService {
 
             req = mapper.readValue(reqJson, RegisterRequest.class);
         } catch (Exception e) {
-            e.printStackTrace(); // مهم أثناء التطوير
+            log.error("Failed to parse registration data", e);
             throw new BadRequestException("Invalid registration data: " + e.getMessage());
         }
 
@@ -322,15 +322,11 @@ public class AuthService {
                 req.getLabCode(), 
                 req.getRadiologyCode());
         
-        // Generate username from email (part before @)
-        String username = email.substring(0, email.indexOf('@'));
-
         Client client = Client.builder()
                 .passwordHash(passwordEncoder.encode(req.getPassword()))
                 .fullName(req.getFullName())
                 .nationalId(req.getNationalId())
                 .email(email)
-                .username(username)
                 .phone(req.getPhone())
                 // ✅ Store employeeId separately (for all roles)
                 .employeeId(req.getEmployeeId())

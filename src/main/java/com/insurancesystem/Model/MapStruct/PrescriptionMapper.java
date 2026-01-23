@@ -44,16 +44,16 @@ public interface PrescriptionMapper {
     PrescriptionDTO toDto(Prescription entity, @Context FamilyMemberRepository familyMemberRepo);
 
     @AfterMapping
-    default void extractFamilyMemberInfo(Prescription entity, @MappingTarget PrescriptionDTO.PrescriptionDTOBuilder dto, @Context FamilyMemberRepository familyMemberRepo) {
+    default void extractFamilyMemberInfo(Prescription entity, @MappingTarget PrescriptionDTO dto, @Context FamilyMemberRepository familyMemberRepo) {
         // Extract university card image (first image from list)
         if (entity.getMember() != null && entity.getMember().getUniversityCardImages() != null && !entity.getMember().getUniversityCardImages().isEmpty()) {
             String firstImage = entity.getMember().getUniversityCardImages().get(0);
-            dto.universityCardImage(firstImage);
+            dto.setUniversityCardImage(firstImage);
             log.info("✅ [MAPPER] Set universityCardImage: {} for prescription {}", firstImage, entity.getId());
         } else {
-            dto.universityCardImage(null);
+            dto.setUniversityCardImage(null);
         }
-        
+
         // Extract main client age and gender
         if (entity.getMember() != null) {
             try {
@@ -71,44 +71,44 @@ public interface PrescriptionMapper {
                         age--;
                     }
                     String ageStr = age > 0 ? age + " years" : null;
-                    dto.memberAge(ageStr);
+                    dto.setMemberAge(ageStr);
                     log.info("✅ [MAPPER] Set memberAge: {} for prescription {}", ageStr, entity.getId());
                 } else {
-                    dto.memberAge(null);
+                    dto.setMemberAge(null);
                     log.warn("⚠️ [MAPPER] Member dateOfBirth is NULL for {} in prescription {}", memberName, entity.getId());
                 }
 
                 if (gender != null && !gender.trim().isEmpty()) {
-                    dto.memberGender(gender);
+                    dto.setMemberGender(gender);
                     log.info("✅ [MAPPER] Set memberGender: {} for prescription {}", gender, entity.getId());
                 } else {
-                    dto.memberGender(null);
+                    dto.setMemberGender(null);
                     log.warn("⚠️ [MAPPER] Member gender is NULL or empty for {} in prescription {}", memberName, entity.getId());
                 }
 
                 // Extract National ID from member
                 String nationalId = member.getNationalId();
                 if (nationalId != null && !nationalId.trim().isEmpty()) {
-                    dto.memberNationalId(nationalId);
+                    dto.setMemberNationalId(nationalId);
                     log.info("✅ [MAPPER] Set memberNationalId: {} for prescription {}", nationalId, entity.getId());
                 } else {
-                    dto.memberNationalId(null);
+                    dto.setMemberNationalId(null);
                     log.warn("⚠️ [MAPPER] Member nationalId is NULL or empty for {} in prescription {}", memberName, entity.getId());
                 }
             } catch (Exception e) {
                 log.error("❌ [MAPPER] Error extracting member age/gender for prescription {}: {}", entity.getId(), e.getMessage(), e);
-                dto.memberAge(null);
-                dto.memberGender(null);
-                dto.memberNationalId(null);
+                dto.setMemberAge(null);
+                dto.setMemberGender(null);
+                dto.setMemberNationalId(null);
             }
         } else {
             log.warn("⚠️ [MAPPER] Member is null for prescription {}", entity.getId());
-            dto.memberAge(null);
-            dto.memberGender(null);
+            dto.setMemberAge(null);
+            dto.setMemberGender(null);
         }
 
         // Parse family member information from treatment field
-        dto.isFamilyMember(false);
+        dto.setIsFamilyMember(false);
         String treatment = entity.getTreatment();
         if (treatment == null || treatment.isEmpty()) {
             return;
@@ -120,10 +120,10 @@ public interface PrescriptionMapper {
         java.util.regex.Matcher matcher = pattern.matcher(treatment);
 
         if (matcher.find()) {
-            dto.isFamilyMember(true);
+            dto.setIsFamilyMember(true);
             String familyMemberName = matcher.group(1).trim();
             String familyMemberRelation = matcher.group(2).trim();
-            
+
             // Try to find the FamilyMember in database to get accurate data
             try {
                 if (entity.getMember() != null && familyMemberRepo != null) {
@@ -133,13 +133,13 @@ public interface PrescriptionMapper {
                             familyMemberName,
                             com.insurancesystem.Model.Entity.Enums.FamilyRelation.valueOf(familyMemberRelation.toUpperCase())
                     );
-                    
+
                     if (familyMemberOpt.isPresent()) {
                         FamilyMember familyMember = familyMemberOpt.get();
-                        
+
                         // Get insurance number directly from database
                         String insuranceNumber = familyMember.getInsuranceNumber();
-                        
+
                         // Calculate age from date of birth
                         String ageStr = null;
                         if (familyMember.getDateOfBirth() != null) {
@@ -154,23 +154,23 @@ public interface PrescriptionMapper {
                                 ageStr = age + " years";
                             }
                         }
-                        
+
                         // Get gender directly from database
                         String genderStr = null;
                         if (familyMember.getGender() != null) {
                             genderStr = familyMember.getGender().toString();
                         }
-                        
+
                         // Get National ID from family member
                         String familyMemberNationalId = familyMember.getNationalId();
-                        
-                        dto.familyMemberName(familyMemberName);
-                        dto.familyMemberRelation(familyMemberRelation);
-                        dto.familyMemberInsuranceNumber(insuranceNumber);
-                        dto.familyMemberAge(ageStr);
-                        dto.familyMemberGender(genderStr);
-                        dto.familyMemberNationalId(familyMemberNationalId);
-                        
+
+                        dto.setFamilyMemberName(familyMemberName);
+                        dto.setFamilyMemberRelation(familyMemberRelation);
+                        dto.setFamilyMemberInsuranceNumber(insuranceNumber);
+                        dto.setFamilyMemberAge(ageStr);
+                        dto.setFamilyMemberGender(genderStr);
+                        dto.setFamilyMemberNationalId(familyMemberNationalId);
+
                         log.info("✅ [MAPPER] Extracted family member info from DB - Name: {}, Relation: {}, Insurance: {}, Age: {}, Gender: {}, NationalId: {}",
                                 familyMemberName, familyMemberRelation, insuranceNumber, ageStr, genderStr, familyMemberNationalId);
                         return;
@@ -179,7 +179,7 @@ public interface PrescriptionMapper {
             } catch (Exception e) {
                 log.warn("⚠️ [MAPPER] Could not fetch family member from DB, falling back to parsing: {}", e.getMessage());
             }
-            
+
             // Fallback: Parse from treatment field if database lookup fails
             String insuranceNumber = matcher.group(3).trim();
             String ageStr = null;
@@ -201,11 +201,11 @@ public interface PrescriptionMapper {
                 }
             }
 
-            dto.familyMemberName(familyMemberName);
-            dto.familyMemberRelation(familyMemberRelation);
-            dto.familyMemberInsuranceNumber(insuranceNumber);
-            dto.familyMemberAge(ageStr);
-            dto.familyMemberGender(genderStr);
+            dto.setFamilyMemberName(familyMemberName);
+            dto.setFamilyMemberRelation(familyMemberRelation);
+            dto.setFamilyMemberInsuranceNumber(insuranceNumber);
+            dto.setFamilyMemberAge(ageStr);
+            dto.setFamilyMemberGender(genderStr);
 
             log.info("✅ [MAPPER] Extracted family member info from treatment - Name: {}, Relation: {}, Insurance: {}, Age: {}, Gender: {}",
                     familyMemberName, familyMemberRelation, insuranceNumber, ageStr, genderStr);

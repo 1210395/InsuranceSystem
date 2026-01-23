@@ -54,20 +54,21 @@ public interface RadiologyRequestMapper {
     @Mapping(target = "member", ignore = true)
     @Mapping(target = "radiologist", ignore = true)
     @Mapping(target = "test", ignore = true)
+    RadiologyRequest toEntity(RadiologyRequestDTO dto);
+
     @AfterMapping
-    default void extractFamilyMemberInfo(RadiologyRequest entity, @MappingTarget RadiologyRequestDTO.RadiologyRequestDTOBuilder dto, @Context FamilyMemberRepository familyMemberRepo) {
+    default void extractFamilyMemberInfo(RadiologyRequest entity, @MappingTarget RadiologyRequestDTO dto, @Context FamilyMemberRepository familyMemberRepo) {
         if (entity == null || entity.getMember() == null) {
             return;
         }
-        
+
         try {
             com.insurancesystem.Model.Entity.Client member = entity.getMember();
-            String memberName = member.getFullName();
 
             // Extract university card image (first image from list)
             if (member.getUniversityCardImages() != null && !member.getUniversityCardImages().isEmpty()) {
                 String firstImage = member.getUniversityCardImages().get(0);
-                dto.universityCardImage(firstImage);
+                dto.setUniversityCardImage(firstImage);
             }
 
             // Get dateOfBirth and calculate age
@@ -80,19 +81,19 @@ public interface RadiologyRequestMapper {
                     age--;
                 }
                 String ageStr = age > 0 ? age + " years" : null;
-                dto.memberAge(ageStr);
+                dto.setMemberAge(ageStr);
             }
 
             // Get gender
             String gender = member.getGender();
             if (gender != null && !gender.trim().isEmpty()) {
-                dto.memberGender(gender);
+                dto.setMemberGender(gender);
             }
 
             // Extract National ID from member
             String nationalId = member.getNationalId();
             if (nationalId != null && !nationalId.trim().isEmpty()) {
-                dto.memberNationalId(nationalId);
+                dto.setMemberNationalId(nationalId);
             }
         } catch (org.hibernate.LazyInitializationException e) {
             // Silently handle - data will be null
@@ -101,46 +102,46 @@ public interface RadiologyRequestMapper {
         }
 
         // Parse family member information from notes/treatment field
-        dto.isFamilyMember(false);
+        dto.setIsFamilyMember(false);
         String notes = entity.getNotes();
         if (notes == null || notes.isEmpty()) {
             notes = entity.getTreatment();
         }
-        
+
         if (notes == null || notes.isEmpty()) {
             return;
         }
 
         // Normalize: replace newlines with spaces and clean up multiple spaces
         String normalized = notes.replaceAll("\\r?\\n", " ").replaceAll("\\s+", " ").trim();
-        
+
         // Find "Family Member:" (case insensitive)
         String lowerNormalized = normalized.toLowerCase();
         int idx = lowerNormalized.indexOf("family member:");
         if (idx < 0) {
             return;
         }
-        
+
         // Extract section starting from "Family Member:"
         String section = normalized.substring(idx);
-        
+
         // Extract Name: between "Family Member:" and "("
         int nameStart = "Family Member:".length();
         int parenStart = section.indexOf('(', nameStart);
         if (parenStart < 0) {
             return;
         }
-        
+
         String name = section.substring(nameStart, parenStart).trim();
-        
+
         // Extract Relation: between "(" and ")"
         int parenEnd = section.indexOf(')', parenStart);
         if (parenEnd < 0) {
             return;
         }
-        
+
         String relation = section.substring(parenStart + 1, parenEnd).trim();
-        
+
         // Try to find the FamilyMember in database to get accurate data
         try {
             if (entity.getMember() != null && familyMemberRepo != null) {
@@ -149,12 +150,12 @@ public interface RadiologyRequestMapper {
                         name,
                         com.insurancesystem.Model.Entity.Enums.FamilyRelation.valueOf(relation.toUpperCase())
                 );
-                
+
                 if (familyMemberOpt.isPresent()) {
                     FamilyMember familyMember = familyMemberOpt.get();
-                    
+
                     String insuranceNumber = familyMember.getInsuranceNumber();
-                    
+
                     String ageStr = null;
                     if (familyMember.getDateOfBirth() != null) {
                         java.time.LocalDate today = java.time.LocalDate.now();
@@ -168,47 +169,47 @@ public interface RadiologyRequestMapper {
                             ageStr = age + " years";
                         }
                     }
-                    
+
                     String genderStr = null;
                     if (familyMember.getGender() != null) {
                         genderStr = familyMember.getGender().toString();
                     }
-                    
+
                     String familyMemberNationalId = familyMember.getNationalId();
-                    
-                    dto.isFamilyMember(true);
-                    dto.familyMemberName(name);
-                    dto.familyMemberRelation(relation);
-                    dto.familyMemberInsuranceNumber(insuranceNumber);
-                    dto.familyMemberAge(ageStr);
-                    dto.familyMemberGender(genderStr);
-                    dto.familyMemberNationalId(familyMemberNationalId);
-                    
+
+                    dto.setIsFamilyMember(true);
+                    dto.setFamilyMemberName(name);
+                    dto.setFamilyMemberRelation(relation);
+                    dto.setFamilyMemberInsuranceNumber(insuranceNumber);
+                    dto.setFamilyMemberAge(ageStr);
+                    dto.setFamilyMemberGender(genderStr);
+                    dto.setFamilyMemberNationalId(familyMemberNationalId);
+
                     return;
                 }
             }
         } catch (Exception e) {
             // Fallback to parsing
         }
-        
+
         // Fallback: Parse from notes/treatment field if database lookup fails
         int insuranceIdx = section.toLowerCase().indexOf("insurance:", parenEnd);
         if (insuranceIdx < 0) {
             return;
         }
-        
+
         int insuranceStart = insuranceIdx + "insurance:".length();
         String afterInsurance = section.substring(insuranceStart).trim();
-        
+
         String insurance = afterInsurance;
         int dashIdx = insurance.indexOf(" - ");
         int familyIdx = insurance.toLowerCase().indexOf("family member:");
-        int endIdx = Math.min(dashIdx > 0 ? dashIdx : Integer.MAX_VALUE, 
-                             familyIdx > 0 ? familyIdx : Integer.MAX_VALUE);
+        int endIdx = Math.min(dashIdx > 0 ? dashIdx : Integer.MAX_VALUE,
+                familyIdx > 0 ? familyIdx : Integer.MAX_VALUE);
         if (endIdx < Integer.MAX_VALUE) {
             insurance = insurance.substring(0, endIdx).trim();
         }
-        
+
         String age = null;
         int ageIdx = section.toLowerCase().indexOf("age:", insuranceIdx);
         if (ageIdx > 0) {
@@ -221,7 +222,7 @@ public interface RadiologyRequestMapper {
                 age = afterAge.trim();
             }
         }
-        
+
         String gender = null;
         int genderIdx = section.toLowerCase().indexOf("gender:");
         if (genderIdx > 0) {
@@ -234,13 +235,12 @@ public interface RadiologyRequestMapper {
                 gender = afterGender.trim();
             }
         }
-        
-        dto.isFamilyMember(true);
-        dto.familyMemberName(name);
-        dto.familyMemberRelation(relation);
-        dto.familyMemberInsuranceNumber(insurance);
-        dto.familyMemberAge(age);
-        dto.familyMemberGender(gender != null ? gender.toUpperCase() : null);
+
+        dto.setIsFamilyMember(true);
+        dto.setFamilyMemberName(name);
+        dto.setFamilyMemberRelation(relation);
+        dto.setFamilyMemberInsuranceNumber(insurance);
+        dto.setFamilyMemberAge(age);
+        dto.setFamilyMemberGender(gender != null ? gender.toUpperCase() : null);
     }
-    RadiologyRequest toEntity(RadiologyRequestDTO dto);
 }

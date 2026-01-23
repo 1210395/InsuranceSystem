@@ -36,8 +36,8 @@ public class ClaimController {
     ) throws IOException {
 
         // جلب المستخدم الحالي من الـ Authentication
-        String username = auth.getName();
-        Client client = clientRepo.findByUsername(username)
+        String email = auth.getName();
+        Client client = clientRepo.findByEmail(email)
                 .orElseThrow(() -> new NotFoundException("Client not found"));
 
         // تحويل JSON إلى DTO
@@ -49,8 +49,8 @@ public class ClaimController {
     @PreAuthorize("hasRole('INSURANCE_CLIENT')")
     @GetMapping("/allClaimForOneMember")
     public ResponseEntity<List<ClaimDTO>> getMemberClaims(Authentication auth) {
-        String username = auth.getName();
-        Client client = clientRepo.findByUsername(username)
+        String email = auth.getName();
+        Client client = clientRepo.findByEmail(email)
                 .orElseThrow(() -> new NotFoundException("Client not found"));
         return ResponseEntity.ok(claimService.getMemberClaims(client.getId()));
     }
@@ -64,8 +64,8 @@ public class ClaimController {
     @PreAuthorize("hasAnyRole('INSURANCE_MANAGER', 'INSURANCE_CLIENT')")
     @GetMapping("/ByIdClaim/{id}")
     public ResponseEntity<ClaimDTO> getClaim(@PathVariable UUID id, Authentication auth) {
-        String username = auth.getName();
-        Client client = clientRepo.findByUsername(username)
+        String email = auth.getName();
+        Client client = clientRepo.findByEmail(email)
                 .orElseThrow(() -> new NotFoundException("Client not found"));
         boolean isManager = auth.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_INSURANCE_MANAGER"));

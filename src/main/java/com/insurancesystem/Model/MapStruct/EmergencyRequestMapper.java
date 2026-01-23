@@ -27,18 +27,18 @@ public interface EmergencyRequestMapper {
     EmergencyRequestDTO toDto(EmergencyRequest entity, @Context FamilyMemberRepository familyMemberRepo);
 
     @AfterMapping
-    default void extractFamilyMemberInfo(EmergencyRequest entity, @MappingTarget EmergencyRequestDTO.EmergencyRequestDTOBuilder dto, @Context FamilyMemberRepository familyMemberRepo) {
+    default void extractFamilyMemberInfo(EmergencyRequest entity, @MappingTarget EmergencyRequestDTO dto, @Context FamilyMemberRepository familyMemberRepo) {
         if (entity == null || entity.getMember() == null) {
             return;
         }
-        
+
         try {
             com.insurancesystem.Model.Entity.Client member = entity.getMember();
 
             // Extract university card image (first image from list)
             if (member.getUniversityCardImages() != null && !member.getUniversityCardImages().isEmpty()) {
                 String firstImage = member.getUniversityCardImages().get(0);
-                dto.universityCardImage(firstImage);
+                dto.setUniversityCardImage(firstImage);
             }
 
             // Get dateOfBirth and calculate age
@@ -51,19 +51,19 @@ public interface EmergencyRequestMapper {
                     age--;
                 }
                 String ageStr = age > 0 ? age + " years" : null;
-                dto.memberAge(ageStr);
+                dto.setMemberAge(ageStr);
             }
 
             // Get gender
             String gender = member.getGender();
             if (gender != null && !gender.trim().isEmpty()) {
-                dto.memberGender(gender);
+                dto.setMemberGender(gender);
             }
 
             // Extract National ID from member
             String nationalId = member.getNationalId();
             if (nationalId != null && !nationalId.trim().isEmpty()) {
-                dto.memberNationalId(nationalId);
+                dto.setMemberNationalId(nationalId);
             }
         } catch (org.hibernate.LazyInitializationException e) {
             // Silently handle - data will be null
@@ -72,18 +72,18 @@ public interface EmergencyRequestMapper {
         }
 
         // Extract family member information using familyMemberId from entity (if exists)
-        dto.isFamilyMember(false);
-        
+        dto.setIsFamilyMember(false);
+
         // Use familyMemberId directly from entity (no need to parse notes)
         if (entity.getFamilyMemberId() != null && familyMemberRepo != null) {
             try {
                 Optional<FamilyMember> familyMemberOpt = familyMemberRepo.findById(entity.getFamilyMemberId());
-                
+
                 if (familyMemberOpt.isPresent()) {
                     FamilyMember familyMember = familyMemberOpt.get();
-                    
+
                     String insuranceNumber = familyMember.getInsuranceNumber();
-                    
+
                     String ageStr = null;
                     if (familyMember.getDateOfBirth() != null) {
                         java.time.LocalDate today = java.time.LocalDate.now();
@@ -97,23 +97,23 @@ public interface EmergencyRequestMapper {
                             ageStr = age + " years";
                         }
                     }
-                    
+
                     String genderStr = null;
                     if (familyMember.getGender() != null) {
                         genderStr = familyMember.getGender().toString();
                     }
-                    
+
                     String familyMemberNationalId = familyMember.getNationalId();
                     String relationStr = familyMember.getRelation() != null ? familyMember.getRelation().toString() : null;
-                    
-                    dto.isFamilyMember(true);
-                    dto.familyMemberId(familyMember.getId());
-                    dto.familyMemberName(familyMember.getFullName());
-                    dto.familyMemberRelation(relationStr);
-                    dto.familyMemberInsuranceNumber(insuranceNumber);
-                    dto.familyMemberAge(ageStr);
-                    dto.familyMemberGender(genderStr);
-                    dto.familyMemberNationalId(familyMemberNationalId);
+
+                    dto.setIsFamilyMember(true);
+                    dto.setFamilyMemberId(familyMember.getId());
+                    dto.setFamilyMemberName(familyMember.getFullName());
+                    dto.setFamilyMemberRelation(relationStr);
+                    dto.setFamilyMemberInsuranceNumber(insuranceNumber);
+                    dto.setFamilyMemberAge(ageStr);
+                    dto.setFamilyMemberGender(genderStr);
+                    dto.setFamilyMemberNationalId(familyMemberNationalId);
                 }
             } catch (Exception e) {
                 // Silently handle - data will be null

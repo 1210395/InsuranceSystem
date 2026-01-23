@@ -8,11 +8,11 @@ DECLARE
     v_client_id UUID;
     v_policy_id UUID;
 BEGIN
-    SELECT id INTO v_doctor_id FROM clients WHERE username = 'doctor';
-    SELECT id INTO v_pharmacist_id FROM clients WHERE username = 'pharmacist';
-    SELECT id INTO v_labtech_id FROM clients WHERE username = 'labtech';
-    SELECT id INTO v_radiologist_id FROM clients WHERE username = 'radiologist';
-    SELECT id INTO v_client_id FROM clients WHERE username = 'client';
+    SELECT id INTO v_doctor_id FROM clients WHERE email = 'doctor@insurance.com';
+    SELECT id INTO v_pharmacist_id FROM clients WHERE email = 'pharmacist@insurance.com';
+    SELECT id INTO v_labtech_id FROM clients WHERE email = 'labtech@insurance.com';
+    SELECT id INTO v_radiologist_id FROM clients WHERE email = 'radiologist@insurance.com';
+    SELECT id INTO v_client_id FROM clients WHERE email = 'client@insurance.com';
     SELECT id INTO v_policy_id FROM policies LIMIT 1;
 
     -- Doctor claims - PENDING (for Medical Review)

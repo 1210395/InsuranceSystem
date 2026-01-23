@@ -2,12 +2,14 @@ package com.insurancesystem.Services;
 
 import com.insurancesystem.Model.Entity.Enums.RoleName;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.MailException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class EmailService {
@@ -45,8 +47,8 @@ public class EmailService {
 
         try {
             mailSender.send(msg);
-        } catch (MailException ignored) {
-            // Do not fail the operation
+        } catch (MailException e) {
+            log.warn("Failed to send role rejection email to {}: {}", to, e.getMessage());
         }
     }
 
@@ -76,8 +78,8 @@ public class EmailService {
 
         try {
             mailSender.send(msg);
-        } catch (MailException ignored) {
-            // Do not fail the operation
+        } catch (MailException e) {
+            log.warn("Failed to send role approval email to {}: {}", to, e.getMessage());
         }
 
 
@@ -94,8 +96,8 @@ public class EmailService {
 
         try {
             mailSender.send(msg);
-        } catch (MailException ignored) {
-            // ما تخلي الإيميل يفشل العملية
+        } catch (MailException e) {
+            log.warn("Failed to send custom email to {}: {}", to, e.getMessage());
         }
     }
     public void sendSimpleMail(String to, String subject, String body) {
@@ -109,9 +111,8 @@ public class EmailService {
 
         try {
             mailSender.send(msg);
-        } catch (MailException ex) {
-            // ما نفشل العملية حتى لو الإيميل ما مشي
-            ex.printStackTrace();
+        } catch (MailException e) {
+            log.warn("Failed to send email to {}: {}", to, e.getMessage());
         }
     }
 

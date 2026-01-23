@@ -1,5 +1,7 @@
 package com.insurancesystem.Services;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.insurancesystem.Model.Dto.DoctorSpecializationRequestDto;
 import com.insurancesystem.Model.Dto.DoctorSpecializationResponseDto;
 import com.insurancesystem.Model.Entity.DoctorSpecializationEntity;
@@ -9,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -17,6 +20,7 @@ public class DoctorSpecializationService {
 
     private final DoctorSpecializationRepository repository;
     private final DoctorSpecializationMapper mapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * Fetch all specializations and map them to ResponseDto.
@@ -87,6 +91,19 @@ public class DoctorSpecializationService {
         existingEntity.setMinAge(requestDto.getMinAge());
         existingEntity.setMaxAge(requestDto.getMaxAge());
         existingEntity.setGender(requestDto.getGender());
+
+        // Update diagnosis-treatment mappings
+        if (requestDto.getDiagnosisTreatmentMappings() != null) {
+            try {
+                existingEntity.setDiagnosisTreatmentMappings(
+                    objectMapper.writeValueAsString(requestDto.getDiagnosisTreatmentMappings())
+                );
+            } catch (JsonProcessingException e) {
+                existingEntity.setDiagnosisTreatmentMappings(null);
+            }
+        } else {
+            existingEntity.setDiagnosisTreatmentMappings(null);
+        }
 
         // Save the updated specialization
         DoctorSpecializationEntity updatedEntity = repository.save(existingEntity);

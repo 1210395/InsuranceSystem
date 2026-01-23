@@ -5,6 +5,7 @@ import com.insurancesystem.Model.Entity.Enums.ProfileStatus;
 import com.insurancesystem.Model.Entity.Enums.SearchProfileType;
 import com.insurancesystem.Services.SearchProfileService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
@@ -24,6 +25,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/search-profiles")
 @RequiredArgsConstructor
+@Slf4j
 public class SearchProfileController {
 
     private final SearchProfileService service;
@@ -75,14 +77,13 @@ public class SearchProfileController {
     @PreAuthorize("hasAnyRole('INSURANCE_MANAGER','INSURANCE_CLIENT','DOCTOR','PHARMACIST','LAB_TECH','RADIOLOGIST','MEDICAL_ADMIN')")
     public ResponseEntity<Resource> getFile(@PathVariable String filename) throws MalformedURLException {
         try {
-            // 🔧 CRITICAL FIX: Use java.net.URI to properly decode the filename
+            // CRITICAL FIX: Use java.net.URI to properly decode the filename
             // URLDecoder.decode() converts + to space, which breaks filenames with + in them
             // Instead, we use the raw filename from the path variable (Spring decodes it)
 
-            System.out.println("=== FILE REQUEST DEBUG ===");
-            System.out.println("Raw filename from path: " + filename);
+            log.debug("File request received - Raw filename from path: {}", filename);
 
-            // ✅ Try to use URLDecoder safely with proper handling of +
+            // Try to use URLDecoder safely with proper handling of +
             String decodedFilename = filename;
             try {
                 // Only decode if it looks like it's URL encoded (contains %)
@@ -91,45 +92,47 @@ public class SearchProfileController {
                     String safeForDecoding = filename.replace("%2B", "\u0000PLUS\u0000");
                     decodedFilename = java.net.URLDecoder.decode(safeForDecoding, StandardCharsets.UTF_8);
                     decodedFilename = decodedFilename.replace("\u0000PLUS\u0000", "+");
-                    System.out.println("Decoded filename: " + decodedFilename);
+                    log.debug("Decoded filename: {}", decodedFilename);
                 }
             } catch (Exception e) {
-                System.out.println("Could not decode, using as-is: " + e.getMessage());
+                log.debug("Could not decode filename, using as-is: {}", e.getMessage());
                 decodedFilename = filename;
             }
 
             Path filePath = Paths.get("uploads/search-profiles").resolve(decodedFilename).normalize();
 
-            System.out.println("Looking for file at: " + filePath.toAbsolutePath());
+            log.debug("Looking for file at: {}", filePath.toAbsolutePath());
 
             if (!Files.exists(filePath)) {
-                System.out.println("❌ File NOT found");
+                log.warn("File NOT found: {}", filePath.toAbsolutePath());
 
                 // Debug: List available files
                 try {
-                    System.out.println("Available files in directory:");
-                    Files.list(Paths.get("uploads/search-profiles"))
-                            .limit(10)
-                            .forEach(p -> System.out.println("  - " + p.getFileName()));
+                    if (log.isDebugEnabled()) {
+                        log.debug("Available files in directory:");
+                        Files.list(Paths.get("uploads/search-profiles"))
+                                .limit(10)
+                                .forEach(p -> log.debug("  - {}", p.getFileName()));
+                    }
                 } catch (Exception ex) {
-                    System.out.println("Could not list directory: " + ex.getMessage());
+                    log.debug("Could not list directory: {}", ex.getMessage());
                 }
 
                 return ResponseEntity.notFound().build();
             }
 
-            System.out.println("✅ File found!");
+            log.debug("File found successfully");
 
-            // ✅ Security check - prevent directory traversal
+            // Security check - prevent directory traversal
             if (!filePath.toAbsolutePath().startsWith(Paths.get("uploads/search-profiles").toAbsolutePath())) {
-                System.out.println("❌ Security check failed - path traversal attempt");
+                log.warn("Security check failed - path traversal attempt detected for: {}", filename);
                 return ResponseEntity.status(403).build();
             }
 
             Resource resource = new UrlResource(filePath.toUri());
             String contentType = Files.probeContentType(filePath);
 
-            System.out.println("Content-Type: " + contentType);
+            log.debug("Serving file with Content-Type: {}", contentType);
 
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType(contentType != null ? contentType : "application/octet-stream"))
@@ -137,8 +140,7 @@ public class SearchProfileController {
                     .body(resource);
 
         } catch (Exception e) {
-            System.out.println("❌ Error retrieving file: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Error retrieving file: {}", filename, e);
             return ResponseEntity.status(500).build();
         }
     }

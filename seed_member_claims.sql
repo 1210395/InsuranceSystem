@@ -4,7 +4,7 @@ DECLARE
     v_client_id UUID;
     v_policy_id UUID;
 BEGIN
-    SELECT id INTO v_client_id FROM clients WHERE username = 'client';
+    SELECT id INTO v_client_id FROM clients WHERE email = 'client@insurance.com';
     SELECT id INTO v_policy_id FROM policies LIMIT 1;
 
     -- PENDING claims

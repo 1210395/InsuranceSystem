@@ -63,4 +63,11 @@ public class DoctorSpecializationEntity {
      */
     @Column(name = "gender_restriction")
     private String gender;
+
+    /**
+     * JSON string mapping diagnoses to their associated treatments
+     * Format: {"Diagnosis A": ["Treatment 1", "Treatment 2"], "Diagnosis B": ["Treatment 3"]}
+     */
+    @Column(name = "diagnosis_treatment_mappings", columnDefinition = "TEXT")
+    private String diagnosisTreatmentMappings;
 }

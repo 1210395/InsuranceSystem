@@ -3,6 +3,7 @@ package com.insurancesystem.Model.MapStruct;
 import com.insurancesystem.Model.Dto.PriceListResponseDTO;
 import com.insurancesystem.Model.Entity.PriceList;
 import com.insurancesystem.Model.Entity.DoctorSpecializationEntity;
+import com.insurancesystem.Model.Entity.Enums.CoverageStatus;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.Named;
@@ -18,11 +19,12 @@ public interface PriceListMapper {
 
     /**
      * Maps PriceList entity to PriceListResponseDTO
-     * Note: allowedGenders, minAge, maxAge, and quantity are automatically mapped by MapStruct
+     * Note: allowedGenders, minAge, maxAge, quantity, and coveragePercentage are automatically mapped by MapStruct
      * since they have the same names and compatible types in both entity and DTO
      */
     @Mapping(target = "serviceDetails", source = "serviceDetails", qualifiedByName = "convertJson")
     @Mapping(target = "allowedSpecializations", source = "allowedSpecializations", qualifiedByName = "mapSpecializations")
+    @Mapping(target = "coverageStatus", source = "coverageStatus", qualifiedByName = "mapCoverageStatus")
     PriceListResponseDTO toDto(PriceList entity);
 
     /**
@@ -58,5 +60,16 @@ public interface PriceListMapper {
                     return specMap;
                 })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Map CoverageStatus enum to String
+     */
+    @Named("mapCoverageStatus")
+    default String mapCoverageStatus(CoverageStatus status) {
+        if (status == null) {
+            return CoverageStatus.COVERED.name();
+        }
+        return status.name();
     }
 }

@@ -29,8 +29,6 @@ public interface ClientRepository extends JpaRepository<Client, UUID> {
     @Query("SELECT c FROM Client c LEFT JOIN FETCH c.roles WHERE LOWER(c.email) = LOWER(:email)")
     Optional<Client> findByEmailWithRoles(@Param("email") String email);
 
-    Optional<Client> findByUsername(String username);
-
     boolean existsByNationalId(String nationalId);
 
     boolean existsByEmail(String email);
@@ -104,7 +102,7 @@ public interface ClientRepository extends JpaRepository<Client, UUID> {
      * Debug: Get all users basic info using native query to avoid enum issues
      */
     @Query(value = """
-        SELECT c.id, c.full_name, c.email, c.employee_id
+        SELECT c.id, c.full_name, c.email, c.employee_id, c.national_id
         FROM clients c
     """, nativeQuery = true)
     List<Object[]> findAllUsersNative();

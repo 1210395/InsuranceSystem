@@ -31,7 +31,7 @@ public class MedicalRecordService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
 
-        Client doctor = clientRepo.findByUsername(currentUsername)
+        Client doctor = clientRepo.findByEmail(currentUsername)
                 .orElseThrow(() -> new NotFoundException("Doctor not found"));
 
         // المريض فقط ييجي من الـ body
@@ -63,12 +63,12 @@ public class MedicalRecordService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
         if (auth.getAuthorities().stream().anyMatch(r -> r.getAuthority().equals("ROLE_INSURANCE_CLIENT"))) {
-            if (!member.getUsername().equals(currentUsername)) {
+            if (!member.getEmail().equals(currentUsername)) {
                 throw new SecurityException("You can only view your own records!");
             }
         }
 
-        return recordRepo.findByMemberId(memberId)
+        return recordRepo.findByMember_Id(memberId)
                 .stream().map(medicalRecordMapper::toDto).collect(Collectors.toList());
     }
 
@@ -81,7 +81,7 @@ public class MedicalRecordService {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth.getAuthorities().stream().anyMatch(r -> r.getAuthority().equals("ROLE_INSURANCE_CLIENT"))) {
             String currentUsername = auth.getName();
-            if (!record.getMember().getUsername().equals(currentUsername)) {
+            if (!record.getMember().getEmail().equals(currentUsername)) {
                 throw new SecurityException("You can only view your own record!");
             }
         }

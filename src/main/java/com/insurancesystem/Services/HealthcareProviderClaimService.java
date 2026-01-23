@@ -231,15 +231,17 @@ public class HealthcareProviderClaimService {
                                                     foundFamilyMember = true;
                                                 }
                                             } catch (IllegalArgumentException e) {
+                                                log.debug("Invalid family relation value while parsing prescription data: {}", e.getMessage());
                                             }
                                         }
                                     }
                                 }
                             }
                         } catch (Exception e) {
+                            log.debug("Error parsing prescription role-specific data for family member lookup: {}", e.getMessage());
                         }
                     }
-                    
+
                     if (!foundFamilyMember && isPharmacist && claim.getTreatmentDetails() != null) {
                         try {
                             String treatmentDetails = claim.getTreatmentDetails();
@@ -269,12 +271,14 @@ public class HealthcareProviderClaimService {
                                         foundFamilyMember = true;
                                     }
                                 } catch (IllegalArgumentException e) {
+                                    log.debug("Invalid family relation value while parsing pharmacist treatment details: {}", e.getMessage());
                                 }
                             }
                         } catch (Exception e) {
+                            log.debug("Error parsing pharmacist treatment details for family member lookup: {}", e.getMessage());
                         }
                     }
-                    
+
                     boolean isLabTech = provider.getRoles().stream()
                             .anyMatch(r -> r.getName() == RoleName.LAB_TECH);
                     
@@ -324,12 +328,12 @@ public class HealthcareProviderClaimService {
                                                         foundFamilyMember = true;
                                                     }
                                                 } catch (IllegalArgumentException e) {
-                                                    // Invalid relation value
+                                                    log.debug("Invalid family relation value in lab request notes: {}", e.getMessage());
                                                 }
                                             }
                                         }
                                     }
-                                    
+
                                     if (labRequestDto.getIsFamilyMember() != null && labRequestDto.getIsFamilyMember()) {
                                         if (labRequestDto.getFamilyMemberId() != null) {
                                             Optional<FamilyMember> fmOpt = familyMemberRepo.findById(labRequestDto.getFamilyMemberId());
@@ -369,17 +373,18 @@ public class HealthcareProviderClaimService {
                                                     foundFamilyMember = true;
                                                 }
                                             } catch (IllegalArgumentException e) {
-                                                    // Invalid relation value
-                                                }
+                                                log.debug("Invalid family relation value in lab request DTO: {}", e.getMessage());
+                                            }
                                             }
                                         }
                                     }
                                 }
                             }
                         } catch (Exception e) {
+                            log.debug("Error parsing lab tech role-specific data for family member lookup: {}", e.getMessage());
                         }
                     }
-                    
+
                     if (!foundFamilyMember && isLabTech && claim.getTreatmentDetails() != null) {
                         try {
                             String treatmentDetails = claim.getTreatmentDetails();
@@ -409,12 +414,14 @@ public class HealthcareProviderClaimService {
                                         foundFamilyMember = true;
                                     }
                                 } catch (IllegalArgumentException e) {
+                                    log.debug("Invalid family relation value in lab tech treatment details: {}", e.getMessage());
                                 }
                             }
                         } catch (Exception e) {
+                            log.debug("Error parsing lab tech treatment details for family member lookup: {}", e.getMessage());
                         }
                     }
-                    
+
                     boolean isRadiologist = provider.getRoles().stream()
                             .anyMatch(r -> r.getName() == RoleName.RADIOLOGIST);
                     
@@ -464,12 +471,12 @@ public class HealthcareProviderClaimService {
                                         foundFamilyMember = true;
                                     }
                                 } catch (IllegalArgumentException e) {
-                                                    // Invalid relation value
-                                                }
+                                    log.debug("Invalid family relation value in radiology request notes: {}", e.getMessage());
+                                }
                                             }
                                         }
                                     }
-                                    
+
                                     if (radiologyRequestDto.getIsFamilyMember() != null && radiologyRequestDto.getIsFamilyMember()) {
                                         if (radiologyRequestDto.getFamilyMemberId() != null) {
                                             Optional<FamilyMember> fmOpt = familyMemberRepo.findById(radiologyRequestDto.getFamilyMemberId());
@@ -509,7 +516,7 @@ public class HealthcareProviderClaimService {
                                                         foundFamilyMember = true;
                                                     }
                                                 } catch (IllegalArgumentException e) {
-                                                    // Invalid relation value
+                                                    log.debug("Invalid family relation value in radiology request DTO: {}", e.getMessage());
                                                 }
                                             }
                                         }
@@ -517,9 +524,10 @@ public class HealthcareProviderClaimService {
                                 }
                             }
                         } catch (Exception e) {
+                            log.debug("Error parsing radiologist role-specific data for family member lookup: {}", e.getMessage());
                         }
                     }
-                    
+
                     if (!foundFamilyMember && isRadiologist && claim.getTreatmentDetails() != null) {
                         try {
                             String treatmentDetails = claim.getTreatmentDetails();
@@ -549,12 +557,14 @@ public class HealthcareProviderClaimService {
                                         foundFamilyMember = true;
                                     }
                                 } catch (IllegalArgumentException e) {
+                                    log.debug("Invalid family relation value in radiologist treatment details: {}", e.getMessage());
                                 }
                             }
                         } catch (Exception e) {
+                            log.debug("Error parsing radiologist treatment details for family member lookup: {}", e.getMessage());
                         }
                     }
-                    
+
                     if (patientName == null) {
                         claim.setClientName(client.getFullName());
                         patientName = client.getFullName();
@@ -810,11 +820,10 @@ public class HealthcareProviderClaimService {
         List<HealthcareProviderClaim> claims;
 
         if (isClient) {
-            // Client sees all claims they created (for themselves or family members)
-            // This includes claims where they are the healthcare provider
-            claims = claimRepo.findByHealthcareProviderId(user.getId());
+            // Client sees all claims made FOR them (where they are the patient)
+            claims = claimRepo.findByClientId(user.getId());
         } else {
-            // Provider sees only their own claims
+            // Provider sees only claims they submitted (where they are the healthcare provider)
             claims = claimRepo.findByHealthcareProviderId(user.getId());
         }
 

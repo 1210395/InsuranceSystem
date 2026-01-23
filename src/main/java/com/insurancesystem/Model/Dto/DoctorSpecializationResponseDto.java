@@ -3,6 +3,7 @@ package com.insurancesystem.Model.Dto;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 public class DoctorSpecializationResponseDto {
@@ -12,6 +13,12 @@ public class DoctorSpecializationResponseDto {
     private double consultationPrice; // Price of the consultation
     private List<String> diagnoses; // Diagnoses related to the specialization
     private List<String> treatmentPlans; // Treatment plans related to the specialization
+
+    /**
+     * Mapping of diagnosis to its associated treatments
+     * Key: diagnosis name, Value: list of treatment names linked to this diagnosis
+     */
+    private Map<String, List<String>> diagnosisTreatmentMappings;
 
     /**
      * List of allowed genders for this specialization (e.g., "MALE", "FEMALE")

@@ -17,7 +17,7 @@ public class RegisterRequest {
 
 
 
-    @NotBlank
+    @NotBlank(message = "Password is required")
     @Size(min = 8, message = "Password must be at least 8 characters")
     @Pattern(
             regexp = "^(?=.*[A-Za-z])(?=.*\\d).+$",
@@ -26,11 +26,12 @@ public class RegisterRequest {
     private String password;
 
 
-    @NotBlank
-    @Size(min = 3, max = 150)
+    @NotBlank(message = "Full name is required")
+    @Size(min = 3, max = 150, message = "Full name must be between 3 and 150 characters")
     private String fullName;
 
-    @Email
+    @NotBlank(message = "Email is required")
+    @Email(message = "Invalid email format")
     @Size(max = 150)
     private String email;
 
@@ -51,8 +52,8 @@ public class RegisterRequest {
     private String pharmacyLocation;
     private String labCode;
     private String labName;
-    @NotBlank
-    @Size(min = 9, max = 20)
+    @NotBlank(message = "National ID is required")
+    @Size(min = 9, max = 20, message = "National ID must be between 9 and 20 characters")
     private String nationalId;
     private String gender;
     private String labLocation;

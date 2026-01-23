@@ -11,6 +11,8 @@ import com.insurancesystem.Repository.ClientRepository;
 import com.insurancesystem.Services.ClientServices;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -34,6 +36,14 @@ public class ClientController {
     @GetMapping("/list")
     public ResponseEntity<List<ClientDto>> list() {
         return ResponseEntity.ok(clientServices.list());
+    }
+
+    @GetMapping("/list/paginated")
+    @PreAuthorize("hasAnyRole('INSURANCE_MANAGER', 'MEDICAL_ADMIN', 'COORDINATION_ADMIN')")
+    public ResponseEntity<Page<ClientDto>> getAllClientsPaginated(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(clientServices.getAllClientsPaginated(page, Math.min(size, 100)));
     }
 
     @PreAuthorize("hasAnyRole('INSURANCE_MANAGER','COORDINATION_ADMIN')")

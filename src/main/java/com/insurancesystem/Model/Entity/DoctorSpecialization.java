@@ -35,4 +35,8 @@ public class DoctorSpecialization {
 
     @Column(name = "treatment_plans", columnDefinition = "text[]")
     private String[] treatmentPlans;
+
+    // Stores JSON mapping of diagnosis to treatments: {"Diagnosis A": ["Treatment 1", "Treatment 2"]}
+    @Column(name = "diagnosis_treatment_mappings", columnDefinition = "text")
+    private String diagnosisTreatmentMappings;
 }

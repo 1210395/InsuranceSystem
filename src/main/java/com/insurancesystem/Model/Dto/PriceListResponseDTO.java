@@ -50,4 +50,14 @@ public class PriceListResponseDTO {
      * If null, there is no maximum age restriction
      */
     private Integer maxAge;
+
+    /**
+     * Coverage status for this service (COVERED, REQUIRES_APPROVAL, NOT_COVERED)
+     */
+    private String coverageStatus;
+
+    /**
+     * Coverage percentage (0-100) when status is COVERED
+     */
+    private Integer coveragePercentage;
 }

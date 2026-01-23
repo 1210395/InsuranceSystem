@@ -186,6 +186,7 @@ public class DoctorSpecializationController {
      * Debug: Get raw specialization data to check diagnoses in database
      */
     @GetMapping("/debug/raw")
+    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
     public ResponseEntity<List<Map<String, Object>>> getSpecializationsRaw() {
         List<Object[]> raw = repository.findAllSpecializationsRaw();
         List<Map<String, Object>> result = raw.stream()
@@ -206,6 +207,7 @@ public class DoctorSpecializationController {
      */
     @PostMapping("/debug/seed-data")
     @org.springframework.transaction.annotation.Transactional
+    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
     public ResponseEntity<String> seedDiagnosesAndTreatments() {
         Map<String, List<String>> diagnosesMap = new HashMap<>();
         Map<String, List<String>> treatmentsMap = new HashMap<>();

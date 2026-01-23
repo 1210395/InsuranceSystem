@@ -4,10 +4,13 @@ import com.insurancesystem.Model.Entity.*;
 import com.insurancesystem.Model.Entity.Enums.*;
 import com.insurancesystem.Repository.*;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -17,6 +20,8 @@ import java.util.*;
 @RestController
 @RequestMapping("/api/database")
 @RequiredArgsConstructor
+@PreAuthorize("hasAuthority('ROLE_INSURANCE_MANAGER')")
+@Slf4j
 public class DatabaseResetController {
 
     private final JdbcTemplate jdbcTemplate;
@@ -64,7 +69,6 @@ public class DatabaseResetController {
             // 1. Manager
             testUsers.add(Client.builder()
                     .email("manager@insurance.com")
-                    .username("manager")
                     .passwordHash(passwordEncoder.encode("Manager123"))
                     .fullName("System Manager")
                     .gender("M")
@@ -86,7 +90,6 @@ public class DatabaseResetController {
             // 2. Medical Admin
             testUsers.add(Client.builder()
                     .email("medicaladmin@insurance.com")
-                    .username("medicaladmin")
                     .passwordHash(passwordEncoder.encode("Medical123"))
                     .fullName("Dr. Rami Yousef")
                     .gender("M")
@@ -108,7 +111,6 @@ public class DatabaseResetController {
             // 3. Doctor (General Practice)
             testUsers.add(Client.builder()
                     .email("doctor@insurance.com")
-                    .username("doctor")
                     .passwordHash(passwordEncoder.encode("Doctor123"))
                     .fullName("Dr. Ahmad Hassan")
                     .gender("M")
@@ -132,7 +134,6 @@ public class DatabaseResetController {
             // 5. Cardiologist
             testUsers.add(Client.builder()
                     .email("cardiologist@insurance.com")
-                    .username("cardiologist")
                     .passwordHash(passwordEncoder.encode("Cardio123"))
                     .fullName("Dr. Sarah Mohammed")
                     .gender("F")
@@ -156,7 +157,6 @@ public class DatabaseResetController {
             // 6. Pharmacist
             testUsers.add(Client.builder()
                     .email("pharmacist@insurance.com")
-                    .username("pharmacist")
                     .passwordHash(passwordEncoder.encode("Pharma123"))
                     .fullName("Khaled Ali")
                     .gender("M")
@@ -178,7 +178,6 @@ public class DatabaseResetController {
             // 7. Lab Technician
             testUsers.add(Client.builder()
                     .email("labtech@insurance.com")
-                    .username("labtech")
                     .passwordHash(passwordEncoder.encode("Lab123"))
                     .fullName("Fatima Noor")
                     .gender("F")
@@ -200,7 +199,6 @@ public class DatabaseResetController {
             // 8. Radiologist
             testUsers.add(Client.builder()
                     .email("radiologist@insurance.com")
-                    .username("radiologist")
                     .passwordHash(passwordEncoder.encode("Radio123"))
                     .fullName("Omar Saleh")
                     .gender("M")
@@ -222,7 +220,6 @@ public class DatabaseResetController {
             // 9. Active Client
             testUsers.add(Client.builder()
                     .email("client@insurance.com")
-                    .username("client")
                     .passwordHash(passwordEncoder.encode("Client123"))
                     .fullName("Mohammed Abdullah")
                     .gender("M")
@@ -244,7 +241,6 @@ public class DatabaseResetController {
             // 10. Pending Client (needs approval)
             testUsers.add(Client.builder()
                     .email("pending@insurance.com")
-                    .username("pending")
                     .passwordHash(passwordEncoder.encode("Pending123"))
                     .fullName("Layla Ibrahim")
                     .gender("F")
@@ -266,7 +262,6 @@ public class DatabaseResetController {
             // 11. Pending Doctor (waiting for approval)
             testUsers.add(Client.builder()
                     .email("pending.doctor@insurance.com")
-                    .username("pendingdoctor")
                     .passwordHash(passwordEncoder.encode("PendingDoc123"))
                     .fullName("Dr. Khaled Nasser")
                     .gender("M")
@@ -290,7 +285,6 @@ public class DatabaseResetController {
             // 12. Pending Insurance Client (waiting for approval)
             testUsers.add(Client.builder()
                     .email("pending.client@insurance.com")
-                    .username("pendingclient")
                     .passwordHash(passwordEncoder.encode("PendingClient123"))
                     .fullName("Hana Mahmoud")
                     .gender("F")
@@ -312,7 +306,6 @@ public class DatabaseResetController {
             // 13. Pending Pharmacist (waiting for approval)
             testUsers.add(Client.builder()
                     .email("pending.pharmacist@insurance.com")
-                    .username("pendingpharmacist")
                     .passwordHash(passwordEncoder.encode("PendingPharma123"))
                     .fullName("Nour Sami")
                     .gender("F")
@@ -814,7 +807,6 @@ public class DatabaseResetController {
             for (Client user : testUsers) {
                 Map<String, String> userInfo = new HashMap<>();
                 userInfo.put("email", user.getEmail());
-                userInfo.put("username", user.getUsername());
                 userInfo.put("password", getPasswordForRole(user.getRequestedRole()));
                 userInfo.put("role", user.getRequestedRole().name());
                 userInfo.put("status", user.getStatus().name());
@@ -833,7 +825,7 @@ public class DatabaseResetController {
         } catch (Exception e) {
             response.put("success", false);
             response.put("error", e.getMessage());
-            e.printStackTrace();
+            log.error("Failed to reset and seed database", e);
             return ResponseEntity.status(500).body(response);
         }
     }
@@ -849,5 +841,406 @@ public class DatabaseResetController {
             case RADIOLOGIST -> "Radio123";
             case INSURANCE_CLIENT -> "Client123 or Pending123 or PendingClient123";
         };
+    }
+
+    @PostMapping("/seed-claims")
+    public ResponseEntity<Map<String, Object>> seedClaims() {
+        Map<String, Object> response = new HashMap<>();
+
+        try {
+            // Find healthcare providers by role
+            List<Client> doctors = clientRepository.findAll().stream()
+                    .filter(c -> c.getRoles() != null && c.getRoles().stream()
+                            .anyMatch(r -> r.getName() == RoleName.DOCTOR))
+                    .toList();
+
+            List<Client> pharmacists = clientRepository.findAll().stream()
+                    .filter(c -> c.getRoles() != null && c.getRoles().stream()
+                            .anyMatch(r -> r.getName() == RoleName.PHARMACIST))
+                    .toList();
+
+            List<Client> labTechs = clientRepository.findAll().stream()
+                    .filter(c -> c.getRoles() != null && c.getRoles().stream()
+                            .anyMatch(r -> r.getName() == RoleName.LAB_TECH))
+                    .toList();
+
+            List<Client> radiologists = clientRepository.findAll().stream()
+                    .filter(c -> c.getRoles() != null && c.getRoles().stream()
+                            .anyMatch(r -> r.getName() == RoleName.RADIOLOGIST))
+                    .toList();
+
+            List<Client> insuranceClients = clientRepository.findAll().stream()
+                    .filter(c -> c.getRoles() != null && c.getRoles().stream()
+                            .anyMatch(r -> r.getName() == RoleName.INSURANCE_CLIENT))
+                    .toList();
+
+            // Get default policy
+            Policy defaultPolicy = policyRepository.findAll().stream().findFirst().orElse(null);
+
+            if (defaultPolicy == null) {
+                response.put("success", false);
+                response.put("error", "No policy found in database");
+                return ResponseEntity.status(400).body(response);
+            }
+
+            if (insuranceClients.isEmpty()) {
+                response.put("success", false);
+                response.put("error", "No insurance clients found");
+                return ResponseEntity.status(400).body(response);
+            }
+
+            List<HealthcareProviderClaim> claims = new ArrayList<>();
+            // Use all insurance clients, rotating through them
+            int[] clientIndex = {0}; // Array to allow modification in lambdas
+
+            // Create claims for Doctors
+            if (!doctors.isEmpty()) {
+                Client doctor = doctors.get(0);
+
+                // Pending Medical claims - distribute across clients
+                for (int i = 0; i < 3; i++) {
+                    Client client = insuranceClients.get(clientIndex[0] % insuranceClients.size());
+                    clientIndex[0]++;
+                    claims.add(HealthcareProviderClaim.builder()
+                            .healthcareProvider(doctor)
+                            .clientId(client.getId())
+                            .clientName(client.getFullName())
+                            .diagnosis("General consultation - " + (i + 1))
+                            .treatmentDetails("Treatment plan " + (i + 1))
+                            .description("Doctor consultation - Pending medical review " + (i + 1))
+                            .amount(150.0 + (i * 50))
+                            .serviceDate(LocalDate.now().minusDays(i))
+                            .status(ClaimStatus.PENDING_MEDICAL)
+                            .policy(defaultPolicy)
+                            .doctorName(doctor.getFullName())
+                            .build());
+                }
+
+                // Approved Final claims - distribute across clients
+                for (int i = 0; i < 2; i++) {
+                    Client client = insuranceClients.get(clientIndex[0] % insuranceClients.size());
+                    clientIndex[0]++;
+                    claims.add(HealthcareProviderClaim.builder()
+                            .healthcareProvider(doctor)
+                            .clientId(client.getId())
+                            .clientName(client.getFullName())
+                            .diagnosis("Approved diagnosis " + (i + 1))
+                            .treatmentDetails("Approved treatment " + (i + 1))
+                            .description("Doctor consultation - Approved " + (i + 1))
+                            .amount(200.0 + (i * 30))
+                            .serviceDate(LocalDate.now().minusDays(10 + i))
+                            .status(ClaimStatus.APPROVED_FINAL)
+                            .policy(defaultPolicy)
+                            .isCovered(true)
+                            .insuranceCoveredAmount(BigDecimal.valueOf(180.0 + (i * 25)))
+                            .clientPayAmount(BigDecimal.valueOf(20.0 + (i * 5)))
+                            .doctorName(doctor.getFullName())
+                            .approvedAt(Instant.now().minusSeconds(86400 * (i + 5)))
+                            .build());
+                }
+
+                // Awaiting Coordination claims - rotate client
+                {
+                    Client client = insuranceClients.get(clientIndex[0] % insuranceClients.size());
+                    clientIndex[0]++;
+                    claims.add(HealthcareProviderClaim.builder()
+                            .healthcareProvider(doctor)
+                            .clientId(client.getId())
+                            .clientName(client.getFullName())
+                            .diagnosis("Awaiting coordination - cardiology")
+                            .treatmentDetails("Cardiology treatment plan")
+                            .description("Doctor consultation - Awaiting coordination review")
+                            .amount(350.0)
+                            .serviceDate(LocalDate.now().minusDays(5))
+                            .status(ClaimStatus.AWAITING_COORDINATION_REVIEW)
+                            .policy(defaultPolicy)
+                            .isCovered(true)
+                            .insuranceCoveredAmount(BigDecimal.valueOf(300.0))
+                            .clientPayAmount(BigDecimal.valueOf(50.0))
+                            .doctorName(doctor.getFullName())
+                            .medicalReviewedAt(Instant.now().minusSeconds(86400 * 3))
+                            .build());
+                }
+
+                // Rejected Final claim - rotate client
+                {
+                    Client client = insuranceClients.get(clientIndex[0] % insuranceClients.size());
+                    clientIndex[0]++;
+                    claims.add(HealthcareProviderClaim.builder()
+                            .healthcareProvider(doctor)
+                            .clientId(client.getId())
+                            .clientName(client.getFullName())
+                            .diagnosis("Cosmetic procedure")
+                            .treatmentDetails("Cosmetic surgery")
+                            .description("Doctor consultation - Rejected (not covered)")
+                            .amount(1500.0)
+                            .serviceDate(LocalDate.now().minusDays(20))
+                            .status(ClaimStatus.REJECTED_FINAL)
+                            .policy(defaultPolicy)
+                            .isCovered(false)
+                            .rejectionReason("Cosmetic procedures are not covered under the policy")
+                            .doctorName(doctor.getFullName())
+                            .rejectedAt(Instant.now().minusSeconds(86400 * 15))
+                            .build());
+                }
+            }
+
+            // Create claims for Pharmacists
+            if (!pharmacists.isEmpty()) {
+                Client pharmacist = pharmacists.get(0);
+
+                // Pending Medical claims - distribute across clients
+                for (int i = 0; i < 2; i++) {
+                    Client client = insuranceClients.get(clientIndex[0] % insuranceClients.size());
+                    clientIndex[0]++;
+                    claims.add(HealthcareProviderClaim.builder()
+                            .healthcareProvider(pharmacist)
+                            .clientId(client.getId())
+                            .clientName(client.getFullName())
+                            .diagnosis("Prescription fill - " + (i + 1))
+                            .treatmentDetails("Medication dispensing")
+                            .description("Pharmacy claim - Pending " + (i + 1))
+                            .amount(85.0 + (i * 20))
+                            .serviceDate(LocalDate.now().minusDays(i))
+                            .status(ClaimStatus.PENDING_MEDICAL)
+                            .policy(defaultPolicy)
+                            .doctorName("Dr. Ahmad")
+                            .roleSpecificData("{\"prescriptionNumber\": \"RX-2024-" + (i + 1) + "\"}")
+                            .build());
+                }
+
+                // Approved Final claims - rotate client
+                {
+                    Client client = insuranceClients.get(clientIndex[0] % insuranceClients.size());
+                    clientIndex[0]++;
+                    claims.add(HealthcareProviderClaim.builder()
+                            .healthcareProvider(pharmacist)
+                            .clientId(client.getId())
+                            .clientName(client.getFullName())
+                            .diagnosis("Chronic medication refill")
+                            .treatmentDetails("Monthly chronic medication")
+                            .description("Pharmacy claim - Approved chronic meds")
+                            .amount(120.0)
+                            .serviceDate(LocalDate.now().minusDays(7))
+                            .status(ClaimStatus.APPROVED_FINAL)
+                            .policy(defaultPolicy)
+                            .isCovered(true)
+                            .isChronic(true)
+                            .insuranceCoveredAmount(BigDecimal.valueOf(108.0))
+                            .clientPayAmount(BigDecimal.valueOf(12.0))
+                            .doctorName("Dr. Khaled")
+                            .approvedAt(Instant.now().minusSeconds(86400 * 5))
+                            .build());
+                }
+
+                // Awaiting Coordination claim - rotate client
+                {
+                    Client client = insuranceClients.get(clientIndex[0] % insuranceClients.size());
+                    clientIndex[0]++;
+                    claims.add(HealthcareProviderClaim.builder()
+                            .healthcareProvider(pharmacist)
+                            .clientId(client.getId())
+                            .clientName(client.getFullName())
+                            .diagnosis("Specialty medication")
+                            .treatmentDetails("High-cost specialty drug")
+                            .description("Pharmacy claim - Awaiting coordination")
+                            .amount(450.0)
+                            .serviceDate(LocalDate.now().minusDays(3))
+                            .status(ClaimStatus.AWAITING_COORDINATION_REVIEW)
+                            .policy(defaultPolicy)
+                            .isCovered(true)
+                            .insuranceCoveredAmount(BigDecimal.valueOf(400.0))
+                            .clientPayAmount(BigDecimal.valueOf(50.0))
+                            .doctorName("Dr. Sara")
+                            .medicalReviewedAt(Instant.now().minusSeconds(86400 * 2))
+                            .build());
+                }
+            }
+
+            // Create claims for Lab Techs
+            if (!labTechs.isEmpty()) {
+                Client labTech = labTechs.get(0);
+
+                // Pending Medical claims - distribute across clients
+                for (int i = 0; i < 2; i++) {
+                    Client client = insuranceClients.get(clientIndex[0] % insuranceClients.size());
+                    clientIndex[0]++;
+                    claims.add(HealthcareProviderClaim.builder()
+                            .healthcareProvider(labTech)
+                            .clientId(client.getId())
+                            .clientName(client.getFullName())
+                            .diagnosis("Blood work - CBC " + (i + 1))
+                            .treatmentDetails("Complete blood count analysis")
+                            .description("Lab claim - Pending " + (i + 1))
+                            .amount(110.0 + (i * 30))
+                            .serviceDate(LocalDate.now().minusDays(i))
+                            .status(ClaimStatus.PENDING_MEDICAL)
+                            .policy(defaultPolicy)
+                            .doctorName("Dr. Khaled")
+                            .roleSpecificData("{\"testType\": \"Blood Work\", \"tests\": [\"CBC\", \"Lipid Panel\"]}")
+                            .build());
+                }
+
+                // Approved Final claims - rotate client
+                {
+                    Client client = insuranceClients.get(clientIndex[0] % insuranceClients.size());
+                    clientIndex[0]++;
+                    claims.add(HealthcareProviderClaim.builder()
+                            .healthcareProvider(labTech)
+                            .clientId(client.getId())
+                            .clientName(client.getFullName())
+                            .diagnosis("Thyroid panel")
+                            .treatmentDetails("TSH, Free T4 analysis")
+                            .description("Lab claim - Approved thyroid test")
+                            .amount(150.0)
+                            .serviceDate(LocalDate.now().minusDays(10))
+                            .status(ClaimStatus.APPROVED_FINAL)
+                            .policy(defaultPolicy)
+                            .isCovered(true)
+                            .insuranceCoveredAmount(BigDecimal.valueOf(135.0))
+                            .clientPayAmount(BigDecimal.valueOf(15.0))
+                            .doctorName("Dr. Hana")
+                            .approvedAt(Instant.now().minusSeconds(86400 * 8))
+                            .build());
+                }
+
+                // Awaiting Coordination claim - rotate client
+                {
+                    Client client = insuranceClients.get(clientIndex[0] % insuranceClients.size());
+                    clientIndex[0]++;
+                    claims.add(HealthcareProviderClaim.builder()
+                            .healthcareProvider(labTech)
+                            .clientId(client.getId())
+                            .clientName(client.getFullName())
+                            .diagnosis("Comprehensive metabolic panel")
+                            .treatmentDetails("Full metabolic analysis")
+                            .description("Lab claim - Awaiting coordination")
+                            .amount(200.0)
+                            .serviceDate(LocalDate.now().minusDays(4))
+                            .status(ClaimStatus.AWAITING_COORDINATION_REVIEW)
+                            .policy(defaultPolicy)
+                            .isCovered(true)
+                            .insuranceCoveredAmount(BigDecimal.valueOf(180.0))
+                            .clientPayAmount(BigDecimal.valueOf(20.0))
+                            .doctorName("Dr. Ahmad")
+                            .medicalReviewedAt(Instant.now().minusSeconds(86400 * 2))
+                            .build());
+                }
+            }
+
+            // Create claims for Radiologists
+            if (!radiologists.isEmpty()) {
+                Client radiologist = radiologists.get(0);
+
+                // Pending Medical claims - distribute across clients
+                for (int i = 0; i < 2; i++) {
+                    Client client = insuranceClients.get(clientIndex[0] % insuranceClients.size());
+                    clientIndex[0]++;
+                    claims.add(HealthcareProviderClaim.builder()
+                            .healthcareProvider(radiologist)
+                            .clientId(client.getId())
+                            .clientName(client.getFullName())
+                            .diagnosis("X-Ray - Chest " + (i + 1))
+                            .treatmentDetails("Chest radiograph PA and Lateral")
+                            .description("Radiology claim - Pending " + (i + 1))
+                            .amount(180.0 + (i * 50))
+                            .serviceDate(LocalDate.now().minusDays(i))
+                            .status(ClaimStatus.PENDING_MEDICAL)
+                            .policy(defaultPolicy)
+                            .doctorName("Dr. Sara")
+                            .roleSpecificData("{\"imagingType\": \"X-Ray\", \"bodyPart\": \"Chest\"}")
+                            .build());
+                }
+
+                // Approved Final claims - rotate client
+                {
+                    Client client = insuranceClients.get(clientIndex[0] % insuranceClients.size());
+                    clientIndex[0]++;
+                    claims.add(HealthcareProviderClaim.builder()
+                            .healthcareProvider(radiologist)
+                            .clientId(client.getId())
+                            .clientName(client.getFullName())
+                            .diagnosis("MRI - Knee")
+                            .treatmentDetails("MRI scan of right knee")
+                            .description("Radiology claim - Approved MRI")
+                            .amount(600.0)
+                            .serviceDate(LocalDate.now().minusDays(15))
+                            .status(ClaimStatus.APPROVED_FINAL)
+                            .policy(defaultPolicy)
+                            .isCovered(true)
+                            .insuranceCoveredAmount(BigDecimal.valueOf(540.0))
+                            .clientPayAmount(BigDecimal.valueOf(60.0))
+                            .doctorName("Dr. Nadia")
+                            .approvedAt(Instant.now().minusSeconds(86400 * 12))
+                            .build());
+                }
+
+                // Awaiting Coordination claim - rotate client
+                {
+                    Client client = insuranceClients.get(clientIndex[0] % insuranceClients.size());
+                    clientIndex[0]++;
+                    claims.add(HealthcareProviderClaim.builder()
+                            .healthcareProvider(radiologist)
+                            .clientId(client.getId())
+                            .clientName(client.getFullName())
+                            .diagnosis("CT Scan - Abdomen")
+                            .treatmentDetails("Abdominal CT with contrast")
+                            .description("Radiology claim - Awaiting coordination")
+                            .amount(800.0)
+                            .serviceDate(LocalDate.now().minusDays(6))
+                            .status(ClaimStatus.AWAITING_COORDINATION_REVIEW)
+                            .policy(defaultPolicy)
+                            .isCovered(true)
+                            .insuranceCoveredAmount(BigDecimal.valueOf(720.0))
+                            .clientPayAmount(BigDecimal.valueOf(80.0))
+                            .doctorName("Dr. Ahmad")
+                            .medicalReviewedAt(Instant.now().minusSeconds(86400 * 4))
+                            .build());
+                }
+
+                // Rejected Final claim - rotate client
+                {
+                    Client client = insuranceClients.get(clientIndex[0] % insuranceClients.size());
+                    clientIndex[0]++;
+                    claims.add(HealthcareProviderClaim.builder()
+                            .healthcareProvider(radiologist)
+                            .clientId(client.getId())
+                            .clientName(client.getFullName())
+                            .diagnosis("Full body MRI - preventive")
+                            .treatmentDetails("Preventive full body scan")
+                            .description("Radiology claim - Rejected (preventive not covered)")
+                            .amount(2500.0)
+                            .serviceDate(LocalDate.now().minusDays(25))
+                            .status(ClaimStatus.REJECTED_FINAL)
+                            .policy(defaultPolicy)
+                            .isCovered(false)
+                            .rejectionReason("Preventive full body scans are not covered")
+                            .doctorName("Dr. Youssef")
+                            .rejectedAt(Instant.now().minusSeconds(86400 * 20))
+                            .build());
+                }
+            }
+
+            // Save all claims
+            claimRepository.saveAll(claims);
+
+            response.put("success", true);
+            response.put("totalClaims", claims.size());
+            response.put("message", "Claims seeded successfully!");
+            response.put("breakdown", Map.of(
+                    "doctors", doctors.size(),
+                    "pharmacists", pharmacists.size(),
+                    "labTechs", labTechs.size(),
+                    "radiologists", radiologists.size()
+            ));
+
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("error", e.getMessage());
+            log.error("Failed to seed claims", e);
+            return ResponseEntity.status(500).body(response);
+        }
     }
 }

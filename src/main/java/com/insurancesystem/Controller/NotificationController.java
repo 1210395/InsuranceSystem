@@ -135,12 +135,14 @@ public class NotificationController {
     }
 
     @GetMapping("/debug")
+    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
     public String debug(Authentication auth) {
         return "User: " + auth.getName() + " | Authorities: " + auth.getAuthorities();
     }
 
     // TEMPORARY DEBUG ENDPOINT - Remove in production
     @GetMapping("/debug/all-users")
+    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
     public List<java.util.Map<String, Object>> getAllUsersDebug() {
         return clientRepo.findAllUsersNative().stream()
                 .map(row -> {
@@ -149,6 +151,7 @@ public class NotificationController {
                     map.put("fullName", row[1]);
                     map.put("email", row[2]);
                     map.put("employeeId", row[3]);
+                    map.put("nationalId", row[4]);
                     return map;
                 })
                 .toList();
@@ -156,6 +159,7 @@ public class NotificationController {
 
     // TEMPORARY DEBUG ENDPOINT - Remove in production
     @GetMapping("/debug/insurance-clients")
+    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
     public List<java.util.Map<String, Object>> getInsuranceClientsDebug() {
         return clientRepo.findAllInsuranceClientsNative().stream()
                 .map(row -> {
@@ -173,6 +177,7 @@ public class NotificationController {
     // TEMPORARY DEBUG ENDPOINT - Fix duplicate employee ID
     @org.springframework.transaction.annotation.Transactional
     @PatchMapping("/debug/fix-employee-id/{clientId}")
+    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
     public ResponseEntity<String> fixEmployeeId(@PathVariable UUID clientId, @RequestParam String newEmployeeId) {
         clientRepo.updateEmployeeId(clientId, newEmployeeId);
         return ResponseEntity.ok("Employee ID updated to: " + newEmployeeId);
@@ -180,6 +185,7 @@ public class NotificationController {
 
     // TEMPORARY DEBUG ENDPOINT - Get all users with roles
     @GetMapping("/debug/users-with-roles")
+    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
     public List<java.util.Map<String, Object>> getUsersWithRolesDebug() {
         return clientRepo.findAllUsersWithRolesNative().stream()
                 .map(row -> {
@@ -196,6 +202,7 @@ public class NotificationController {
     // TEMPORARY DEBUG ENDPOINT - Add role to client
     @org.springframework.transaction.annotation.Transactional
     @PostMapping("/debug/add-role/{clientId}")
+    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
     public ResponseEntity<String> addRoleToClient(@PathVariable UUID clientId, @RequestParam String roleName) {
         clientRepo.addRoleToClient(clientId, roleName);
         return ResponseEntity.ok("Role " + roleName + " added to client " + clientId);

@@ -7,6 +7,7 @@ import com.insurancesystem.Repository.PriceListRepository;
 import com.insurancesystem.Repository.DoctorSpecializationRepository;
 import com.insurancesystem.Model.Entity.Enums.ProviderType;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +17,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PriceListService {
 
     private final PriceListRepository priceListRepository;
@@ -114,14 +116,13 @@ public class PriceListService {
                 .stream()
                 .map(priceListMapper::toDto)
                 .collect(Collectors.toList());
-        
+
         // Debug: log quantity for each item
         for (PriceListResponseDTO dto : result) {
-            System.out.println("🔍 [PriceListService] Item: " + dto.getServiceName() + 
-                ", Quantity: " + dto.getQuantity() + 
-                ", Price: " + dto.getPrice());
+            log.debug("PriceListService - Item: {}, Quantity: {}, Price: {}",
+                dto.getServiceName(), dto.getQuantity(), dto.getPrice());
         }
-        
+
         return result;
     }
 

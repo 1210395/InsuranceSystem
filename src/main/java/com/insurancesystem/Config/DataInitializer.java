@@ -44,7 +44,6 @@ public class DataInitializer {
 
     private void seedManagerAccount() {
         String managerEmail = "manager@insurance.com";
-        String managerUsername = "manager";
 
         // Check if manager already exists by email
         if (clientRepository.findByEmail(managerEmail).isPresent()) {
@@ -55,28 +54,11 @@ public class DataInitializer {
         Role managerRole = roleRepository.findByName(RoleName.INSURANCE_MANAGER)
                 .orElseThrow(() -> new RuntimeException("INSURANCE_MANAGER role not found"));
 
-        // Check if there's an existing user with the username - if so, update it
-        var existingByUsername = clientRepository.findByUsername(managerUsername);
-        if (existingByUsername.isPresent()) {
-            Client existing = existingByUsername.get();
-            existing.setEmail(managerEmail);
-            existing.setPasswordHash(passwordEncoder.encode("password123"));
-            existing.setFullName("System Manager");
-            existing.setStatus(MemberStatus.ACTIVE);
-            existing.setRoleRequestStatus(RoleRequestStatus.APPROVED);
-            existing.setEmailVerified(true);
-            existing.getRoles().add(managerRole);
-            clientRepository.save(existing);
-            log.info("Updated existing manager account with email: {} and password: password123", managerEmail);
-            return;
-        }
-
         Set<Role> roles = new HashSet<>();
         roles.add(managerRole);
 
         Client manager = Client.builder()
                 .email(managerEmail)
-                .username(managerUsername)
                 .passwordHash(passwordEncoder.encode("password123"))
                 .fullName("System Manager")
                 .phone("0512345678")
@@ -111,7 +93,6 @@ public class DataInitializer {
         // Create multiple approved doctors with different specializations
         createApprovedDoctor(
                 "dr.ahmad.cardio@hospital.com",
-                "drahmadcardio",
                 "Dr. Ahmad Nasser",
                 "0591111111",
                 "DOC111222",
@@ -125,7 +106,6 @@ public class DataInitializer {
 
         createApprovedDoctor(
                 "dr.sara.general@hospital.com",
-                "drsarageneral",
                 "Dr. Sara Mahmoud",
                 "0592222222",
                 "DOC222333",
@@ -139,7 +119,6 @@ public class DataInitializer {
 
         createApprovedDoctor(
                 "dr.khaled.internal@hospital.com",
-                "drkhaled",
                 "Dr. Khaled Abu-Salem",
                 "0593333333",
                 "DOC333444",
@@ -153,7 +132,6 @@ public class DataInitializer {
 
         createApprovedDoctor(
                 "dr.hana.neuro@hospital.com",
-                "drhananeuro",
                 "Dr. Hana Qassem",
                 "0594444444",
                 "DOC444555",
@@ -167,7 +145,6 @@ public class DataInitializer {
 
         createApprovedDoctor(
                 "dr.youssef.endo@hospital.com",
-                "dryoussefendo",
                 "Dr. Youssef Barakat",
                 "0595555555",
                 "DOC555666",
@@ -184,7 +161,6 @@ public class DataInitializer {
 
     private void createApprovedDoctor(
             String email,
-            String username,
             String fullName,
             String phone,
             String nationalId,
@@ -205,7 +181,6 @@ public class DataInitializer {
 
         Client doctor = Client.builder()
                 .email(email)
-                .username(username)
                 .passwordHash(passwordEncoder.encode("password123"))
                 .fullName(fullName)
                 .phone(phone)
@@ -266,7 +241,6 @@ public class DataInitializer {
 
         Client client = Client.builder()
                 .email(email)
-                .username("johnsmith")
                 .passwordHash(passwordEncoder.encode("password123"))
                 .fullName("John Smith")
                 .phone("0501234567")
@@ -290,7 +264,6 @@ public class DataInitializer {
         // 1. Pending Doctor Request
         createPendingClient(
                 "test.doctor@example.com",
-                "testdoctor",
                 "Dr. Ahmed Hassan",
                 "0521111111",
                 "111222333",
@@ -305,7 +278,6 @@ public class DataInitializer {
         // 2. Pending Pharmacist Request
         createPendingClient(
                 "test.pharmacist@example.com",
-                "testpharmacist",
                 "Sarah Johnson",
                 "0522222222",
                 "222333444",
@@ -318,7 +290,6 @@ public class DataInitializer {
         // 3. Pending Lab Technician Request
         createPendingClient(
                 "test.labtech@example.com",
-                "testlabtech",
                 "Mohammad Ali",
                 "0523333333",
                 "333444555",
@@ -331,7 +302,6 @@ public class DataInitializer {
         // 4. Pending Radiologist Request
         createPendingClient(
                 "test.radiologist@example.com",
-                "testradiologist",
                 "Dr. Fatima Khalil",
                 "0524444444",
                 "444555666",
@@ -344,7 +314,6 @@ public class DataInitializer {
         // 5. Pending Insurance Client Request
         createPendingClient(
                 "test.client@example.com",
-                "testclient",
                 "Omar Ibrahim",
                 "0525555555",
                 "555666777",
@@ -357,7 +326,6 @@ public class DataInitializer {
         // 6. Another Pending Doctor
         createPendingClient(
                 "test.doctor2@example.com",
-                "testdoctor2",
                 "Dr. Layla Mansour",
                 "0526666666",
                 "666777888",
@@ -372,7 +340,6 @@ public class DataInitializer {
 
     private void createPendingClient(
             String email,
-            String username,
             String fullName,
             String phone,
             String nationalId,
@@ -390,7 +357,6 @@ public class DataInitializer {
 
         Client.ClientBuilder builder = Client.builder()
                 .email(email)
-                .username(username)
                 .passwordHash(passwordEncoder.encode("password123"))
                 .fullName(fullName)
                 .phone(phone)

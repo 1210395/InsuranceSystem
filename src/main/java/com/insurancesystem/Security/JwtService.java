@@ -1,32 +1,38 @@
 package com.insurancesystem.Security;
 
+import com.insurancesystem.Model.Entity.RevokedToken;
+import com.insurancesystem.Repository.RevokedTokenRepository;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.Key;
+import java.time.Instant;
 import java.util.Date;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
+@Slf4j
 @Service
 public class JwtService {
 
     private final Key key;
     private final long ttlMillis;
-    // تخزين التوكنات الملغاة حتى انتهاء صلاحيتها (in-memory)
-    private final ConcurrentHashMap<String, Long> revoked = new ConcurrentHashMap<>();
+    private final RevokedTokenRepository revokedTokenRepository;
 
     public JwtService(
-            @Value("${app.jwt.secret}") String secret, @Value("${app.jwt.ttl-ms:86400000}") long ttlMillis // 24h افتراضياً
+            @Value("${app.jwt.secret}") String secret,
+            @Value("${app.jwt.ttl-ms:86400000}") long ttlMillis,
+            RevokedTokenRepository revokedTokenRepository
     ) {
         if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
             throw new IllegalArgumentException("app.jwt.secret must be at least 32 bytes");
         }
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
         this.ttlMillis = ttlMillis;
+        this.revokedTokenRepository = revokedTokenRepository;
     }
 
     // أبسط توليد
@@ -74,20 +80,21 @@ public class JwtService {
     public void revoke(String token) {
         try {
             Date exp = extractExpiration(token);
-            if (exp != null) {
-                revoked.put(token, exp.getTime());
+            if (exp != null && !revokedTokenRepository.existsByToken(token)) {
+                RevokedToken revokedToken = RevokedToken.builder()
+                        .token(token)
+                        .revokedAt(Instant.now())
+                        .expiresAt(exp.toInstant())
+                        .build();
+                revokedTokenRepository.save(revokedToken);
             }
-        } catch (Exception ignored) { }
+        } catch (Exception e) {
+            log.warn("Failed to revoke token: {}", e.getMessage());
+        }
     }
 
     public boolean isRevoked(String token) {
-        Long exp = revoked.get(token);
-        if (exp == null) return false;
-        if (exp <= System.currentTimeMillis()) {
-            revoked.remove(token);
-            return false;
-        }
-        return true;
+        return revokedTokenRepository.existsByToken(token);
     }
 
     private Claims getAllClaims(String token) {

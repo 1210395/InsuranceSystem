@@ -1,5 +1,6 @@
 package com.insurancesystem.Model.Entity;
 
+import com.insurancesystem.Model.Entity.Enums.CoverageStatus;
 import com.insurancesystem.Model.Entity.Enums.ProviderType;
 import jakarta.persistence.*;
 import lombok.*;
@@ -84,6 +85,20 @@ public class PriceList {
      * If null, there is no maximum age restriction
      */
     private Integer maxAge;
+
+    /**
+     * Coverage status for this service (COVERED, REQUIRES_APPROVAL, NOT_COVERED)
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
+    private CoverageStatus coverageStatus = CoverageStatus.COVERED;
+
+    /**
+     * Coverage percentage (0-100) when status is COVERED
+     */
+    @Builder.Default
+    private Integer coveragePercentage = 100;
 
     private boolean active = true;
 

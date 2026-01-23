@@ -15,9 +15,15 @@ import com.insurancesystem.Model.MapStruct.ClientMapper;
 import com.insurancesystem.Repository.ClientRepository;
 import com.insurancesystem.Repository.FamilyMemberRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -28,6 +34,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -44,6 +51,13 @@ public class ClientServices {
     @Transactional(readOnly = true)
     public List<ClientDto> list() {
         return clientRepo.findAll().stream().map(clientMapper::toDTO).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ClientDto> getAllClientsPaginated(int page, int size) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by("fullName").ascending());
+        Page<Client> clientPage = clientRepo.findAll(pageable);
+        return clientPage.map(clientMapper::toDTO);
     }
 
     @Transactional(readOnly = true)
@@ -311,7 +325,9 @@ public class ClientServices {
                     Path filePath = Paths.get(pathStr.substring(1)); // remove leading "/"
                     Files.deleteIfExists(filePath);
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception e) {
+                log.warn("Failed to delete university card image at path {}: {}", pathStr, e.getMessage());
+            }
         }
         client.getUniversityCardImages().clear();
 
