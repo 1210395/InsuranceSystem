@@ -129,6 +129,8 @@ Controller Layer → Service Layer → Repository Layer → PostgreSQL Database
 <hr>
 
 <h2>🗄️ Database Design</h2>
+
+<img width="448" height="962" alt="Image" src="https://github.com/user-attachments/assets/7b38bcc7-f8b7-4d41-856c-8ed8ca7603be" />
 <p>
   The system uses <strong>PostgreSQL</strong> as a relational database to ensure
   strong data consistency and transactional reliability.
