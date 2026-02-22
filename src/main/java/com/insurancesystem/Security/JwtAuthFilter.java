@@ -99,13 +99,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) return true;
 
         // ✅ استثنِ فقط endpoints العامة (but NOT /api/auth/me which requires authentication)
+        // Note: /api/database/* requires authentication, so it's NOT excluded here
         return path.equals("/api/auth/login")
                 || path.equals("/api/auth/register")
                 || path.equals("/api/auth/forgot-password")
                 || path.equals("/api/auth/reset-password")
                 || path.equals("/api/auth/verify-email")
                 || path.startsWith("/api/migration/")
-                || path.startsWith("/api/database/")
                 || path.startsWith("/uploads/")
                 || path.startsWith("/ws-chat/")
                 || path.equals("/api/doctor-specializations");

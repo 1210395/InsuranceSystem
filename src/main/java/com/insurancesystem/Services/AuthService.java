@@ -58,7 +58,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final ClientServices clientServices;
     private final NotificationService notificationService;
-    private final PolicyService policyService;
+    // PolicyService removed - now using GlobalPolicy system which applies to all clients automatically
     private final EmailService emailService;
     private final FamilyMemberRepository familyRepo;
 
@@ -425,20 +425,12 @@ public class AuthService {
 
 
         // ===============================
-        // 🔗 Assign role / policy
+        // 🔗 Assign role (Policy assignment removed - using GlobalPolicy system)
         // ===============================
         if (isAdminRegister) {
             clientServices.addRoleToClient(saved.getId(), role);
         }
-
-        if (!isAdminRegister &&
-                role == RoleName.INSURANCE_CLIENT &&
-                req.isAgreeToPolicy()) {
-            policyService.assignPolicyByName(
-                    saved.getId(),
-                    "Birzeit University Premium Plus Plan"
-            );
-        }
+        // Individual policy assignment no longer needed - GlobalPolicy applies to all clients automatically
 
         ClientDto dto = clientMapper.toDTO(saved);
 

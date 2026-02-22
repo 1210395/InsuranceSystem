@@ -1,6 +1,5 @@
 package com.insurancesystem.Model.Entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.insurancesystem.Model.Entity.Enums.PolicyStatus;
 import jakarta.persistence.*;
 import lombok.*;
@@ -60,10 +59,11 @@ public class Policy {
     @OneToMany(mappedBy = "policy", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Coverage> coverages = new ArrayList<>();
 
-    // ✅ إضافة لمنع اللوب
-    @JsonIgnore
-    @OneToMany(mappedBy = "policy", cascade = CascadeType.ALL)
-    private List<Client> clients = new ArrayList<>();
+    // DEPRECATED: Client-Policy relationship removed - now using GlobalPolicy system
+    // Clients are no longer assigned individual policies; GlobalPolicy applies to all clients
+    // @JsonIgnore
+    // @OneToMany(mappedBy = "policy", cascade = CascadeType.ALL)
+    // private List<Client> clients = new ArrayList<>();
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;

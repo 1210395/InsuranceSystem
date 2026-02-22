@@ -670,8 +670,8 @@ public class DataInitializer {
             .roleRequestStatus(RoleRequestStatus.APPROVED)
             .requestedRole(roleName)
             .roles(roles)
-            .emailVerified(true)
-            .policy(policy);
+            .emailVerified(true);
+            // Policy removed - GlobalPolicy system applies to all clients automatically
 
         // Doctor specific
         if (roleName == RoleName.DOCTOR && specialization != null) {

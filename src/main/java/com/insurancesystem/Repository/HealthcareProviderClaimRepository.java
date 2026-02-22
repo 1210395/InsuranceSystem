@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -137,6 +138,76 @@ AND (:to IS NULL OR c.serviceDate <= :to)
         @Param("clientId") UUID clientId,
         @Param("specialization") String specialization,
         @Param("sinceDate") LocalDate sinceDate);
+
+    // ============= Usage Tracking Queries for GlobalPolicy =============
+
+    @Query("""
+        SELECT COUNT(c) FROM HealthcareProviderClaim c
+        WHERE c.clientId = :clientId
+        AND YEAR(c.serviceDate) = :year
+        AND MONTH(c.serviceDate) = :month
+        AND c.status NOT IN (com.insurancesystem.Model.Entity.Enums.ClaimStatus.REJECTED_FINAL,
+                            com.insurancesystem.Model.Entity.Enums.ClaimStatus.RETURNED_TO_PROVIDER)
+    """)
+    int countVisitsInMonth(@Param("clientId") UUID clientId, @Param("year") int year, @Param("month") int month);
+
+    @Query("""
+        SELECT COUNT(c) FROM HealthcareProviderClaim c
+        WHERE c.clientId = :clientId
+        AND YEAR(c.serviceDate) = :year
+        AND c.status NOT IN (com.insurancesystem.Model.Entity.Enums.ClaimStatus.REJECTED_FINAL,
+                            com.insurancesystem.Model.Entity.Enums.ClaimStatus.RETURNED_TO_PROVIDER)
+    """)
+    int countVisitsInYear(@Param("clientId") UUID clientId, @Param("year") int year);
+
+    @Query("""
+        SELECT COALESCE(SUM(c.insuranceCoveredAmount), 0) FROM HealthcareProviderClaim c
+        WHERE c.clientId = :clientId
+        AND YEAR(c.serviceDate) = :year
+        AND MONTH(c.serviceDate) = :month
+        AND c.status = com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL
+    """)
+    BigDecimal sumSpendingInMonth(@Param("clientId") UUID clientId, @Param("year") int year, @Param("month") int month);
+
+    @Query("""
+        SELECT COALESCE(SUM(c.insuranceCoveredAmount), 0) FROM HealthcareProviderClaim c
+        WHERE c.clientId = :clientId
+        AND YEAR(c.serviceDate) = :year
+        AND c.status = com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL
+    """)
+    BigDecimal sumSpendingInYear(@Param("clientId") UUID clientId, @Param("year") int year);
+
+    @Query("""
+        SELECT COUNT(c) FROM HealthcareProviderClaim c
+        WHERE c.clientId = :clientId
+        AND LOWER(c.description) = LOWER(:serviceName)
+        AND c.serviceDate >= :sinceDate
+        AND c.status NOT IN (com.insurancesystem.Model.Entity.Enums.ClaimStatus.REJECTED_FINAL,
+                            com.insurancesystem.Model.Entity.Enums.ClaimStatus.RETURNED_TO_PROVIDER)
+    """)
+    int countServiceUsageSince(@Param("clientId") UUID clientId, @Param("serviceName") String serviceName, @Param("sinceDate") LocalDate sinceDate);
+
+    // Get client usage summary for a period
+    @Query("""
+        SELECT c.clientId, c.clientName, COUNT(c), COALESCE(SUM(c.insuranceCoveredAmount), 0)
+        FROM HealthcareProviderClaim c
+        WHERE c.serviceDate BETWEEN :fromDate AND :toDate
+        AND c.status = com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL
+        GROUP BY c.clientId, c.clientName
+        ORDER BY SUM(c.insuranceCoveredAmount) DESC
+    """)
+    List<Object[]> getClientUsageSummary(@Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
+
+    // Get service usage breakdown
+    @Query("""
+        SELECT c.description, COUNT(c), COALESCE(SUM(c.insuranceCoveredAmount), 0)
+        FROM HealthcareProviderClaim c
+        WHERE c.serviceDate BETWEEN :fromDate AND :toDate
+        AND c.status = com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL
+        GROUP BY c.description
+        ORDER BY COUNT(c) DESC
+    """)
+    List<Object[]> getServiceUsageBreakdown(@Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
 
 }
 

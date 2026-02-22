@@ -113,11 +113,12 @@ public class Client {
     private List<String> universityCardImages = new ArrayList<>();
 
 
-    // ✅ منع إعادة تحميل كامل الـ Policy → Clients → Policy loop
-    @JsonIgnore
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "policy_id")
-    private Policy policy;
+    // DEPRECATED: Old individual policy assignment removed - now using GlobalPolicy system
+    // The GlobalPolicy applies to ALL clients automatically based on service coverage rules
+    // @JsonIgnore
+    // @ManyToOne(fetch = FetchType.LAZY)
+    // @JoinColumn(name = "policy_id")
+    // private Policy policy;
 
     // ✅ منع الدورات التكرارية
     @JsonIgnore

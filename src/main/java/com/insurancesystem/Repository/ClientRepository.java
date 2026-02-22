@@ -3,8 +3,6 @@ package com.insurancesystem.Repository;
 import com.insurancesystem.Model.Entity.Client;
 import com.insurancesystem.Model.Entity.Enums.MemberStatus;
 import com.insurancesystem.Model.Entity.Enums.RoleName;
-import com.insurancesystem.Model.Entity.FamilyMember;
-import com.insurancesystem.Model.Entity.Policy;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -16,10 +14,8 @@ import java.util.UUID;
 
 public interface ClientRepository extends JpaRepository<Client, UUID> {
 
-    // Update policy_id to null for all clients with given policy - avoids cascade issues
-    @Modifying
-    @Query("UPDATE Client c SET c.policy = null WHERE c.policy.id = :policyId")
-    void detachClientsFromPolicy(@Param("policyId") UUID policyId);
+    // DEPRECATED: detachClientsFromPolicy removed - Client no longer has policy field
+    // GlobalPolicy system applies to all clients automatically
 
     boolean existsByEmployeeId(String employeeId);
 
@@ -37,7 +33,7 @@ public interface ClientRepository extends JpaRepository<Client, UUID> {
 
     long countByStatus(MemberStatus status);
 
-    List<Client> findByPolicy(Policy policy);
+    // DEPRECATED: findByPolicy removed - Client no longer has policy field
 
     Optional<Client> findByFullName(String fullName);
 

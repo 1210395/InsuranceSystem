@@ -24,11 +24,9 @@ public interface ClientMapper {
             expression = "java(entity.getChronicDiseases() != null && !entity.getChronicDiseases().isEmpty())"
     )
 
-    // ✅ اسم البوليصة
-    @Mapping(
-            target = "policyName",
-            expression = "java(entity.getPolicy() != null ? entity.getPolicy().getName() : null)"
-    )
+    // DEPRECATED: Individual policy assignment removed - using GlobalPolicy system
+    // All clients now share a single GlobalPolicy instead of individual policies
+    @Mapping(target = "policyName", constant = "Global Policy")
     @Mapping(target = "emailVerified", source = "emailVerified")
     @Mapping(target = "universityCardImages", source = "universityCardImages")
     @Mapping(target = "chronicDocumentPaths", source = "chronicDocumentPaths")

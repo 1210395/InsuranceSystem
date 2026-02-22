@@ -45,7 +45,7 @@ public class ClientServices {
     private final RoleService roleService;
     private final ClientMapper clientMapper;
     private final EmailService emailService;
-    private final PolicyService policyService;
+    // PolicyService removed - now using GlobalPolicy system which applies to all clients automatically
     private final NotificationService notificationService;
 
     @Transactional(readOnly = true)
@@ -424,35 +424,8 @@ public class ClientServices {
                 .toList();
     }
 
-    /**
-     * Bulk assign policy to multiple providers
-     * @param providerIds List of provider UUIDs
-     * @param policyId Policy UUID (null to remove policy)
-     * @return Number of updated providers
-     */
-    @Transactional
-    public int bulkAssignPolicy(List<UUID> providerIds, UUID policyId) {
-        int count = 0;
-
-        for (UUID providerId : providerIds) {
-            Client provider = clientRepo.findById(providerId)
-                    .orElse(null);
-
-            if (provider != null) {
-                if (policyId != null) {
-                    policyService.assignPolicyToClient(providerId, policyId);
-                } else {
-                    // Remove policy assignment
-                    provider.setPolicy(null);
-                    provider.setUpdatedAt(Instant.now());
-                    clientRepo.save(provider);
-                }
-                count++;
-            }
-        }
-
-        return count;
-    }
+    // DEPRECATED: bulkAssignPolicy removed - GlobalPolicy system applies to all clients automatically
+    // Individual policy assignments are no longer needed
 
 }
 

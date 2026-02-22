@@ -364,44 +364,23 @@ public class ClientController {
 
     /**
      * Bulk assign policy to multiple healthcare providers
+     * Note: With GlobalPolicy system, all clients are automatically covered by the active global policy.
+     * This endpoint is kept for backwards compatibility but no longer performs individual assignments.
      */
     @PreAuthorize("hasRole('INSURANCE_MANAGER')")
     @PostMapping("/bulk-assign-policy")
     public ResponseEntity<Map<String, Object>> bulkAssignPolicy(
             @RequestBody Map<String, Object> request
     ) {
-        try {
-            @SuppressWarnings("unchecked")
-            List<String> providerIds = (List<String>) request.get("providerIds");
-            String policyId = (String) request.get("policyId");
+        // GlobalPolicy applies to all clients automatically - no individual assignment needed
+        @SuppressWarnings("unchecked")
+        List<String> providerIds = (List<String>) request.get("providerIds");
+        int count = providerIds != null ? providerIds.size() : 0;
 
-            if (providerIds == null || providerIds.isEmpty()) {
-                return ResponseEntity.badRequest().body(Map.of(
-                        "success", false,
-                        "error", "No providers selected"
-                ));
-            }
-
-            List<UUID> uuids = providerIds.stream()
-                    .map(UUID::fromString)
-                    .collect(java.util.stream.Collectors.toList());
-
-            UUID policyUuid = policyId != null && !policyId.isEmpty()
-                    ? UUID.fromString(policyId)
-                    : null;
-
-            int updated = clientServices.bulkAssignPolicy(uuids, policyUuid);
-
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", updated + " providers updated successfully"
-            ));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "error", e.getMessage()
-            ));
-        }
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", count + " providers are covered by the active Global Policy"
+        ));
     }
 
 }
