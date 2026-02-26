@@ -820,8 +820,14 @@ public class HealthcareProviderClaimService {
         List<HealthcareProviderClaim> claims;
 
         if (isClient) {
-            // Client sees all claims made FOR them (where they are the patient)
-            claims = claimRepo.findByClientId(user.getId());
+            // Client sees claims for themselves AND their family members
+            List<UUID> allIds = new ArrayList<>();
+            allIds.add(user.getId());
+            List<FamilyMember> familyMembers = familyMemberRepo.findByClient_Id(user.getId());
+            for (FamilyMember fm : familyMembers) {
+                allIds.add(fm.getId());
+            }
+            claims = claimRepo.findByClientIdIn(allIds);
         } else {
             // Provider sees only claims they submitted (where they are the healthcare provider)
             claims = claimRepo.findByHealthcareProviderId(user.getId());

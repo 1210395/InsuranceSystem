@@ -126,6 +126,8 @@ AND (:to IS NULL OR c.serviceDate <= :to)
     );
     List<HealthcareProviderClaim> findByClientId(UUID clientId);
 
+    List<HealthcareProviderClaim> findByClientIdIn(List<UUID> clientIds);
+
     @Query("SELECT COUNT(c) > 0 FROM HealthcareProviderClaim c " +
            "JOIN c.healthcareProvider hp " +
            "JOIN SearchProfile sp ON sp.owner.id = hp.id " +
