@@ -155,7 +155,13 @@ public class NotificationService {
     public long countUnreadEmergencyNotifications(UUID recipientId) {
         Client recipient = clientRepo.findById(recipientId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
-        return notificationRepo.countByRecipientAndReadFalse(recipient);
+        return notificationRepo.countByRecipientAndTypeAndReadFalse(recipient, NotificationType.EMERGENCY);
+    }
+
+    public UUID getNotificationSenderId(UUID notificationId) {
+        Notification notification = notificationRepo.findById(notificationId)
+                .orElseThrow(() -> new NotFoundException("Notification not found with id: " + notificationId));
+        return notification.getSender().getId();
     }
 
     public void deleteNotification(UUID userId, UUID notificationId) {

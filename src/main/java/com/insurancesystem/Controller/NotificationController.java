@@ -46,8 +46,13 @@ public class NotificationController {
         Client sender = clientRepo.findByEmail(senderEmail)
                 .orElseThrow(() -> new RuntimeException("Sender not found"));
 
+        // If recipientId is not provided, resolve it from the original notification's sender
+        UUID recipientId = dto.getRecipientId();
+        if (recipientId == null) {
+            recipientId = notificationService.getNotificationSenderId(notificationId);
+        }
 
-        notificationService.createNotification(sender.getId(), dto.getRecipientId(), dto.getMessage(), notificationId);
+        notificationService.createNotification(sender.getId(), recipientId, dto.getMessage(), notificationId);
     }
 
     // 📖 عرض إشعارات المستخدم الحالي
