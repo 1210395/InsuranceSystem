@@ -13,10 +13,13 @@ import com.insurancesystem.Repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
@@ -28,13 +31,14 @@ public class NotificationService {
     /**
      * Get system sender for system notifications.
      * Uses the first INSURANCE_MANAGER as the system sender.
+     * Returns null if no INSURANCE_MANAGER exists (e.g., fresh database).
      */
     private Client getSystemSender() {
         return clientRepo.findAll().stream()
                 .filter(c -> c.getRoles().stream()
                         .anyMatch(r -> r.getName() == RoleName.INSURANCE_MANAGER))
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException("No Insurance Manager found to send system notifications"));
+                .orElse(null);
     }
 
     // ➕ إرسال إشعار يدوي (استفسار أو رد)
@@ -74,12 +78,18 @@ public class NotificationService {
     }
 
     public void sendToUser(UUID recipientId, String message) {
+        Client systemSender = getSystemSender();
+        if (systemSender == null) {
+            log.warn("No Insurance Manager found - skipping system notification to user {}: {}", recipientId, message);
+            return;
+        }
+
         Client recipient = clientRepo.findById(recipientId)
                 .orElseThrow(() -> new NotFoundException("Recipient not found"));
 
         Notification notification = Notification.builder()
                 .recipient(recipient)
-                .sender(getSystemSender())
+                .sender(systemSender)
                 .message(message)
                 .read(false)
                 .type(NotificationType.SYSTEM)
@@ -89,11 +99,20 @@ public class NotificationService {
     }
 
     public void sendToRole(RoleName roleName, String message) {
+        Client systemSender = getSystemSender();
+        if (systemSender == null) {
+            log.warn("No Insurance Manager found - skipping system notification to role {}: {}", roleName, message);
+            return;
+        }
+
         List<Client> clients = clientRepo.findAll().stream()
                 .filter(c -> c.getRoles().stream().anyMatch(r -> r.getName() == roleName))
                 .toList();
 
-        Client systemSender = getSystemSender();
+        if (clients.isEmpty()) {
+            log.warn("No users with role {} found - skipping notification", roleName);
+            return;
+        }
 
         List<Notification> notifications = clients.stream()
                 .map(client -> Notification.builder()

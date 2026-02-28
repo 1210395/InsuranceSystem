@@ -435,10 +435,15 @@ public class AuthService {
         ClientDto dto = clientMapper.toDTO(saved);
 
         if (!isAdminRegister) {
-            notificationService.sendToRole(
-                    RoleName.INSURANCE_MANAGER,
-                    "مستخدم جديد (" + saved.getFullName() + ") سجل وينتظر الموافقة."
-            );
+            try {
+                notificationService.sendToRole(
+                        RoleName.INSURANCE_MANAGER,
+                        "مستخدم جديد (" + saved.getFullName() + ") سجل وينتظر الموافقة."
+                );
+            } catch (Exception e) {
+                log.warn("Failed to notify managers about new registration for {}: {}",
+                        saved.getFullName(), e.getMessage());
+            }
         }
 
         return RegisterResponse.builder()
@@ -523,34 +528,31 @@ public class AuthService {
     public AuthResponse login(LoginRequest req) {
         String email = req.getEmail().trim().toLowerCase();
 
-        ClientDto clientDTO = clientServices.getByEmail(email); // تغيير لبحث باستخدام الإيميل
+        ClientDto clientDTO = clientServices.getByEmail(email);
         if (clientDTO == null) {
-            throw new NotFoundException("User not found");
+            // Don't reveal whether the email exists - use generic auth error
+            throw new org.springframework.security.authentication.BadCredentialsException("Invalid email or password");
         }
 
         MemberStatus status = clientDTO.getStatus();
 
         switch (status) {
-            case ACTIVE -> { /* ✅ يسمح بالدخول */ }
-            case INACTIVE -> throw new BadRequestException("⏳ حسابك بانتظار موافقة الإدارة.");
-            case DEACTIVATED -> throw new BadRequestException("🚫 تم تعطيل حسابك من قبل الإدارة.");
-            default -> throw new BadRequestException("❌ حالة الحساب غير معروفة.");
+            case ACTIVE -> { /* allowed */ }
+            case INACTIVE -> throw new BadRequestException("Your account is awaiting admin approval.");
+            case DEACTIVATED -> throw new BadRequestException("Your account has been deactivated by admin.");
+            default -> throw new BadRequestException("Unknown account status.");
         }
 
-
-
-        var authToken =
-                new UsernamePasswordAuthenticationToken(email, req.getPassword());
         // Skip email verification for test accounts only
         boolean isTestAccount = email.endsWith("@test.com");
         if (!isTestAccount && !clientDTO.isEmailVerified()) {
-            throw new BadRequestException("📧 Please verify your email first.");
+            throw new BadRequestException("Please verify your email first.");
         }
 
+        var authToken = new UsernamePasswordAuthenticationToken(email, req.getPassword());
         authenticationManager.authenticate(authToken);
 
         var ud = customUserDetailsService.loadUserByUsername(email);
-
         String token = jwtService.generateToken(email);
 
         return AuthResponse.builder()
@@ -560,19 +562,30 @@ public class AuthService {
     }
 
     public void initiatePasswordReset(String email, boolean isMobile) {
-        Client client = clientRepo.findByEmail(email)
-                .orElseThrow(() -> new NotFoundException("Email not found"));
+        Optional<Client> clientOpt = clientRepo.findByEmail(email.trim().toLowerCase());
 
+        if (clientOpt.isEmpty()) {
+            // Don't reveal whether the email exists - always return success
+            log.warn("Password reset requested for non-existent email: {}", email);
+            return;
+        }
+
+        Client client = clientOpt.get();
         String token = UUID.randomUUID().toString();
         resetTokens.put(token, client.getEmail());
 
         String webResetLink = frontendUrl + "/reset-password?token=" + token;
         String mobileResetLink = "mobileinsurancesystem://Auth/ResetPassword?token=" + token;
 
-        if (isMobile) {
-            sendMobileResetEmail(client, mobileResetLink);
-        } else {
-            sendWebResetEmail(client, webResetLink);
+        try {
+            if (isMobile) {
+                sendMobileResetEmail(client, mobileResetLink);
+            } else {
+                sendWebResetEmail(client, webResetLink);
+            }
+        } catch (Exception e) {
+            log.error("Failed to send password reset email to {}: {}", email, e.getMessage());
+            // Don't fail the request - token is still created
         }
     }
 

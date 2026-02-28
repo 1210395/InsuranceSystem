@@ -95,8 +95,25 @@ public class HealthcareProviderClaimService {
                 .orElse(null);
 
         // Check for follow-up visit (Doctor claims only)
-        if (providerRole == RoleName.DOCTOR && dto.getClientId() != null) {
-            SearchProfile profile = searchProfileRepo.findByOwnerId(provider.getId()).orElse(null);
+        // First check if the claim is explicitly marked as a follow-up
+        boolean isExplicitFollowUp = false;
+        if (dto.getRoleSpecificData() != null) {
+            try {
+                java.util.Map<String, Object> preCheckRoleData = objectMapper.readValue(
+                        dto.getRoleSpecificData(), java.util.Map.class);
+                Object isFollowUpObj = preCheckRoleData.get("isFollowUp");
+                if (isFollowUpObj instanceof Boolean && (Boolean) isFollowUpObj) {
+                    isExplicitFollowUp = true;
+                } else if (isFollowUpObj instanceof String && Boolean.parseBoolean((String) isFollowUpObj)) {
+                    isExplicitFollowUp = true;
+                }
+            } catch (Exception e) {
+                log.debug("Could not parse roleSpecificData for follow-up pre-check: {}", e.getMessage());
+            }
+        }
+
+        // Only block duplicate claims if this is NOT an explicit follow-up claim
+        if (!isExplicitFollowUp && providerRole == RoleName.DOCTOR && dto.getClientId() != null) {
             String specialization = provider.getSpecialization();
 
             if (specialization != null && !specialization.isEmpty()) {
