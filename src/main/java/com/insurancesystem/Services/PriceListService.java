@@ -111,6 +111,7 @@ public class PriceListService {
     /**
      * Get services by type WITHOUT restrictions (for admin/manager)
      */
+    @Transactional(readOnly = true)
     public List<PriceListResponseDTO> getByType(ProviderType type) {
         List<PriceListResponseDTO> result = priceListRepository.findByProviderType(type)
                 .stream()
