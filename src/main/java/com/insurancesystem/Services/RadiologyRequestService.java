@@ -223,10 +223,17 @@ public class RadiologyRequestService {
         return resultDto;
     }
 
-    // 📖 Radiologist views pending radiology requests
+    // 📖 Radiologist views pending + in-progress radiology requests
     public List<RadiologyRequestDTO> getPendingRequests(UUID radiologistId) {
-        List<RadiologyRequest> requests = radiologyRequestRepository.findByStatusWithMember(LabRequestStatus.PENDING);
-        
+        List<RadiologyRequest> pendingRequests = radiologyRequestRepository.findByStatusWithMember(LabRequestStatus.PENDING);
+        List<RadiologyRequest> inProgressRequests = radiologyRequestRepository.findByStatusWithMember(LabRequestStatus.IN_PROGRESS);
+
+        List<RadiologyRequest> requests = new java.util.ArrayList<>(pendingRequests);
+        requests.addAll(inProgressRequests);
+
+        log.info("📋 Found {} pending + {} in-progress = {} total radiology requests",
+                pendingRequests.size(), inProgressRequests.size(), requests.size());
+
         // Force initialization of member fields
         for (RadiologyRequest r : requests) {
             if (r.getMember() != null) {
@@ -237,21 +244,50 @@ public class RadiologyRequestService {
                 String nationalId = member.getNationalId();
             }
         }
-        
+
         return requests.stream()
                 .map(r -> radiologyRequestMapper.toDto(r, familyMemberRepo))
                 .collect(Collectors.toList());
     }
 
-    // 🧪 Radiologist uploads radiology result with price calculation
+    // ✅ Radiologist accepts request and sets price (Step 1)
     @Transactional
-    public RadiologyRequestDTO uploadRadiologyResult(UUID requestId, MultipartFile file, String testName, Double enteredPrice) {
-        log.info("🔹 Uploading radiology result...");
+    public RadiologyRequestDTO acceptRequest(UUID id, Double enteredPrice) {
+        log.info("🔹 Radiologist accepting request: {}", id);
 
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
 
         Client radiologist = clientRepository.findByEmail(username.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Radiologist not found"));
+
+        RadiologyRequest request = radiologyRequestRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Radiology request not found"));
+
+        if (request.getStatus() != LabRequestStatus.PENDING) {
+            throw new RuntimeException("Can only accept pending requests");
+        }
+
+        request.setEnteredPrice(enteredPrice);
+
+        // Calculate approved price
+        Double unionPrice = request.getTest().getPrice();
+        Double approvedPrice = Math.min(enteredPrice, unionPrice);
+
+        request.setApprovedPrice(approvedPrice);
+        request.setStatus(LabRequestStatus.IN_PROGRESS);
+        request.setRadiologist(radiologist);
+        request.setUpdatedAt(Instant.now());
+
+        RadiologyRequest saved = radiologyRequestRepository.save(request);
+        log.info("✅ Radiology request accepted. Approved Price: {}", saved.getApprovedPrice());
+
+        return radiologyRequestMapper.toDto(saved, familyMemberRepo);
+    }
+
+    // 🧪 Radiologist uploads radiology result (Step 2 - file only)
+    @Transactional
+    public RadiologyRequestDTO uploadRadiologyResult(UUID requestId, MultipartFile file) {
+        log.info("🔹 Uploading radiology result...");
 
         RadiologyRequest request = radiologyRequestRepository.findById(requestId)
                 .orElseThrow(() -> new NotFoundException("Radiology request not found"));
@@ -270,16 +306,7 @@ public class RadiologyRequestService {
             Files.copy(file.getInputStream(), path, StandardCopyOption.REPLACE_EXISTING);
 
             request.setResultUrl("/" + dir + "/" + fileName);
-
-            // 🆕 السعر النقابي من PriceList
-            double unionPrice = request.getTest().getPrice();
-            double approvedPrice = Math.min(enteredPrice, unionPrice);
-
-            request.setTestName(testName);
-            request.setEnteredPrice(enteredPrice);
-            request.setApprovedPrice(approvedPrice); // 🆕 السعر المعتمد
             request.setStatus(LabRequestStatus.COMPLETED);
-            request.setRadiologist(radiologist);
             request.setUpdatedAt(Instant.now());
 
         } catch (IOException e) {
@@ -291,14 +318,14 @@ public class RadiologyRequestService {
         // 🔔 إشعار للمريض
         notificationService.sendToUser(
                 saved.getMember().getId(),
-                "✅ تم إكمال فحص الأشعة: " + saved.getTestName() +
-                        " - السعر المعتمد: " + saved.getApprovedPrice() + " شيكل"
+                "✅ Radiology results are ready: " + saved.getTestName()
         );
 
         // 🔔 إشعار للطبيب
         notificationService.sendToUser(
                 saved.getDoctor().getId(),
-                "✅ تم إكمال فحص الأشعة للمريض " + saved.getMember().getFullName()
+                "✅ Radiology test completed for patient " + saved.getMember().getFullName() +
+                        " - Test: " + saved.getTestName()
         );
 
         return radiologyRequestMapper.toDto(saved, familyMemberRepo);

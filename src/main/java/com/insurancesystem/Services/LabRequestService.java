@@ -309,52 +309,73 @@ public class LabRequestService {
                 .collect(Collectors.toList());
     }
 
-    // 📖 Lab Tech يشوف الطلبات المعلقة
+    // 📖 Lab Tech يشوف الطلبات المعلقة + الجارية
     public List<LabRequestDTO> getPending() {
-        // Use query that eagerly fetches member with dateOfBirth and gender
-        List<LabRequest> requests = labRepo.findByStatusWithMember(LabRequestStatus.PENDING);
-        
-        log.info("📋 [SERVICE] Found {} pending lab requests", requests.size());
-        
-        // Force initialization of member fields to ensure they're loaded (same as PrescriptionService)
+        // Fetch both PENDING and IN_PROGRESS requests
+        List<LabRequest> pendingRequests = labRepo.findByStatusWithMember(LabRequestStatus.PENDING);
+        List<LabRequest> inProgressRequests = labRepo.findByStatusWithMember(LabRequestStatus.IN_PROGRESS);
+
+        List<LabRequest> requests = new java.util.ArrayList<>(pendingRequests);
+        requests.addAll(inProgressRequests);
+
+        log.info("📋 [SERVICE] Found {} pending + {} in-progress = {} total lab requests",
+                pendingRequests.size(), inProgressRequests.size(), requests.size());
+
+        // Force initialization of member fields to ensure they're loaded
         for (LabRequest r : requests) {
             if (r.getMember() != null) {
                 Client member = r.getMember();
-                // Force access to fields to trigger loading
                 String name = member.getFullName();
                 java.time.LocalDate dob = member.getDateOfBirth();
                 String gender = member.getGender();
                 String nationalId = member.getNationalId();
-                log.info("👤 [SERVICE] Lab Request {} - Member: {} | DOB: {} | Gender: {} | NationalId: {}",
-                        r.getId(), name, dob, gender, nationalId);
-            } else {
-                log.warn("⚠️ [SERVICE] Lab Request {} has null member", r.getId());
             }
         }
-        
-        List<LabRequestDTO> dtos = requests.stream()
+
+        return requests.stream()
                 .map(r -> labRequestMapper.toDto(r, familyMemberRepo))
                 .collect(Collectors.toList());
-        
-        // Verify DTOs have the data
-        for (LabRequestDTO dto : dtos) {
-            log.info("📦 [SERVICE] Lab Request DTO {} - memberAge: {} | memberGender: {} | memberNationalId: {}",
-                    dto.getId(), dto.getMemberAge(), dto.getMemberGender(), dto.getMemberNationalId());
-        }
-        
-        return dtos;
     }
 
-    // 🧪 Lab Tech يرفع النتيجة والسعر
+    // ✅ Lab Tech يقبل الطلب ويحدد السعر (Step 1)
     @Transactional
-    public LabRequestDTO uploadResult(UUID id, MultipartFile file, Double enteredPrice) {
-        log.info("🔹 Lab Tech uploading result for request: {}", id);
+    public LabRequestDTO acceptRequest(UUID id, Double enteredPrice) {
+        log.info("🔹 Lab Tech accepting request: {}", id);
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
 
         Client labTech = clientRepo.findByEmail(currentUsername.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Lab worker not found"));
+
+        LabRequest request = labRepo.findById(id)
+                .orElseThrow(() -> new NotFoundException("Lab request not found"));
+
+        if (request.getStatus() != LabRequestStatus.PENDING) {
+            throw new RuntimeException("Can only accept pending requests");
+        }
+
+        request.setEnteredPrice(enteredPrice);
+
+        // 🟢 حساب السعر المعتمد
+        Double unionPrice = request.getTest().getPrice();
+        Double approvedPrice = Math.min(enteredPrice, unionPrice);
+
+        request.setApprovedPrice(approvedPrice);
+        request.setStatus(LabRequestStatus.IN_PROGRESS);
+        request.setLabTech(labTech);
+        request.setUpdatedAt(Instant.now());
+
+        LabRequest saved = labRepo.save(request);
+        log.info("✅ Request accepted. Approved Price: {}", saved.getApprovedPrice());
+
+        return labRequestMapper.toDto(saved, familyMemberRepo);
+    }
+
+    // 🧪 Lab Tech يرفع النتيجة (Step 2 - file only, no price)
+    @Transactional
+    public LabRequestDTO uploadResult(UUID id, MultipartFile file) {
+        log.info("🔹 Lab Tech uploading result for request: {}", id);
 
         LabRequest request = labRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException("Lab request not found"));
@@ -373,21 +394,7 @@ public class LabRequestService {
             Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
 
             request.setResultUrl("/" + uploadDir + "/" + fileName);
-            request.setEnteredPrice(enteredPrice);
-
-            // 🟢 حساب السعر المعتمد
-            Double unionPrice = request.getTest().getPrice(); // ← السعر النقابي من PriceList
-            Double approvedPrice;
-
-            if (enteredPrice < unionPrice) {
-                approvedPrice = enteredPrice;
-            } else {
-                approvedPrice = unionPrice;
-            }
-
-            request.setApprovedPrice(approvedPrice);
             request.setStatus(LabRequestStatus.COMPLETED);
-            request.setLabTech(labTech);
             request.setUpdatedAt(Instant.now());
 
         } catch (Exception e) {
@@ -396,21 +403,20 @@ public class LabRequestService {
         }
 
         LabRequest saved = labRepo.save(request);
-        log.info("✅ Result uploaded successfully. Approved Price: {}", saved.getApprovedPrice());
+        log.info("✅ Result uploaded successfully");
 
         // 🔔 إشعار للمريض بإكمال الفحص
         notificationService.sendToUser(
                 saved.getMember().getId(),
-                "✅ تم إكمال فحص " + saved.getTest().getServiceName() +
-                        " - السعر: " + saved.getApprovedPrice() + " شيكل"
+                "✅ Lab test results are ready: " + saved.getTest().getServiceName()
         );
         log.info("✅ Notification sent to member");
 
         // 🔔 إشعار للطبيب بإكمال الفحص
         notificationService.sendToUser(
                 saved.getDoctor().getId(),
-                "✅ تم إكمال فحص " + saved.getTest().getServiceName() +
-                        " للمريض " + saved.getMember().getFullName()
+                "✅ Lab test completed for patient " + saved.getMember().getFullName() +
+                        " - Test: " + saved.getTest().getServiceName()
         );
         log.info("✅ Notification sent to doctor");
 

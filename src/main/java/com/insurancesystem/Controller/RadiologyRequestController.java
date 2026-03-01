@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -40,15 +41,20 @@ public class RadiologyRequestController {
         return radiologyService.getPendingRequests(radiologistId);
     }
 
-    // 🧪 Radiologist uploads radiology result with test name and price
+    // ✅ Radiologist accepts request and sets price (Step 1)
+    @PatchMapping("/{id}/accept")
+    @PreAuthorize("hasRole('RADIOLOGIST')")
+    public RadiologyRequestDTO acceptRequest(@PathVariable UUID id, @RequestBody Map<String, Double> body) {
+        return radiologyService.acceptRequest(id, body.get("price"));
+    }
+
+    // 🧪 Radiologist uploads radiology result (Step 2 - file only)
     @PatchMapping("/{id}/uploadResult")
     @PreAuthorize("hasRole('RADIOLOGIST')")
     public RadiologyRequestDTO uploadRadiologyResult(
             @PathVariable UUID id,
-            @RequestParam("file") MultipartFile file,
-            @RequestParam("testName") String testName,
-            @RequestParam("price") Double enteredPrice) {
-        return radiologyService.uploadRadiologyResult(id, file, testName, enteredPrice);
+            @RequestParam("file") MultipartFile file) {
+        return radiologyService.uploadRadiologyResult(id, file);
     }
 
     // 📖 Member or Doctor views the result

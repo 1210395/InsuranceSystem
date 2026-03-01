@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -43,13 +44,19 @@ public class LabRequestController {
         return labService.getPending();
     }
 
-    // 🧪 Lab Technician يرفع النتيجة والسعر
+    // ✅ Lab Technician يقبل الطلب ويحدد السعر
+    @PatchMapping("/{id}/accept")
+    @PreAuthorize("hasRole('LAB_TECH')")
+    public LabRequestDTO acceptRequest(@PathVariable UUID id, @RequestBody Map<String, Double> body) {
+        return labService.acceptRequest(id, body.get("price"));
+    }
+
+    // 🧪 Lab Technician يرفع النتيجة
     @PatchMapping("/{id}/upload")
     @PreAuthorize("hasRole('LAB_TECH')")
     public LabRequestDTO uploadResult(@PathVariable UUID id,
-                                      @RequestParam("file") MultipartFile file,
-                                      @RequestParam("price") Double enteredPrice) {
-        return labService.uploadResult(id, file, enteredPrice);
+                                      @RequestParam("file") MultipartFile file) {
+        return labService.uploadResult(id, file);
     }
 
     // 📖 Member أو Doctor يشوف نتيجة
