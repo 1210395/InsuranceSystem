@@ -24,6 +24,7 @@ public class PriceListResponseDTO {
     private Integer quantity;
     private String notes;
     private Map<String, Object> serviceDetails; // Already converted from JSON string
+    private String drugForm;
     private boolean active;
 
     /**

@@ -310,21 +310,21 @@ public class DataInitializer {
         }
 
         // Medicines - أدوية
-        createMedicine("باراسيتامول 500mg", "MED001", 15.0, 30, "مسكن للألم وخافض للحرارة");
-        createMedicine("أموكسيسيلين 500mg", "MED002", 25.0, 21, "مضاد حيوي واسع المجال");
-        createMedicine("أوميبرازول 20mg", "MED003", 35.0, 28, "لعلاج حموضة المعدة");
-        createMedicine("ميتفورمين 850mg", "MED004", 20.0, 30, "لعلاج السكري من النوع الثاني");
-        createMedicine("أملوديبين 5mg", "MED005", 30.0, 30, "لعلاج ارتفاع ضغط الدم");
-        createMedicine("سيتريزين 10mg", "MED006", 18.0, 20, "مضاد للحساسية");
-        createMedicine("إيبوبروفين 400mg", "MED007", 22.0, 30, "مسكن ومضاد للالتهاب");
-        createMedicine("أزيثرومايسين 250mg", "MED008", 45.0, 6, "مضاد حيوي");
-        createMedicine("لوسارتان 50mg", "MED009", 40.0, 30, "لعلاج ضغط الدم");
-        createMedicine("أتورفاستاتين 20mg", "MED010", 50.0, 30, "لخفض الكوليسترول");
-        createMedicine("فيتامين د 1000 وحدة", "MED011", 25.0, 60, "مكمل غذائي");
-        createMedicine("أوميغا 3", "MED012", 35.0, 90, "مكمل غذائي للقلب");
-        createMedicine("فنتولين بخاخ", "MED013", 40.0, 1, "موسع للشعب الهوائية");
-        createMedicine("انسولين نوفورابيد", "MED014", 120.0, 5, "لعلاج السكري");
-        createMedicine("كريم فيوسيدين", "MED015", 28.0, 1, "مضاد حيوي موضعي");
+        createMedicine("باراسيتامول 500mg", "MED001", 15.0, 30, "مسكن للألم وخافض للحرارة", "Tablet");
+        createMedicine("أموكسيسيلين 500mg", "MED002", 25.0, 21, "مضاد حيوي واسع المجال", "Capsule");
+        createMedicine("أوميبرازول 20mg", "MED003", 35.0, 28, "لعلاج حموضة المعدة", "Capsule");
+        createMedicine("ميتفورمين 850mg", "MED004", 20.0, 30, "لعلاج السكري من النوع الثاني", "Tablet");
+        createMedicine("أملوديبين 5mg", "MED005", 30.0, 30, "لعلاج ارتفاع ضغط الدم", "Tablet");
+        createMedicine("سيتريزين 10mg", "MED006", 18.0, 20, "مضاد للحساسية", "Tablet");
+        createMedicine("إيبوبروفين 400mg", "MED007", 22.0, 30, "مسكن ومضاد للالتهاب", "Tablet");
+        createMedicine("أزيثرومايسين 250mg", "MED008", 45.0, 6, "مضاد حيوي", "Tablet");
+        createMedicine("لوسارتان 50mg", "MED009", 40.0, 30, "لعلاج ضغط الدم", "Tablet");
+        createMedicine("أتورفاستاتين 20mg", "MED010", 50.0, 30, "لخفض الكوليسترول", "Tablet");
+        createMedicine("فيتامين د 1000 وحدة", "MED011", 25.0, 60, "مكمل غذائي", "Tablet");
+        createMedicine("أوميغا 3", "MED012", 35.0, 90, "مكمل غذائي للقلب", "Capsule");
+        createMedicine("فنتولين بخاخ", "MED013", 40.0, 1, "موسع للشعب الهوائية", "Spray");
+        createMedicine("انسولين نوفورابيد", "MED014", 120.0, 5, "لعلاج السكري", "Injection");
+        createMedicine("كريم فيوسيدين", "MED015", 28.0, 1, "مضاد حيوي موضعي", "Cream");
 
         // Lab Tests - فحوصات مخبرية
         createLabTest("فحص دم شامل CBC", "LAB001", 50.0, "فحص مكونات الدم");
@@ -360,7 +360,7 @@ public class DataInitializer {
         log.info("Created price list with medicines, lab tests, and radiology");
     }
 
-    private void createMedicine(String name, String code, double price, int quantity, String notes) {
+    private void createMedicine(String name, String code, double price, int quantity, String notes, String drugForm) {
         PriceList item = PriceList.builder()
             .providerType(ProviderType.PHARMACY)
             .serviceName(name)
@@ -368,6 +368,7 @@ public class DataInitializer {
             .price(price)
             .quantity(quantity)
             .notes(notes)
+            .drugForm(drugForm)
             .coverageStatus(CoverageStatus.COVERED)
             .coveragePercentage(80)
             .active(true)

@@ -49,6 +49,12 @@ public class PriceList {
     private String serviceDetails;
 
     /**
+     * Drug form for pharmacy medicines
+     * Values: Tablet, Capsule, Syrup, Spray, Injection, Cream, Drops, Ointment
+     */
+    private String drugForm;
+
+    /**
      * Many-to-Many relationship with DoctorSpecializationEntity
      * If this list is empty, the service is available to ALL specializations
      * If it contains specializations, only those specializations can use this service

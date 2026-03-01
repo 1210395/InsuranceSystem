@@ -392,7 +392,7 @@ public class PrescriptionService {
             // حساب سعر الوحدة من النقابة (للعرض/الحفظ فقط، المقارنة الفعلية تحدث في verify())
             Double unionPricePerUnit;
             String formCreate = drugForm != null ? drugForm.toUpperCase() : "";
-            if ("SYRUP".equals(formCreate) || "DROPS".equals(formCreate) || "CREAM".equals(formCreate) || "OINTMENT".equals(formCreate)) {
+            if ("SYRUP".equals(formCreate) || "SPRAY".equals(formCreate) || "DROPS".equals(formCreate) || "CREAM".equals(formCreate) || "OINTMENT".equals(formCreate)) {
                 // للسائل/الكريم/القطرة: سعر الوحدة = سعر العلبة الواحدة (للعرض فقط)
                 // For liquid/cream/drops: unit price = price per package (for display only)
                 unionPricePerUnit = med.getPrice();
@@ -624,7 +624,7 @@ public class PrescriptionService {
             log.info("🔍 [VERIFY] Medicine: {}, Form: {}, Calculated Qty: {}, Service Price (package): {}", 
                     med.getServiceName(), form, calculatedQuantity, servicePrice);
             
-            if ("SYRUP".equals(form) || "DROPS".equals(form) || "CREAM".equals(form) || "OINTMENT".equals(form)) {
+            if ("SYRUP".equals(form) || "SPRAY".equals(form) || "DROPS".equals(form) || "CREAM".equals(form) || "OINTMENT".equals(form)) {
                 // للسائل/الكريم/القطرة: الكمية = عدد العبوات، إذن سعر النقابة = servicePrice × عدد العبوات
                 // For liquid/cream/drops: quantity = number of packages, so union price = servicePrice × number of packages
                 // calculatedQuantity = عدد العبوات (مثلاً 2 علب)
@@ -849,7 +849,7 @@ public class PrescriptionService {
             // حساب سعر الوحدة من النقابة (للعرض/الحفظ فقط، المقارنة الفعلية تحدث في verify())
             Double unionPricePerUnit;
             String formUpdate = drugForm != null ? drugForm.toUpperCase() : "";
-            if ("SYRUP".equals(formUpdate) || "DROPS".equals(formUpdate) || "CREAM".equals(formUpdate) || "OINTMENT".equals(formUpdate)) {
+            if ("SYRUP".equals(formUpdate) || "SPRAY".equals(formUpdate) || "DROPS".equals(formUpdate) || "CREAM".equals(formUpdate) || "OINTMENT".equals(formUpdate)) {
                 // للسائل/الكريم/القطرة: سعر الوحدة = سعر العلبة الواحدة (للعرض فقط)
                 // For liquid/cream/drops: unit price = price per package (for display only)
                 unionPricePerUnit = med.getPrice();

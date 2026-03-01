@@ -22,6 +22,7 @@ public class UpdatePriceListDTO {
     private String notes;
     private Boolean active;
     private String serviceDetails;  // JSON
+    private String drugForm;
     private List<Long> allowedSpecializationIds;
 
     /**

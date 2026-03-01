@@ -28,8 +28,16 @@ public class PrescriptionQuantityCalculator {
      * Extract drug form from PriceList serviceDetails JSON
      */
     public String extractDrugForm(PriceList priceList) {
+        if (priceList == null) return null;
+
+        // Prefer dedicated drugForm column
+        if (priceList.getDrugForm() != null && !priceList.getDrugForm().isEmpty()) {
+            return priceList.getDrugForm();
+        }
+
+        // Fallback to serviceDetails JSON
         try {
-            if (priceList == null || priceList.getServiceDetails() == null) {
+            if (priceList.getServiceDetails() == null) {
                 return null;
             }
             Map<String, Object> serviceDetails = jsonMapper.readValue(priceList.getServiceDetails(), Map.class);
@@ -114,6 +122,27 @@ public class PrescriptionQuantityCalculator {
                     return 0;
                 }
                 return dosage * duration;
+
+            case "SPRAY":
+                // Sprays: same as syrups - package-based calculation
+                // Calculate number of spray cans needed based on duration
+                // الكمية = عدد العلب المطلوبة
+                if (dosage == null || timesPerDay == null || dosage <= 0 || timesPerDay <= 0) {
+                    log.warn("Missing or invalid dosage/timesPerDay for spray: dosage={}, timesPerDay={}",
+                             dosage, timesPerDay);
+                    return 0;
+                }
+                int totalPuffsNeeded = dosage * timesPerDay * duration;
+
+                if (packageQuantity != null && packageQuantity > 0) {
+                    int numberOfCans = (int) Math.ceil((double) totalPuffsNeeded / packageQuantity);
+                    log.info("💨 [QUANTITY] Spray - Total puffs needed: {}, Package size: {} puffs, Number of cans: {}",
+                            totalPuffsNeeded, packageQuantity, numberOfCans);
+                    return numberOfCans;
+                } else {
+                    log.warn("⚠️ [QUANTITY] No package quantity for spray, defaulting to 1 can");
+                    return 1;
+                }
 
             case "SYRUP":
                 // Syrups: نحسب عدد العبوات المطلوبة

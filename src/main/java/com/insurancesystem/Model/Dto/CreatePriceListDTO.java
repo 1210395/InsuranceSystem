@@ -23,6 +23,11 @@ public class CreatePriceListDTO {
     private String serviceDetails;
 
     /**
+     * Drug form for pharmacy medicines (Tablet, Capsule, Syrup, Spray, Injection, Cream, Drops, Ointment)
+     */
+    private String drugForm;
+
+    /**
      * List of specialization IDs from doctor_specialization table that are allowed to use this service
      * If null or empty, the service is available to ALL specializations
      */

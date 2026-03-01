@@ -33,6 +33,7 @@ public class PriceListService {
                 .quantity(dto.getQuantity())
                 .notes(dto.getNotes())
                 .serviceDetails(dto.getServiceDetails())
+                .drugForm(dto.getDrugForm())
                 .active(true)
                 .build();
 
@@ -69,6 +70,7 @@ public class PriceListService {
         if (dto.getNotes() != null) price.setNotes(dto.getNotes());
         if (dto.getActive() != null) price.setActive(dto.getActive());
         if (dto.getServiceDetails() != null) price.setServiceDetails(dto.getServiceDetails());
+        if (dto.getDrugForm() != null) price.setDrugForm(dto.getDrugForm());
 
         // Update allowed specializations if provided
         if (dto.getAllowedSpecializationIds() != null) {
