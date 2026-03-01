@@ -57,4 +57,8 @@ public class RadiologyRequestDTO {
     private String memberAge;
     private String memberGender;
     private String memberNationalId; // National ID of the main client/patient
+
+    // Coverage fields (from PriceList)
+    private String coverageStatus;      // "COVERED", "REQUIRES_APPROVAL", "NOT_COVERED"
+    private Integer coveragePercentage;  // 0-100
 }

@@ -42,6 +42,9 @@ public interface RadiologyRequestMapper {
     @Mapping(target = "employeeId",
             expression = "java(request.getMember() != null ? request.getMember().getEmployeeId() : null)")
 
+    @Mapping(target = "coveragePercentage",
+            expression = "java(request.getTest() != null ? request.getTest().getCoveragePercentage() : 100)")
+
     RadiologyRequestDTO toDto(RadiologyRequest request, @Context FamilyMemberRepository familyMemberRepo);
 
     // DTO → Entity
@@ -55,6 +58,15 @@ public interface RadiologyRequestMapper {
     @Mapping(target = "radiologist", ignore = true)
     @Mapping(target = "test", ignore = true)
     RadiologyRequest toEntity(RadiologyRequestDTO dto);
+
+    @AfterMapping
+    default void mapCoverageStatus(RadiologyRequest entity, @MappingTarget RadiologyRequestDTO dto) {
+        if (entity.getTest() != null && entity.getTest().getCoverageStatus() != null) {
+            dto.setCoverageStatus(entity.getTest().getCoverageStatus().name());
+        } else {
+            dto.setCoverageStatus("COVERED");
+        }
+    }
 
     @AfterMapping
     default void extractFamilyMemberInfo(RadiologyRequest entity, @MappingTarget RadiologyRequestDTO dto, @Context FamilyMemberRepository familyMemberRepo) {

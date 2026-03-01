@@ -69,4 +69,8 @@ public class LabRequestDTO {
     
     // 🆕 Family Member National ID
     private String familyMemberNationalId; // National ID of the family member
+
+    // Coverage fields (from PriceList)
+    private String coverageStatus;      // "COVERED", "REQUIRES_APPROVAL", "NOT_COVERED"
+    private Integer coveragePercentage;  // 0-100
 }

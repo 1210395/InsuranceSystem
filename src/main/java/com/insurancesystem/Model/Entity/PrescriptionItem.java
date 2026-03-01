@@ -68,6 +68,18 @@ public class PrescriptionItem {
     private Double pharmacistPrice; // Total price entered by pharmacist
     private Double finalPrice; // Final claim amount = min(unionPricePerUnit, pharmacistPricePerUnit) × coveredQuantity
 
+    /**
+     * Union price for the calculated quantity (saved during verify for display/comparison)
+     */
+    private Double unionPriceForCalculatedQuantity;
+
+    /**
+     * Reason provided by pharmacist when their price is higher than the union price
+     * Null when pharmacist price <= union price
+     */
+    @Column(columnDefinition = "TEXT")
+    private String priceHigherReason;
+
     private Instant expiryDate;
     private Instant createdAt;
     private Instant updatedAt;

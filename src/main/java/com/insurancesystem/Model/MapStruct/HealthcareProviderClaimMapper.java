@@ -36,6 +36,12 @@ public interface HealthcareProviderClaimMapper {
     // ✅ المهم
     @Mapping(target = "medicalReviewerName", source = "medicalReviewerName")
     @Mapping(target = "medicalReviewedAt", source = "medicalReviewedAt")
+    // Coverage fields
+    @Mapping(source = "isCovered", target = "isCovered")
+    @Mapping(source = "coverageMessage", target = "coverageMessage")
+    @Mapping(source = "insuranceCoveredAmount", target = "insuranceCoveredAmount")
+    @Mapping(source = "clientPayAmount", target = "clientPayAmount")
+    @Mapping(source = "coveragePercentUsed", target = "coveragePercentUsed")
     HealthcareProviderClaimDTO toDto(HealthcareProviderClaim claim);
 
 

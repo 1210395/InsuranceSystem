@@ -704,6 +704,15 @@ public class PrescriptionService {
             item.setPharmacistPricePerUnit(pharmacistPricePerUnit);
             
             item.setFinalPrice(finalPrice);
+            item.setUnionPriceForCalculatedQuantity(unionPriceForCalculatedQuantity);
+
+            // Save reason if pharmacist price > union price
+            if (pharmacistPrice > unionPriceForCalculatedQuantity && dto.getPriceHigherReason() != null) {
+                item.setPriceHigherReason(dto.getPriceHigherReason());
+                log.info("⚠️ [VERIFY] Price override - Pharmacist price ({}) > Union price ({}), Reason: {}",
+                        pharmacistPrice, unionPriceForCalculatedQuantity, dto.getPriceHigherReason());
+            }
+
             item.setUpdatedAt(Instant.now());
             
             // التحقق من أن finalPrice تم حفظه بشكل صحيح

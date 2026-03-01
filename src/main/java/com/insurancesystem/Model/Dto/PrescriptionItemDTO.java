@@ -38,6 +38,15 @@ public class PrescriptionItemDTO {
     private Double unionPricePerUnit; // سعر النقابة لكل وحدة
     private Double finalPrice; // السعر النهائي للمطالبة = min(unionPricePerUnit, pharmacistPricePerUnit) × coveredQuantity
 
+    // Price comparison fields
+    private Double unionPriceForCalculatedQuantity; // Union price for the calculated quantity
+    private Double priceDifference; // pharmacistPrice - unionPriceForCalculatedQuantity (when > 0)
+    private String priceHigherReason; // Reason from pharmacist when price is higher
+
+    // Coverage fields (from PriceList)
+    private String coverageStatus;      // "COVERED", "REQUIRES_APPROVAL", "NOT_COVERED"
+    private Integer coveragePercentage;  // 0-100
+
     // التواريخ
     private Instant expiryDate; // تاريخ انتهاء الدواء
     private Instant createdAt;

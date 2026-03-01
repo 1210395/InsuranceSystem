@@ -54,5 +54,12 @@ public class HealthcareProviderClaimDTO {
     // Follow-up visit information
     private Boolean isFollowUp;
     private java.math.BigDecimal originalConsultationFee;
+
+    // Coverage fields (from ClaimEngine)
+    private Boolean isCovered;
+    private String coverageMessage;
+    private java.math.BigDecimal insuranceCoveredAmount;
+    private java.math.BigDecimal clientPayAmount;
+    private java.math.BigDecimal coveragePercentUsed;
 }
 

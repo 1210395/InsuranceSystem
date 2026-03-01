@@ -22,6 +22,9 @@ public interface PrescriptionItemMapper {
     @Mapping(source = "drugForm", target = "form")
     @Mapping(source = "unionPricePerUnit", target = "unionPricePerUnit")
     @Mapping(source = "pharmacistPricePerUnit", target = "pharmacistPricePerUnit")
+    @Mapping(source = "unionPriceForCalculatedQuantity", target = "unionPriceForCalculatedQuantity")
+    @Mapping(source = "priceHigherReason", target = "priceHigherReason")
+    @Mapping(source = "priceList.coveragePercentage", target = "coveragePercentage")
     PrescriptionItemDTO toDto(PrescriptionItem entity);
 
     @AfterMapping
@@ -32,7 +35,7 @@ public interface PrescriptionItemMapper {
                 Map<String, Object> map = mapper.readValue(entity.getPriceList().getServiceDetails(), Map.class);
                 dto.setScientificName((String) map.get("scientificName"));
                 dto.setMedicineQuantity(map.get("quantity") != null ? (Integer) map.get("quantity") : 1);
-                
+
                 // Use drugForm from entity if available, otherwise extract from serviceDetails
                 String form = entity.getDrugForm();
                 if (form == null || form.isEmpty()) {
@@ -44,6 +47,21 @@ public interface PrescriptionItemMapper {
             }
         } catch (Exception e) {
             // Silently handle JSON parsing errors - form might already be set from entity
+        }
+
+        // Map coverageStatus enum to String
+        if (entity.getPriceList() != null && entity.getPriceList().getCoverageStatus() != null) {
+            dto.setCoverageStatus(entity.getPriceList().getCoverageStatus().name());
+        } else {
+            dto.setCoverageStatus("COVERED");
+        }
+
+        // Compute priceDifference when pharmacist price > union price
+        if (entity.getPharmacistPrice() != null && entity.getUnionPriceForCalculatedQuantity() != null
+                && entity.getPharmacistPrice() > entity.getUnionPriceForCalculatedQuantity()) {
+            dto.setPriceDifference(entity.getPharmacistPrice() - entity.getUnionPriceForCalculatedQuantity());
+        } else {
+            dto.setPriceDifference(0.0);
         }
     }
 

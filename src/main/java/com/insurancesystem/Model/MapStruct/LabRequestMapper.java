@@ -31,6 +31,7 @@ public interface LabRequestMapper {
     @Mapping(source = "test.id", target = "testId")
     @Mapping(source = "test.serviceName", target = "serviceName")
     @Mapping(source = "test.price", target = "unionPrice")
+    @Mapping(source = "test.coveragePercentage", target = "coveragePercentage")
     @Mapping(source = "member.employeeId", target = "employeeId")
     LabRequestDTO toDto(LabRequest request, @Context FamilyMemberRepository familyMemberRepo);
 
@@ -51,6 +52,15 @@ public interface LabRequestMapper {
     @Mapping(source = "diagnosis", target = "diagnosis")
     @Mapping(source = "treatment", target = "treatment")
     LabRequest toEntity(LabRequestDTO dto);
+
+    @AfterMapping
+    default void mapCoverageStatus(LabRequest entity, @MappingTarget LabRequestDTO dto) {
+        if (entity.getTest() != null && entity.getTest().getCoverageStatus() != null) {
+            dto.setCoverageStatus(entity.getTest().getCoverageStatus().name());
+        } else {
+            dto.setCoverageStatus("COVERED");
+        }
+    }
 
     @AfterMapping
     default void extractFamilyMemberInfo(LabRequest entity, @MappingTarget LabRequestDTO dto, @Context FamilyMemberRepository familyMemberRepo) {
