@@ -3,6 +3,7 @@ package com.insurancesystem.Model.Dto;
 import lombok.Data;
 
 import java.util.List;
+import java.util.UUID;
 
 @Data
 public class UpdatePriceListDTO {
@@ -44,4 +45,11 @@ public class UpdatePriceListDTO {
      * If null, the field is not updated
      */
     private Integer maxAge;
+
+    /**
+     * List of MedicalDiagnosis UUIDs linked to this service
+     * If null, the field is not updated
+     * If empty list, restrictions are cleared (available for all diagnoses)
+     */
+    private List<UUID> allowedDiagnosisIds;
 }

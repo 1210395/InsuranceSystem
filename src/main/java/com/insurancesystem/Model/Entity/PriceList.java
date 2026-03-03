@@ -68,6 +68,19 @@ public class PriceList {
     private List<DoctorSpecializationEntity> allowedSpecializations;
 
     /**
+     * Many-to-Many relationship with MedicalDiagnosis
+     * If this list is empty/null, the service is available for ALL diagnoses
+     * If it contains diagnoses, only those diagnoses are linked to this service
+     */
+    @ManyToMany
+    @JoinTable(
+            name = "price_list_allowed_diagnoses",
+            joinColumns = @JoinColumn(name = "price_list_id"),
+            inverseJoinColumns = @JoinColumn(name = "diagnosis_id")
+    )
+    private List<MedicalDiagnosis> allowedDiagnoses;
+
+    /**
      * List of allowed genders for this service (e.g., "MALE", "FEMALE")
      * If null or empty, the service is available to ALL genders
      * If it contains genders, only those genders can use this service

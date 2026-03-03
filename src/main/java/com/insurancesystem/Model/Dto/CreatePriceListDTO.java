@@ -3,6 +3,7 @@ package com.insurancesystem.Model.Dto;
 import com.insurancesystem.Model.Entity.Enums.ProviderType;
 import lombok.Data;
 import java.util.List;
+import java.util.UUID;
 
 @Data
 public class CreatePriceListDTO {
@@ -50,5 +51,11 @@ public class CreatePriceListDTO {
      * If null, there is no maximum age restriction
      */
     private Integer maxAge;
+
+    /**
+     * List of MedicalDiagnosis UUIDs that are linked to this service
+     * If null or empty, the service is available for ALL diagnoses
+     */
+    private List<UUID> allowedDiagnosisIds;
 }
 

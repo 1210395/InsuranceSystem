@@ -5,6 +5,7 @@ import com.insurancesystem.Model.Entity.*;
 import com.insurancesystem.Model.MapStruct.PriceListMapper;
 import com.insurancesystem.Repository.PriceListRepository;
 import com.insurancesystem.Repository.DoctorSpecializationRepository;
+import com.insurancesystem.Repository.MedicalDiagnosisRepository;
 import com.insurancesystem.Model.Entity.Enums.ProviderType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,7 @@ public class PriceListService {
     private final PriceListRepository priceListRepository;
     private final PriceListMapper priceListMapper;
     private final DoctorSpecializationRepository doctorSpecializationRepository;
+    private final MedicalDiagnosisRepository medicalDiagnosisRepository;
 
     public PriceListResponseDTO create(CreatePriceListDTO dto) {
         PriceList entity = PriceList.builder()
@@ -44,6 +46,15 @@ public class PriceListService {
                             .orElseThrow(() -> new RuntimeException("Specialization not found: " + id)))
                     .collect(Collectors.toList());
             entity.setAllowedSpecializations(allowedSpecs);
+        }
+
+        // If allowedDiagnosisIds are provided, load and set them
+        if (dto.getAllowedDiagnosisIds() != null && !dto.getAllowedDiagnosisIds().isEmpty()) {
+            List<MedicalDiagnosis> allowedDiags = dto.getAllowedDiagnosisIds().stream()
+                    .map(diagId -> medicalDiagnosisRepository.findById(diagId)
+                            .orElseThrow(() -> new RuntimeException("Diagnosis not found: " + diagId)))
+                    .collect(Collectors.toList());
+            entity.setAllowedDiagnoses(allowedDiags);
         }
 
         // Set allowed genders if provided
@@ -82,6 +93,19 @@ public class PriceListService {
                                 .orElseThrow(() -> new RuntimeException("Specialization not found: " + specId)))
                         .collect(Collectors.toList());
                 price.setAllowedSpecializations(allowedSpecs);
+            }
+        }
+
+        // Update allowed diagnoses if provided
+        if (dto.getAllowedDiagnosisIds() != null) {
+            if (dto.getAllowedDiagnosisIds().isEmpty()) {
+                price.setAllowedDiagnoses(null); // Clear restrictions (available for all diagnoses)
+            } else {
+                List<MedicalDiagnosis> allowedDiags = dto.getAllowedDiagnosisIds().stream()
+                        .map(diagId -> medicalDiagnosisRepository.findById(diagId)
+                                .orElseThrow(() -> new RuntimeException("Diagnosis not found: " + diagId)))
+                        .collect(Collectors.toList());
+                price.setAllowedDiagnoses(allowedDiags);
             }
         }
 

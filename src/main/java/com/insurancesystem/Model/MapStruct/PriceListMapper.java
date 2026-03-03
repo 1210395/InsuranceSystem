@@ -3,6 +3,7 @@ package com.insurancesystem.Model.MapStruct;
 import com.insurancesystem.Model.Dto.PriceListResponseDTO;
 import com.insurancesystem.Model.Entity.PriceList;
 import com.insurancesystem.Model.Entity.DoctorSpecializationEntity;
+import com.insurancesystem.Model.Entity.MedicalDiagnosis;
 import com.insurancesystem.Model.Entity.Enums.CoverageStatus;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -24,6 +25,7 @@ public interface PriceListMapper {
      */
     @Mapping(target = "serviceDetails", source = "serviceDetails", qualifiedByName = "convertJson")
     @Mapping(target = "allowedSpecializations", source = "allowedSpecializations", qualifiedByName = "mapSpecializations")
+    @Mapping(target = "allowedDiagnoses", source = "allowedDiagnoses", qualifiedByName = "mapDiagnoses")
     @Mapping(target = "coverageStatus", source = "coverageStatus", qualifiedByName = "mapCoverageStatus")
     PriceListResponseDTO toDto(PriceList entity);
 
@@ -58,6 +60,25 @@ public interface PriceListMapper {
                     specMap.put("id", spec.getId());
                     specMap.put("displayName", spec.getDisplayName());
                     return specMap;
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Map List<MedicalDiagnosis> to List of Map objects with id, englishName, arabicName
+     */
+    @Named("mapDiagnoses")
+    default List<Map<String, Object>> mapDiagnoses(List<MedicalDiagnosis> diagnoses) {
+        if (diagnoses == null || diagnoses.isEmpty()) {
+            return null;
+        }
+        return diagnoses.stream()
+                .map(diag -> {
+                    Map<String, Object> diagMap = new HashMap<>();
+                    diagMap.put("id", diag.getId());
+                    diagMap.put("englishName", diag.getEnglishName());
+                    diagMap.put("arabicName", diag.getArabicName());
+                    return diagMap;
                 })
                 .collect(Collectors.toList());
     }

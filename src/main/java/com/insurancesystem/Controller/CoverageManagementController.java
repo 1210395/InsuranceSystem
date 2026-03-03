@@ -245,6 +245,15 @@ public class CoverageManagementController {
         return ResponseEntity.ok(buildPageResponse(diagnoses));
     }
 
+    /**
+     * Get all active diagnoses (for doctor diagnosis dropdown and manager mapping UI)
+     */
+    @GetMapping("/diagnoses/all")
+    @PreAuthorize("hasAnyRole('DOCTOR','INSURANCE_MANAGER','MEDICAL_ADMIN')")
+    public ResponseEntity<List<MedicalDiagnosis>> getAllActiveDiagnoses() {
+        return ResponseEntity.ok(medicalDiagnosisRepository.findByActiveTrue());
+    }
+
     // ==================== BULK OPERATIONS ====================
 
     @PostMapping("/bulk-update")

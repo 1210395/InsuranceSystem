@@ -27,4 +27,9 @@ public interface MedicalDiagnosisRepository extends JpaRepository<MedicalDiagnos
     Page<MedicalDiagnosis> searchByName(@Param("search") String search, Pageable pageable);
 
     boolean existsByEnglishNameIgnoreCase(String englishName);
+
+    @Query("SELECT m FROM MedicalDiagnosis m WHERE m.active = true AND " +
+           "(LOWER(m.englishName) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+           "m.arabicName LIKE CONCAT('%', :search, '%'))")
+    List<MedicalDiagnosis> searchByNameUnpaged(@Param("search") String search);
 }

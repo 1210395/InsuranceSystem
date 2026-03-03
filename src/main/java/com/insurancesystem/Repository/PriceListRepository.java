@@ -12,7 +12,7 @@ import java.util.UUID;
 
 public interface PriceListRepository extends JpaRepository<PriceList, UUID> {
 
-    @EntityGraph(attributePaths = {"allowedSpecializations"})
+    @EntityGraph(attributePaths = {"allowedSpecializations", "allowedDiagnoses"})
     @Query("SELECT p FROM PriceList p WHERE p.providerType = :type")
     List<PriceList> findByProviderType(@Param("type") ProviderType type);
 

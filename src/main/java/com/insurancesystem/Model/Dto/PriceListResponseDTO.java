@@ -61,4 +61,11 @@ public class PriceListResponseDTO {
      * Coverage percentage (0-100) when status is COVERED
      */
     private Integer coveragePercentage;
+
+    /**
+     * List of allowed diagnoses for this service
+     * Each item is a Map with "id", "englishName", "arabicName"
+     * If null or empty, the service is available for ALL diagnoses
+     */
+    private List<Map<String, Object>> allowedDiagnoses;
 }
