@@ -7,6 +7,7 @@ import lombok.*;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Entity
@@ -65,7 +66,7 @@ public class PriceList {
             joinColumns = @JoinColumn(name = "price_list_id"),
             inverseJoinColumns = @JoinColumn(name = "specialization_id")
     )
-    private List<DoctorSpecializationEntity> allowedSpecializations;
+    private Set<DoctorSpecializationEntity> allowedSpecializations;
 
     /**
      * Many-to-Many relationship with MedicalDiagnosis
@@ -78,7 +79,7 @@ public class PriceList {
             joinColumns = @JoinColumn(name = "price_list_id"),
             inverseJoinColumns = @JoinColumn(name = "diagnosis_id")
     )
-    private List<MedicalDiagnosis> allowedDiagnoses;
+    private Set<MedicalDiagnosis> allowedDiagnoses;
 
     /**
      * List of allowed genders for this service (e.g., "MALE", "FEMALE")

@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -41,19 +42,19 @@ public class PriceListService {
 
         // If allowedSpecializationIds are provided, load and set them
         if (dto.getAllowedSpecializationIds() != null && !dto.getAllowedSpecializationIds().isEmpty()) {
-            List<DoctorSpecializationEntity> allowedSpecs = dto.getAllowedSpecializationIds().stream()
+            Set<DoctorSpecializationEntity> allowedSpecs = dto.getAllowedSpecializationIds().stream()
                     .map(id -> doctorSpecializationRepository.findById(id)
                             .orElseThrow(() -> new RuntimeException("Specialization not found: " + id)))
-                    .collect(Collectors.toList());
+                    .collect(Collectors.toSet());
             entity.setAllowedSpecializations(allowedSpecs);
         }
 
         // If allowedDiagnosisIds are provided, load and set them
         if (dto.getAllowedDiagnosisIds() != null && !dto.getAllowedDiagnosisIds().isEmpty()) {
-            List<MedicalDiagnosis> allowedDiags = dto.getAllowedDiagnosisIds().stream()
+            Set<MedicalDiagnosis> allowedDiags = dto.getAllowedDiagnosisIds().stream()
                     .map(diagId -> medicalDiagnosisRepository.findById(diagId)
                             .orElseThrow(() -> new RuntimeException("Diagnosis not found: " + diagId)))
-                    .collect(Collectors.toList());
+                    .collect(Collectors.toSet());
             entity.setAllowedDiagnoses(allowedDiags);
         }
 
@@ -88,10 +89,10 @@ public class PriceListService {
             if (dto.getAllowedSpecializationIds().isEmpty()) {
                 price.setAllowedSpecializations(null); // Clear restrictions (available to all)
             } else {
-                List<DoctorSpecializationEntity> allowedSpecs = dto.getAllowedSpecializationIds().stream()
+                Set<DoctorSpecializationEntity> allowedSpecs = dto.getAllowedSpecializationIds().stream()
                         .map(specId -> doctorSpecializationRepository.findById(specId)
                                 .orElseThrow(() -> new RuntimeException("Specialization not found: " + specId)))
-                        .collect(Collectors.toList());
+                        .collect(Collectors.toSet());
                 price.setAllowedSpecializations(allowedSpecs);
             }
         }
@@ -101,10 +102,10 @@ public class PriceListService {
             if (dto.getAllowedDiagnosisIds().isEmpty()) {
                 price.setAllowedDiagnoses(null); // Clear restrictions (available for all diagnoses)
             } else {
-                List<MedicalDiagnosis> allowedDiags = dto.getAllowedDiagnosisIds().stream()
+                Set<MedicalDiagnosis> allowedDiags = dto.getAllowedDiagnosisIds().stream()
                         .map(diagId -> medicalDiagnosisRepository.findById(diagId)
                                 .orElseThrow(() -> new RuntimeException("Diagnosis not found: " + diagId)))
-                        .collect(Collectors.toList());
+                        .collect(Collectors.toSet());
                 price.setAllowedDiagnoses(allowedDiags);
             }
         }
@@ -195,7 +196,7 @@ public class PriceListService {
         return allServices.stream()
                 .filter(service -> {
                     // Force initialization of the lazy-loaded collection
-                    List<DoctorSpecializationEntity> allowedSpecs = service.getAllowedSpecializations();
+                    Set<DoctorSpecializationEntity> allowedSpecs = service.getAllowedSpecializations();
                     // If the collection is not initialized, it will be null or empty
                     // This means the repository query needs to eagerly fetch it
                     return isServiceAllowedForSpecialization(service, doctorSpecialization);
@@ -208,7 +209,7 @@ public class PriceListService {
      * Check if a service is allowed for a specific doctor specialization
      */
     private boolean isServiceAllowedForSpecialization(PriceList service, DoctorSpecializationEntity doctorSpecialization) {
-        List<DoctorSpecializationEntity> allowedSpecs = service.getAllowedSpecializations();
+        Set<DoctorSpecializationEntity> allowedSpecs = service.getAllowedSpecializations();
 
         // If no restrictions (null or empty), service is available to all specializations
         if (allowedSpecs == null || allowedSpecs.isEmpty()) {

@@ -11,6 +11,7 @@ import org.mapstruct.Named;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.HashMap;
 import java.util.stream.Collectors;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -50,7 +51,7 @@ public interface PriceListMapper {
      * This ensures the frontend receives the specialization data
      */
     @Named("mapSpecializations")
-    default List<Map<String, Object>> mapSpecializations(List<DoctorSpecializationEntity> specializations) {
+    default List<Map<String, Object>> mapSpecializations(Set<DoctorSpecializationEntity> specializations) {
         if (specializations == null || specializations.isEmpty()) {
             return null;
         }
@@ -68,7 +69,7 @@ public interface PriceListMapper {
      * Map List<MedicalDiagnosis> to List of Map objects with id, englishName, arabicName
      */
     @Named("mapDiagnoses")
-    default List<Map<String, Object>> mapDiagnoses(List<MedicalDiagnosis> diagnoses) {
+    default List<Map<String, Object>> mapDiagnoses(Set<MedicalDiagnosis> diagnoses) {
         if (diagnoses == null || diagnoses.isEmpty()) {
             return null;
         }
