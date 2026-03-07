@@ -47,11 +47,13 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/login",
                                 "/api/auth/register",
+                                "/api/auth/register-simple",
                                 "/api/auth/forgot-password",
                                 "/api/auth/reset-password",
                                 "/api/auth/verify-email",
+                                "/api/doctor-specializations",
                                 "/uploads/**",
-                                "/ws-chat/**",      // 👈 السماح بالـ WebSocket endpoint
+                                "/ws-chat/**",
                                 "/actuator/health",
                                 "/actuator/health/**"
                         ).permitAll()
