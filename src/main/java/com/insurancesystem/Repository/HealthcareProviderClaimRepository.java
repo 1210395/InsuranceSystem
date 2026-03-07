@@ -61,6 +61,8 @@ public interface HealthcareProviderClaimRepository extends JpaRepository<Healthc
 
     long countByStatus(ClaimStatus status);
 
+    long countByEmergencyTrueAndStatusIn(List<ClaimStatus> statuses);
+
     @Query("""
     SELECT c.healthcareProvider.id AS providerId,
            c.healthcareProvider.fullName AS providerName,

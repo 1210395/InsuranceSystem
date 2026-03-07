@@ -3,6 +3,8 @@ package com.insurancesystem.Services;
 import com.insurancesystem.Exception.NotFoundException;
 import com.insurancesystem.Model.Entity.Client;
 import com.insurancesystem.Model.Entity.ChronicPatientSchedule;
+import com.insurancesystem.Model.Entity.Enums.ChronicDisease;
+import com.insurancesystem.Model.Entity.Enums.ClaimStatus;
 import com.insurancesystem.Model.Entity.Enums.MemberStatus;
 import com.insurancesystem.Model.Entity.Enums.RoleName;
 import com.insurancesystem.Model.MapStruct.ClientMapper;
@@ -73,6 +75,21 @@ public class MedicalAdminServices {
         result.put("total", providersCount);
         result.put("providersCount", providersCount);
 
+        // Pending claims (PENDING_MEDICAL + RETURNED_FOR_REVIEW)
+        long pendingClaims = claimRepository.countByStatus(ClaimStatus.PENDING_MEDICAL)
+                + claimRepository.countByStatus(ClaimStatus.RETURNED_FOR_REVIEW);
+        result.put("pendingClaimsCount", pendingClaims);
+
+        // Emergency claims count (pending statuses)
+        long emergencyClaims = claimRepository.countByEmergencyTrueAndStatusIn(
+                List.of(ClaimStatus.PENDING_MEDICAL, ClaimStatus.RETURNED_FOR_REVIEW,
+                        ClaimStatus.AWAITING_COORDINATION_REVIEW, ClaimStatus.APPROVED_MEDICAL));
+        result.put("emergencyClaimsCount", emergencyClaims);
+
+        // Client accounts pending approval
+        long pendingApprovals = clientRepository.findPendingRoleRequests().size();
+        result.put("pendingApprovalsCount", pendingApprovals);
+
         return result;
     }
 
@@ -118,6 +135,32 @@ public class MedicalAdminServices {
                     return patientData;
                 })
                 .collect(Collectors.toList());
+    }
+
+    // ✅ إضافة مريض مزمن
+    @SuppressWarnings("unchecked")
+    public void addChronicPatient(Map<String, Object> data) {
+        UUID clientId = UUID.fromString((String) data.get("clientId"));
+        Client client = clientRepository.findById(clientId)
+                .orElseThrow(() -> new NotFoundException("Client not found"));
+
+        List<String> diseases = (List<String>) data.get("chronicDiseases");
+        if (diseases == null || diseases.isEmpty()) {
+            throw new IllegalArgumentException("At least one chronic disease is required");
+        }
+
+        Set<ChronicDisease> chronicDiseases = diseases.stream()
+                .map(ChronicDisease::valueOf)
+                .collect(Collectors.toSet());
+
+        // Add to existing diseases (don't replace)
+        if (client.getChronicDiseases() == null) {
+            client.setChronicDiseases(chronicDiseases);
+        } else {
+            client.getChronicDiseases().addAll(chronicDiseases);
+        }
+
+        clientRepository.save(client);
     }
 
     // ✅ إنشاء جدول تلقائي

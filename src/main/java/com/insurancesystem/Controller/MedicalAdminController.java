@@ -81,6 +81,14 @@ public class MedicalAdminController {
         return ResponseEntity.ok("تم حذف الجدول بنجاح");
     }
 
+    // ✅ إضافة مريض مزمن
+    @PostMapping("/add-chronic-patient")
+    @PreAuthorize("hasRole('MEDICAL_ADMIN')")
+    public ResponseEntity<Map<String, String>> addChronicPatient(@RequestBody Map<String, Object> data) {
+        medicalAdminService.addChronicPatient(data);
+        return ResponseEntity.ok(Map.of("message", "Patient added as chronic successfully"));
+    }
+
     // ✅ اختبار معالجة الجداول التلقائية (للاختبار اليدوي)
     @PostMapping("/test-process-schedules")
     @PreAuthorize("hasRole('MEDICAL_ADMIN')")
