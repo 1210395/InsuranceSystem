@@ -1562,11 +1562,12 @@ public class HealthcareProviderClaimService {
         Client admin = clientRepo.findById(adminId)
                 .orElseThrow(() -> new NotFoundException("Coordination admin not found"));
 
-        boolean isCoordinatorOrManager = admin.getRoles().stream()
-                .anyMatch(r -> r.getName() == RoleName.COORDINATION_ADMIN || r.getName() == RoleName.INSURANCE_MANAGER);
+        boolean isAuthorized = admin.getRoles().stream()
+                .anyMatch(r -> r.getName() == RoleName.COORDINATION_ADMIN || r.getName() == RoleName.INSURANCE_MANAGER
+                        || r.getName() == RoleName.MEDICAL_ADMIN || r.getName() == RoleName.DOCTOR);
 
-        if (!isCoordinatorOrManager) {
-            throw new BadRequestException("Only coordination admin or manager can create claims this way");
+        if (!isAuthorized) {
+            throw new BadRequestException("Not authorized to create claims this way");
         }
 
         if (dto.getClientId() == null) {

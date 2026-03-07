@@ -55,6 +55,9 @@ public class HealthcareProviderClaimDTO {
     private Boolean isFollowUp;
     private java.math.BigDecimal originalConsultationFee;
 
+    // Emergency flag
+    private Boolean emergency;
+
     // Coverage fields (from ClaimEngine)
     private Boolean isCovered;
     private String coverageMessage;

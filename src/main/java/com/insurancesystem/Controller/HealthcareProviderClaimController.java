@@ -410,7 +410,7 @@ public class HealthcareProviderClaimController {
     }
 
 
-    @PreAuthorize("hasAnyAuthority('ROLE_COORDINATION_ADMIN', 'ROLE_INSURANCE_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_COORDINATION_ADMIN', 'ROLE_INSURANCE_MANAGER', 'ROLE_MEDICAL_ADMIN', 'ROLE_DOCTOR')")
     @PostMapping(value = "/admin/create-direct", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> createClaimByAdmin(
             Authentication auth,

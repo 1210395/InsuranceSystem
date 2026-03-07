@@ -65,6 +65,9 @@ public class HealthcareProviderClaimMedicalDTO {
     private String medicalReviewerName;
     private Instant medicalReviewedAt;
     
+    // Emergency flag
+    private Boolean emergency;
+
     // Follow-up visit information
     private Boolean isFollowUp;
     private java.math.BigDecimal originalConsultationFee;

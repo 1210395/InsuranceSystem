@@ -17,5 +17,6 @@ public class CreateHealthcareProviderClaimDTO {
     private String diagnosis;         // NEW
     private String treatmentDetails;  // NEW
     private Boolean isChronic;        // Chronic disease bypass flag
+    private Boolean emergency;        // Emergency claim flag
 }
 

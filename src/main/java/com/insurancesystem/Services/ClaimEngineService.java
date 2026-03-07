@@ -196,22 +196,7 @@ public class ClaimEngineService {
         BigDecimal amount = claim.getAmount() != null ? claim.getAmount() : BigDecimal.ZERO;
         BigDecimal coveragePercent = coverage.getCoveragePercent();
 
-        // 10) Emergency full coverage with audit trail
-        if (Boolean.TRUE.equals(claim.getEmergency())) {
-            claim.setIsCovered(true);
-            claim.setCoverageMessage("🚑 Emergency — fully covered | Original amount: " + amount +
-                    " JOD | Coverage: 100% | Policy: " + policy.getName() +
-                    " | Applied at: " + java.time.Instant.now());
-            claim.setInsuranceCoveredAmount(amount);
-            claim.setClientPayAmount(BigDecimal.ZERO);
-            claim.setCoveragePercentUsed(BigDecimal.valueOf(100));
-            claim.setMaxCoverageUsed(BigDecimal.ZERO);
-            log.info("🚑 Emergency full coverage applied - Claim: {}, Amount: {}, Policy: {}",
-                    claim.getId(), amount, policy.getName());
-            return claim;
-        }
-
-        // 11) Try per-item coverage calculation for pharmacy/lab/radiology claims
+        // 10) Try per-item coverage calculation for pharmacy/lab/radiology claims
         String categoryName = resolveCategory(claim);
         if (categoryName != null && claim.getRoleSpecificData() != null) {
             PerItemCoverageResult perItemResult = calculatePerItemCoverage(claim, categoryName);
