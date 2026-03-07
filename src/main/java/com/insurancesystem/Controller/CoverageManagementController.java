@@ -254,6 +254,91 @@ public class CoverageManagementController {
         return ResponseEntity.ok(medicalDiagnosisRepository.findByActiveTrue());
     }
 
+    // ==================== DIAGNOSES CRUD ====================
+
+    @PostMapping("/diagnoses")
+    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
+    public ResponseEntity<Map<String, Object>> createDiagnosis(@RequestBody Map<String, Object> request) {
+        try {
+            String englishName = (String) request.get("englishName");
+            String arabicName = (String) request.get("arabicName");
+            String description = (String) request.get("description");
+            Boolean active = request.get("active") != null ? (Boolean) request.get("active") : true;
+
+            if (englishName == null || englishName.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "English name is required"));
+            }
+            if (arabicName == null || arabicName.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Arabic name is required"));
+            }
+            if (medicalDiagnosisRepository.existsByEnglishNameIgnoreCase(englishName.trim())) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Diagnosis with this English name already exists"));
+            }
+
+            MedicalDiagnosis diagnosis = MedicalDiagnosis.builder()
+                    .englishName(englishName.trim())
+                    .arabicName(arabicName.trim())
+                    .description(description != null ? description.trim() : null)
+                    .active(active)
+                    .build();
+
+            MedicalDiagnosis saved = medicalDiagnosisRepository.save(diagnosis);
+            return ResponseEntity.ok(Map.of("success", true, "message", "Diagnosis created successfully", "data", saved));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/diagnoses/{id}")
+    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
+    public ResponseEntity<Map<String, Object>> updateDiagnosis(@PathVariable UUID id, @RequestBody Map<String, Object> request) {
+        try {
+            MedicalDiagnosis diagnosis = medicalDiagnosisRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Diagnosis not found"));
+
+            String englishName = (String) request.get("englishName");
+            String arabicName = (String) request.get("arabicName");
+            String description = (String) request.get("description");
+            Boolean active = (Boolean) request.get("active");
+
+            if (englishName != null && !englishName.trim().isEmpty()) {
+                if (!englishName.trim().equalsIgnoreCase(diagnosis.getEnglishName())
+                        && medicalDiagnosisRepository.existsByEnglishNameIgnoreCase(englishName.trim())) {
+                    return ResponseEntity.badRequest().body(Map.of("success", false, "message", "Diagnosis with this English name already exists"));
+                }
+                diagnosis.setEnglishName(englishName.trim());
+            }
+            if (arabicName != null && !arabicName.trim().isEmpty()) {
+                diagnosis.setArabicName(arabicName.trim());
+            }
+            if (description != null) {
+                diagnosis.setDescription(description.trim());
+            }
+            if (active != null) {
+                diagnosis.setActive(active);
+            }
+
+            MedicalDiagnosis saved = medicalDiagnosisRepository.save(diagnosis);
+            return ResponseEntity.ok(Map.of("success", true, "message", "Diagnosis updated successfully", "data", saved));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
+    @DeleteMapping("/diagnoses/{id}")
+    @PreAuthorize("hasRole('INSURANCE_MANAGER')")
+    public ResponseEntity<Map<String, Object>> deleteDiagnosis(@PathVariable UUID id) {
+        try {
+            MedicalDiagnosis diagnosis = medicalDiagnosisRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("Diagnosis not found"));
+            diagnosis.setActive(false);
+            medicalDiagnosisRepository.save(diagnosis);
+            return ResponseEntity.ok(Map.of("success", true, "message", "Diagnosis deactivated successfully"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+        }
+    }
+
     // ==================== BULK OPERATIONS ====================
 
     @PostMapping("/bulk-update")
