@@ -33,14 +33,16 @@ public interface PriceListMapper {
     /**
      * Convert JSON string to Map (for serviceDetails)
      */
+    /** Shared ObjectMapper instance for JSON conversion in this mapper. */
+    ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
     @Named("convertJson")
     default Map<String, Object> convertJson(String json) {
         if (json == null || json.isEmpty()) {
             return null;
         }
         try {
-            ObjectMapper objectMapper = new ObjectMapper();
-            return objectMapper.readValue(json, Map.class);
+            return OBJECT_MAPPER.readValue(json, Map.class);
         } catch (Exception e) {
             return null;
         }

@@ -149,22 +149,4 @@ public class AuthController {
         return ResponseEntity.ok("Email verified successfully");
     }
 
-    // DEBUG: Check what authorities are being loaded for the current user
-    @PreAuthorize("isAuthenticated()")
-    @GetMapping("/debug/authorities")
-    public ResponseEntity<?> debugAuthorities() {
-        var auth = org.springframework.security.core.context.SecurityContextHolder
-                .getContext().getAuthentication();
-
-        java.util.Map<String, Object> debug = new java.util.HashMap<>();
-        debug.put("principal", auth.getName());
-        debug.put("authorities", auth.getAuthorities().stream()
-                .map(a -> a.getAuthority())
-                .toList());
-        debug.put("authenticated", auth.isAuthenticated());
-        debug.put("details", auth.getDetails() != null ? auth.getDetails().toString() : null);
-
-        return ResponseEntity.ok(debug);
-    }
-
 }

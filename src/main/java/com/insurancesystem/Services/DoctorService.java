@@ -11,6 +11,7 @@ import com.insurancesystem.Repository.MedicalRecordRepository;
 import com.insurancesystem.Repository.PrescriptionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.file.Files;
@@ -34,6 +35,7 @@ public class DoctorService {
 
 
 
+    @Transactional
     public ClientDto updateProfile(String username, UpdateUserDTO dto, MultipartFile[] universityCard){
         Client client = clientRepo.findByEmail(username.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("User not found"));

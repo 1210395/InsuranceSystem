@@ -47,14 +47,11 @@ public class MedicalAdminServices {
     public Map<String, Object> getFullDashboardStats() {
         Map<String, Object> result = new LinkedHashMap<>();
 
-        // 🔹 كل المستخدمين
-        List<Client> all = clientRepository.findAll();
-
-        // 🔹 حساب الأعداد حسب الدور
-        long doctors = all.stream().filter(c -> hasRole(c, RoleName.DOCTOR)).count();
-        long labs = all.stream().filter(c -> hasRole(c, RoleName.LAB_TECH)).count();
-        long radiologists = all.stream().filter(c -> hasRole(c, RoleName.RADIOLOGIST)).count();
-        long pharmacists = all.stream().filter(c -> hasRole(c, RoleName.PHARMACIST)).count();
+        // 🔹 حساب الأعداد حسب الدور باستخدام COUNT queries
+        long doctors = clientRepository.countByRoles_Name(RoleName.DOCTOR);
+        long labs = clientRepository.countByRoles_Name(RoleName.LAB_TECH);
+        long radiologists = clientRepository.countByRoles_Name(RoleName.RADIOLOGIST);
+        long pharmacists = clientRepository.countByRoles_Name(RoleName.PHARMACIST);
         long providersCount = doctors + labs + radiologists + pharmacists;
 
         // ✅ أكثر طبيب إرسالاً للمطالبات
@@ -184,7 +181,7 @@ public class MedicalAdminServices {
                 .collect(Collectors.toList());
     }
 
-    // ✅ حذف جدول
+    @Transactional
     public void deleteSchedule(UUID scheduleId) {
         ChronicPatientSchedule schedule = scheduleRepository.findById(scheduleId)
                 .orElseThrow(() -> new NotFoundException("Schedule not found"));

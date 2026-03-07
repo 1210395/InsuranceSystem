@@ -32,6 +32,9 @@ public interface ServiceCoverageRepository extends JpaRepository<ServiceCoverage
     @Query("SELECT sc FROM ServiceCoverage sc WHERE sc.globalPolicy.id = :policyId AND LOWER(sc.serviceName) = LOWER(:serviceName)")
     Optional<ServiceCoverage> findByGlobalPolicyIdAndServiceNameIgnoreCase(@Param("policyId") UUID policyId, @Param("serviceName") String serviceName);
 
+    @Query("SELECT sc FROM ServiceCoverage sc WHERE sc.globalPolicy.id = :policyId AND sc.category.name = :categoryName AND sc.isActive = true ORDER BY sc.coveragePercent DESC")
+    List<ServiceCoverage> findByGlobalPolicyIdAndCategoryName(@Param("policyId") UUID policyId, @Param("categoryName") String categoryName);
+
     @Query(value = "SELECT * FROM service_coverage sc WHERE sc.policy_id = CAST(:policyId AS UUID) " +
            "AND (COALESCE(CAST(:categoryId AS VARCHAR), '') = '' OR sc.category_id = CAST(:categoryId AS UUID)) " +
            "AND (COALESCE(:searchTerm, '') = '' " +

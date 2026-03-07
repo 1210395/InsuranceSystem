@@ -58,8 +58,8 @@ public interface PrescriptionItemMapper {
 
         // Compute priceDifference when pharmacist price > union price
         if (entity.getPharmacistPrice() != null && entity.getUnionPriceForCalculatedQuantity() != null
-                && entity.getPharmacistPrice() > entity.getUnionPriceForCalculatedQuantity()) {
-            dto.setPriceDifference(entity.getPharmacistPrice() - entity.getUnionPriceForCalculatedQuantity());
+                && entity.getPharmacistPrice().compareTo(entity.getUnionPriceForCalculatedQuantity()) > 0) {
+            dto.setPriceDifference(entity.getPharmacistPrice().subtract(entity.getUnionPriceForCalculatedQuantity()).doubleValue());
         } else {
             dto.setPriceDifference(0.0);
         }

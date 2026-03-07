@@ -41,6 +41,9 @@ public interface PrescriptionRepository extends JpaRepository<Prescription, UUID
     @Query("SELECT p FROM Prescription p WHERE p.member.id = :memberId AND (p.status = 'PENDING' OR p.status = 'VERIFIED')")
     List<Prescription> findActivePrescriptionsByMember(@Param("memberId") UUID memberId);
 
+    @Query("SELECT COUNT(DISTINCT p.member.id) FROM Prescription p")
+    long countDistinctMembers();
+
     // 🔹 البحث عن وصفات المريض والدكتور
     List<Prescription> findByMemberIdAndDoctorId(UUID memberId, UUID doctorId);
 

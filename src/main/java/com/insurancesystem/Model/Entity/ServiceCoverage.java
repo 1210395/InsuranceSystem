@@ -4,6 +4,7 @@ import com.insurancesystem.Model.Entity.Enums.AllowedGender;
 import com.insurancesystem.Model.Entity.Enums.CoverageStatusType;
 import com.insurancesystem.Model.Entity.Enums.FrequencyPeriod;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.DecimalMax;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -51,6 +52,7 @@ public class ServiceCoverage {
     private CoverageStatusType coverageStatus = CoverageStatusType.COVERED;
 
     @Builder.Default
+    @DecimalMax(value = "100.00", message = "Coverage percentage cannot exceed 100%")
     @Column(name = "coverage_percent", nullable = false, precision = 5, scale = 2)
     private BigDecimal coveragePercent = BigDecimal.valueOf(100.00);
 
@@ -100,10 +102,21 @@ public class ServiceCoverage {
         Instant now = Instant.now();
         this.createdAt = now;
         this.updatedAt = now;
+        validateCoveragePercent();
     }
 
     @PreUpdate
     void preUpdate() {
         this.updatedAt = Instant.now();
+        validateCoveragePercent();
+    }
+
+    private void validateCoveragePercent() {
+        if (this.coveragePercent != null && this.coveragePercent.compareTo(BigDecimal.valueOf(100.00)) > 0) {
+            throw new IllegalArgumentException("Coverage percentage cannot exceed 100%");
+        }
+        if (this.coveragePercent != null && this.coveragePercent.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("Coverage percentage cannot be negative");
+        }
     }
 }

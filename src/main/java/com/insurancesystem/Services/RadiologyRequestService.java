@@ -1,6 +1,8 @@
 package com.insurancesystem.Services;
 
+import com.insurancesystem.Exception.BadRequestException;
 import com.insurancesystem.Exception.NotFoundException;
+import com.insurancesystem.Exception.UnauthorizedException;
 import com.insurancesystem.Model.Dto.ClientDto;
 import com.insurancesystem.Model.Dto.RadiologyRequestDTO;
 import com.insurancesystem.Model.Dto.UpdateUserDTO;
@@ -61,6 +63,14 @@ public class RadiologyRequestService {
 
         Client doctor = clientRepository.findByEmail(username.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Doctor not found"));
+
+        return createRadiologyRequestWithDoctor(dto, doctor);
+    }
+
+    // ✅ Create radiology request with explicit doctor (for chronic patient schedules)
+    @Transactional
+    public RadiologyRequestDTO createRadiologyRequestWithDoctor(RadiologyRequestDTO dto, Client doctor) {
+        log.info("🔹 Creating radiology request with doctor: {}...", doctor.getFullName());
 
         // 👤 المريض - Check if it's a family member
         Client member;
@@ -224,6 +234,7 @@ public class RadiologyRequestService {
     }
 
     // 📖 Radiologist views pending + in-progress radiology requests
+    @Transactional(readOnly = true)
     public List<RadiologyRequestDTO> getPendingRequests(UUID radiologistId) {
         List<RadiologyRequest> pendingRequests = radiologyRequestRepository.findByStatusWithMember(LabRequestStatus.PENDING);
         List<RadiologyRequest> inProgressRequests = radiologyRequestRepository.findByStatusWithMember(LabRequestStatus.IN_PROGRESS);
@@ -264,14 +275,16 @@ public class RadiologyRequestService {
                 .orElseThrow(() -> new NotFoundException("Radiology request not found"));
 
         if (request.getStatus() != LabRequestStatus.PENDING) {
-            throw new RuntimeException("Can only accept pending requests");
+            throw new BadRequestException("Can only accept pending requests");
         }
 
-        request.setEnteredPrice(enteredPrice);
+        java.math.BigDecimal enteredPriceBD = java.math.BigDecimal.valueOf(enteredPrice);
+        request.setEnteredPrice(enteredPriceBD);
 
         // Calculate approved price
         Double unionPrice = request.getTest().getPrice();
-        Double approvedPrice = Math.min(enteredPrice, unionPrice);
+        java.math.BigDecimal unionPriceBD = unionPrice != null ? java.math.BigDecimal.valueOf(unionPrice) : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal approvedPrice = enteredPriceBD.min(unionPriceBD);
 
         request.setApprovedPrice(approvedPrice);
         request.setStatus(LabRequestStatus.IN_PROGRESS);
@@ -293,7 +306,7 @@ public class RadiologyRequestService {
                 .orElseThrow(() -> new NotFoundException("Radiology request not found"));
 
         if (request.getStatus() == LabRequestStatus.COMPLETED) {
-            throw new RuntimeException("Result already uploaded");
+            throw new BadRequestException("Result already uploaded");
         }
 
         try {
@@ -316,22 +329,28 @@ public class RadiologyRequestService {
         RadiologyRequest saved = radiologyRequestRepository.save(request);
 
         // 🔔 إشعار للمريض
-        notificationService.sendToUser(
-                saved.getMember().getId(),
-                "✅ Radiology results are ready: " + saved.getTestName()
-        );
+        if (saved.getMember() != null) {
+            notificationService.sendToUser(
+                    saved.getMember().getId(),
+                    "✅ Radiology results are ready: " + saved.getTestName()
+            );
+        }
 
         // 🔔 إشعار للطبيب
-        notificationService.sendToUser(
-                saved.getDoctor().getId(),
-                "✅ Radiology test completed for patient " + saved.getMember().getFullName() +
-                        " - Test: " + saved.getTestName()
-        );
+        if (saved.getDoctor() != null) {
+            String memberName = saved.getMember() != null ? saved.getMember().getFullName() : "Unknown";
+            notificationService.sendToUser(
+                    saved.getDoctor().getId(),
+                    "✅ Radiology test completed for patient " + memberName +
+                            " - Test: " + saved.getTestName()
+            );
+        }
 
         return radiologyRequestMapper.toDto(saved, familyMemberRepo);
     }
 
     // 📖 Member or Doctor views the result
+    @Transactional(readOnly = true)
     public RadiologyRequestDTO getResult(UUID id) {
         RadiologyRequest request = radiologyRequestRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Radiology request not found"));
@@ -359,11 +378,11 @@ public class RadiologyRequestService {
         RadiologyRequest request = radiologyRequestRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Radiology request not found"));
 
-        if (!request.getDoctor().getId().equals(doctor.getId()))
-            throw new RuntimeException("Not allowed");
+        if (request.getDoctor() == null || !request.getDoctor().getId().equals(doctor.getId()))
+            throw new UnauthorizedException("Not allowed");
 
         if (request.getStatus() == LabRequestStatus.COMPLETED)
-            throw new RuntimeException("Cannot update completed request");
+            throw new BadRequestException("Cannot update completed request");
 
         request.setNotes(dto.getNotes());
         request.setUpdatedAt(Instant.now());
@@ -382,16 +401,17 @@ public class RadiologyRequestService {
         RadiologyRequest request = radiologyRequestRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Radiology request not found"));
 
-        if (!request.getDoctor().getId().equals(doctor.getId()))
-            throw new RuntimeException("Not allowed");
+        if (request.getDoctor() == null || !request.getDoctor().getId().equals(doctor.getId()))
+            throw new UnauthorizedException("Not allowed");
 
         if (request.getStatus() == LabRequestStatus.COMPLETED)
-            throw new RuntimeException("Cannot delete completed request");
+            throw new BadRequestException("Cannot delete completed request");
 
         radiologyRequestRepository.delete(request);
     }
 
     // 📖 Doctor views all his radiology requests
+    @Transactional(readOnly = true)
     public List<RadiologyRequestDTO> getByDoctor() {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
 
@@ -417,18 +437,23 @@ public class RadiologyRequestService {
     }
 
     // 📊 Radiologist stats
+    @Transactional(readOnly = true)
     public RadiologyRequestDTO getRadiologyStats(UUID radiologistId) {
-        long pending = radiologyRequestRepository.findByStatus(LabRequestStatus.PENDING).size();
+        // PENDING requests are system-wide (not yet assigned to any radiologist)
+        long pending = radiologyRequestRepository.countByStatus(LabRequestStatus.PENDING);
+        // IN_PROGRESS and COMPLETED are specific to this radiologist
+        long inProgress = radiologyRequestRepository.countByStatusAndRadiologistId(LabRequestStatus.IN_PROGRESS, radiologistId);
         long completed = radiologyRequestRepository.countByStatusAndRadiologistId(LabRequestStatus.COMPLETED, radiologistId);
 
         return RadiologyRequestDTO.builder()
                 .pending(pending)
                 .completed(completed)
-                .total(pending + completed)
+                .total(pending + inProgress + completed)
                 .build();
     }
 
     // 📖 Radiologist views his completed requests
+    @Transactional(readOnly = true)
     public List<RadiologyRequestDTO> getAllForCurrentRadiologist(UUID radiologistId) {
         List<RadiologyRequest> requests = radiologyRequestRepository.findByRadiologistIdWithMember(radiologistId);
         
@@ -449,6 +474,7 @@ public class RadiologyRequestService {
     }
 
     // 📖 Member views his radiology requests
+    @Transactional(readOnly = true)
     public List<RadiologyRequestDTO> getByMember() {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
 
@@ -474,6 +500,7 @@ public class RadiologyRequestService {
     }
 
     // 📖 Get all radiologists
+    @Transactional(readOnly = true)
     public List<ClientDto> getAllRadiologists() {
         return clientRepository.findByRoles_Name(RoleName.RADIOLOGIST)
                 .stream()
@@ -524,10 +551,10 @@ public class RadiologyRequestService {
     }
 
     // 📖 Get available radiology tests for doctors (from price list with type RADIOLOGY)
+    @Transactional(readOnly = true)
     public List<com.insurancesystem.Model.Dto.PriceListResponseDTO> getAvailableRadiologyTests() {
-        return priceListRepository.findByProviderType(com.insurancesystem.Model.Entity.Enums.ProviderType.RADIOLOGY)
+        return priceListRepository.findByProviderTypeAndActive(com.insurancesystem.Model.Entity.Enums.ProviderType.RADIOLOGY, true)
                 .stream()
-                .filter(PriceList::isActive)
                 .map(priceListMapper::toDto)
                 .collect(Collectors.toList());
     }

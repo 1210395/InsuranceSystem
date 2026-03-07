@@ -12,8 +12,15 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
+        String allowedOrigins = System.getenv("CORS_ALLOWED_ORIGINS");
+        String[] origins;
+        if (allowedOrigins != null && !allowedOrigins.isEmpty()) {
+            origins = allowedOrigins.split(",");
+        } else {
+            origins = new String[]{"http://localhost:5173", "http://localhost:5174"};
+        }
         registry.addEndpoint("/ws-chat")
-                .setAllowedOriginPatterns("*")
+                .setAllowedOrigins(origins)
                 .withSockJS();
     }
 

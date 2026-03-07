@@ -29,6 +29,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 
 import org.springframework.security.core.Authentication;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.web.bind.annotation.*;
 
 import org.springframework.web.multipart.MultipartFile;
@@ -235,10 +238,13 @@ public class HealthcareProviderClaimController {
 
     @GetMapping("/all")
 
-    public ResponseEntity<?> getAllClaims() {
-
-        return ResponseEntity.ok(claimService.getAllClaims());
-
+    public ResponseEntity<?> getAllClaims(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        if (size > 100) size = 100;
+        Page<HealthcareProviderClaimDTO> result = claimService.getAllClaims(
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+        return ResponseEntity.ok(result.getContent());
     }
 
     // ============================================================
@@ -452,10 +458,13 @@ public class HealthcareProviderClaimController {
 
     @PreAuthorize("hasAnyAuthority('ROLE_COORDINATION_ADMIN', 'ROLE_INSURANCE_MANAGER')")
     @GetMapping("/coordination-review")
-    public ResponseEntity<?> coordinationReviewList() {
-        return ResponseEntity.ok(
-                claimService.getClaimsForCoordinationReview()
-        );
+    public ResponseEntity<?> coordinationReviewList(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        if (size > 100) size = 100;
+        Page<HealthcareProviderClaimDTO> result = claimService.getClaimsForCoordinationReview(
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+        return ResponseEntity.ok(result.getContent());
     }
 
     // ============================================================

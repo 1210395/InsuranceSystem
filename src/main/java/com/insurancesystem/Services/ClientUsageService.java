@@ -126,6 +126,33 @@ public class ClientUsageService {
         }
     }
 
+    // Fix #12: Reverse usage when approved claim is returned
+    @Transactional
+    public void decrementUsage(UUID clientId, UUID serviceCoverageId, BigDecimal amount) {
+        LocalDate now = LocalDate.now();
+        int year = now.getYear();
+        int month = now.getMonthValue();
+
+        clientUsageRepository.findByClientIdAndYearAndMonth(clientId, year, month)
+                .ifPresent(clientUsage -> {
+                    clientUsage.setTotalVisits(Math.max(0, clientUsage.getTotalVisits() - 1));
+                    clientUsage.setTotalSpending(
+                            clientUsage.getTotalSpending().subtract(amount).max(BigDecimal.ZERO));
+                    clientUsageRepository.save(clientUsage);
+                });
+
+        if (serviceCoverageId != null) {
+            clientServiceUsageRepository
+                    .findByClientIdAndServiceCoverageIdAndYearAndMonth(clientId, serviceCoverageId, year, month)
+                    .ifPresent(serviceUsage -> {
+                        serviceUsage.setUsageCount(Math.max(0, serviceUsage.getUsageCount() - 1));
+                        serviceUsage.setAmountUsed(
+                                serviceUsage.getAmountUsed().subtract(amount).max(BigDecimal.ZERO));
+                        clientServiceUsageRepository.save(serviceUsage);
+                    });
+        }
+    }
+
     @Transactional(readOnly = true)
     public boolean checkClientLimitExceeded(UUID clientId, ClientLimits limits) {
         LocalDate now = LocalDate.now();

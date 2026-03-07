@@ -43,7 +43,7 @@ public class HealthcareProviderClaim {
     private String description;
 
     @Column(nullable = false)
-    private Double amount;
+    private BigDecimal amount;
 
     @Column(nullable = false)
     private LocalDate serviceDate;
@@ -128,11 +128,24 @@ public class HealthcareProviderClaim {
     @Builder.Default
     private Boolean isChronic = false;
 
+    // === Coordination Admin Reviewer Info ===
+    @Column(name = "coordination_reviewer_id")
+    private UUID coordinationReviewerId;
+
+    @Column(name = "coordination_reviewer_name")
+    private String coordinationReviewerName;
+
+    @Column(name = "coordination_reviewed_at")
+    private Instant coordinationReviewedAt;
+
     // Payment tracking fields
     @Column(name = "paid_at")
     private Instant paidAt;
 
     @Column(name = "paid_by")
     private UUID paidBy;
+
+    @Version
+    private Long version;
 
 }

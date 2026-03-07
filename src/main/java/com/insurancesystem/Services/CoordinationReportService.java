@@ -33,7 +33,7 @@ public class CoordinationReportService {
                 .stream()
                 .map(row -> new ProviderExpenseDTO(
                         (String) row[0],
-                        (Double) row[1]
+                        ((Number) row[1]).doubleValue()
                 ))
                 .toList();
     }
@@ -46,7 +46,7 @@ public class CoordinationReportService {
                 .stream()
                 .map(row -> new PatientConsumptionDTO(
                         (String) row[0],
-                        (Double) row[1]
+                        ((Number) row[1]).doubleValue()
                 ))
                 .toList();
     }

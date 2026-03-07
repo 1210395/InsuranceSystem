@@ -18,44 +18,50 @@ public class UsageReportService {
 
     public UsageReportDto generateReport() {
         return UsageReportDto.builder()
-                // Claims
+                // Claims - count ALL workflow statuses in each category
                 .totalClaims(claimRepo.count())
                 .approvedClaims(
                         claimRepo.countByStatus(ClaimStatus.APPROVED_FINAL)
+                                + claimRepo.countByStatus(ClaimStatus.PAYMENT_PENDING)
+                                + claimRepo.countByStatus(ClaimStatus.PAID)
                 )
                 .rejectedClaims(
                         claimRepo.countByStatus(ClaimStatus.REJECTED_FINAL)
+                                + claimRepo.countByStatus(ClaimStatus.REJECTED_MEDICAL)
                 )
                 .pendingClaims(
                         claimRepo.countByStatus(ClaimStatus.PENDING_MEDICAL)
                                 + claimRepo.countByStatus(ClaimStatus.RETURNED_FOR_REVIEW)
+                                + claimRepo.countByStatus(ClaimStatus.AWAITING_COORDINATION_REVIEW)
+                                + claimRepo.countByStatus(ClaimStatus.APPROVED_MEDICAL)
+                                + claimRepo.countByStatus(ClaimStatus.PENDING_COORDINATION)
+                                + claimRepo.countByStatus(ClaimStatus.RETURNED_TO_PROVIDER)
                 )
 
-
-                // Prescriptions
+                // Prescriptions - use countByStatus instead of loading entities
                 .totalPrescriptions(prescriptionRepo.count())
-                .verifiedPrescriptions(prescriptionRepo.findByStatus(PrescriptionStatus.VERIFIED).size())
-                .rejectedPrescriptions(prescriptionRepo.findByStatus(PrescriptionStatus.REJECTED).size())
-                .pendingPrescriptions(prescriptionRepo.findByStatus(PrescriptionStatus.PENDING).size())
+                .verifiedPrescriptions(prescriptionRepo.countByStatus(PrescriptionStatus.VERIFIED))
+                .rejectedPrescriptions(prescriptionRepo.countByStatus(PrescriptionStatus.REJECTED))
+                .pendingPrescriptions(prescriptionRepo.countByStatus(PrescriptionStatus.PENDING))
 
-                // Lab Requests
+                // Lab Requests - use countByStatus instead of loading entities
                 .totalLabRequests(labRepo.count())
-                .completedLabRequests(labRepo.findByStatus(LabRequestStatus.COMPLETED).size())
-                .pendingLabRequests(labRepo.findByStatus(LabRequestStatus.PENDING).size())
+                .completedLabRequests(labRepo.countByStatus(LabRequestStatus.COMPLETED))
+                .pendingLabRequests(labRepo.countByStatus(LabRequestStatus.PENDING))
 
-                // Emergency Requests (count both new and legacy status values)
+                // Emergency Requests - use countByStatus instead of loading entities
                 .totalEmergencyRequests(emergencyRepo.count())
                 .approvedEmergencyRequests(
-                        emergencyRepo.findByStatus(EmergencyStatus.APPROVED_BY_MEDICAL).size() +
-                        emergencyRepo.findByStatus(EmergencyStatus.APPROVED).size()
+                        emergencyRepo.countByStatus(EmergencyStatus.APPROVED_BY_MEDICAL)
+                                + emergencyRepo.countByStatus(EmergencyStatus.APPROVED)
                 )
                 .rejectedEmergencyRequests(
-                        emergencyRepo.findByStatus(EmergencyStatus.REJECTED_BY_MEDICAL).size() +
-                        emergencyRepo.findByStatus(EmergencyStatus.REJECTED).size()
+                        emergencyRepo.countByStatus(EmergencyStatus.REJECTED_BY_MEDICAL)
+                                + emergencyRepo.countByStatus(EmergencyStatus.REJECTED)
                 )
                 .pendingEmergencyRequests(
-                        emergencyRepo.findByStatus(EmergencyStatus.PENDING_MEDICAL).size() +
-                        emergencyRepo.findByStatus(EmergencyStatus.PENDING).size()
+                        emergencyRepo.countByStatus(EmergencyStatus.PENDING_MEDICAL)
+                                + emergencyRepo.countByStatus(EmergencyStatus.PENDING)
                 )
 
                 // Medical Records

@@ -142,6 +142,7 @@ public class DoctorTestService {
     /**
      * Revoke a test assignment from a doctor
      */
+    @Transactional
     public void revokeTestFromDoctor(UUID assignmentId) {
         DoctorTestAssignment assignment = assignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new NotFoundException("Assignment not found"));
@@ -268,9 +269,7 @@ public class DoctorTestService {
      */
     @Transactional(readOnly = true)
     public List<Client> getAllDoctors() {
-        return clientRepository.findAll().stream()
-                .filter(c -> c.hasRole(RoleName.DOCTOR))
-                .toList();
+        return clientRepository.findByRoleOrRequestedRole(RoleName.DOCTOR);
     }
 
     /**
@@ -278,9 +277,7 @@ public class DoctorTestService {
      */
     @Transactional(readOnly = true)
     public List<MedicalTest> getAllTests() {
-        return medicalTestRepository.findAll().stream()
-                .filter(MedicalTest::isActive)
-                .toList();
+        return medicalTestRepository.findByActiveTrue();
     }
 
     /**
@@ -288,10 +285,7 @@ public class DoctorTestService {
      */
     @Transactional(readOnly = true)
     public List<MedicalTest> getTestsByType(String testType) {
-        return medicalTestRepository.findAll().stream()
-                .filter(MedicalTest::isActive)
-                .filter(t -> testType.equalsIgnoreCase(t.getCategory()))
-                .toList();
+        return medicalTestRepository.findByCategoryAndActiveTrue(testType);
     }
 
     /**
@@ -299,8 +293,7 @@ public class DoctorTestService {
      */
     @Transactional(readOnly = true)
     public List<String> getDistinctSpecializations() {
-        return clientRepository.findAll().stream()
-                .filter(c -> c.hasRole(RoleName.DOCTOR))
+        return clientRepository.findByRoleOrRequestedRole(RoleName.DOCTOR).stream()
                 .map(Client::getSpecialization)
                 .filter(s -> s != null && !s.isEmpty())
                 .distinct()

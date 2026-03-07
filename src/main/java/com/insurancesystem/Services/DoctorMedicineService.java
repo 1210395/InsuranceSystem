@@ -142,8 +142,7 @@ public class DoctorMedicineService {
      */
     public int assignMedicinesBySpecialization(String specialization, Client assignedBy) {
         // Get all doctors with this specialization
-        List<Client> doctors = clientRepository.findAll().stream()
-                .filter(c -> c.hasRole(RoleName.DOCTOR))
+        List<Client> doctors = clientRepository.findByRoleOrRequestedRole(RoleName.DOCTOR).stream()
                 .filter(c -> specialization.equalsIgnoreCase(c.getSpecialization()))
                 .toList();
 
@@ -174,6 +173,7 @@ public class DoctorMedicineService {
     /**
      * Revoke a medicine assignment from a doctor
      */
+    @Transactional
     public void revokeMedicineFromDoctor(UUID assignmentId) {
         DoctorMedicineAssignment assignment = assignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new NotFoundException("Assignment not found"));
@@ -273,9 +273,7 @@ public class DoctorMedicineService {
      */
     @Transactional(readOnly = true)
     public List<Client> getAllDoctors() {
-        return clientRepository.findAll().stream()
-                .filter(c -> c.hasRole(RoleName.DOCTOR))
-                .toList();
+        return clientRepository.findByRoleOrRequestedRole(RoleName.DOCTOR);
     }
 
     /**
@@ -291,8 +289,7 @@ public class DoctorMedicineService {
      */
     @Transactional(readOnly = true)
     public List<String> getDistinctSpecializations() {
-        return clientRepository.findAll().stream()
-                .filter(c -> c.hasRole(RoleName.DOCTOR))
+        return clientRepository.findByRoleOrRequestedRole(RoleName.DOCTOR).stream()
                 .map(Client::getSpecialization)
                 .filter(s -> s != null && !s.isEmpty())
                 .distinct()

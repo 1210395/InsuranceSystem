@@ -7,6 +7,7 @@ import com.insurancesystem.Repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +20,7 @@ import java.util.List;
  * This runs on application startup if the tables are empty.
  */
 @Service
+@Profile("dev")
 @RequiredArgsConstructor
 @Slf4j
 public class SampleDataInitializationService implements CommandLineRunner {

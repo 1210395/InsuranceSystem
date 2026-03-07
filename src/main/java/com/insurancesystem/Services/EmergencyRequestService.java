@@ -266,6 +266,13 @@ public class EmergencyRequestService {
                     return new NotFoundException("EMERGENCY_REQUEST_NOT_FOUND");
                 });
 
+        // ✅ Verify that this emergency request belongs to the requesting doctor
+        if (!doctorId.equals(emergency.getDoctorId())) {
+            log.warn("⚠️ Doctor {} attempted to access emergency request {} owned by doctor {}",
+                    doctorId, requestId, emergency.getDoctorId());
+            throw new NotFoundException("EMERGENCY_REQUEST_NOT_FOUND");
+        }
+
         // Force initialization of member fields before mapping
         if (emergency.getMember() != null) {
             Client m = emergency.getMember();
@@ -320,15 +327,18 @@ public class EmergencyRequestService {
         log.info("✅ Emergency request {} approved", id);
 
         // 🔔 إشعار للعميل
-        notificationService.sendToUser(
-                emergency.getMember().getId(),
-                "✅ تمت الموافقة على طلب الطوارئ الخاص بك."
-        );
+        if (emergency.getMember() != null) {
+            notificationService.sendToUser(
+                    emergency.getMember().getId(),
+                    "✅ تمت الموافقة على طلب الطوارئ الخاص بك."
+            );
+        }
 
         // 🔔 إشعار للدكتور الذي أنشأ الطلب
         notificationService.sendToUser(
                 emergency.getDoctorId(),
-                "✅ تمت الموافقة الطبية على طلب الطوارئ للمريض " + emergency.getMember().getFullName() +
+                "✅ تمت الموافقة الطبية على طلب الطوارئ للمريض " +
+                        (emergency.getMember() != null ? emergency.getMember().getFullName() : "غير معروف") +
                         " في " + emergency.getLocation()
         );
 
@@ -373,15 +383,18 @@ public class EmergencyRequestService {
         log.info("✅ Emergency request {} rejected with reason: {}", id, dto.getReason());
 
         // 🔔 إشعار للعميل
-        notificationService.sendToUser(
-                emergency.getMember().getId(),
-                "❌ تم رفض طلب الطوارئ. السبب: " + dto.getReason()
-        );
+        if (emergency.getMember() != null) {
+            notificationService.sendToUser(
+                    emergency.getMember().getId(),
+                    "❌ تم رفض طلب الطوارئ. السبب: " + dto.getReason()
+            );
+        }
 
         // 🔔 إشعار للدكتور الذي أنشأ الطلب
         notificationService.sendToUser(
                 emergency.getDoctorId(),
-                "❌ تم رفض طلب الطوارئ للمريض " + emergency.getMember().getFullName() +
+                "❌ تم رفض طلب الطوارئ للمريض " +
+                        (emergency.getMember() != null ? emergency.getMember().getFullName() : "غير معروف") +
                         " في " + emergency.getLocation() + ". السبب: " + dto.getReason()
         );
 

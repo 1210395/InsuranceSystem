@@ -11,6 +11,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -29,13 +32,29 @@ public interface HealthcareProviderClaimRepository extends JpaRepository<Healthc
     List<HealthcareProviderClaim> findByHealthcareProviderId(@Param("providerId") UUID providerId);
 
     List<HealthcareProviderClaim> findByStatus(ClaimStatus status);
-    
+
     @Query("""
         SELECT c FROM HealthcareProviderClaim c
         JOIN FETCH c.healthcareProvider
+        LEFT JOIN FETCH c.policy
         WHERE c.status = :status
     """)
     List<HealthcareProviderClaim> findByStatusWithProvider(@Param("status") ClaimStatus status);
+
+    @Query("SELECT c FROM HealthcareProviderClaim c JOIN FETCH c.healthcareProvider LEFT JOIN FETCH c.policy")
+    List<HealthcareProviderClaim> findAllWithProvider();
+
+    @Query(value = "SELECT c FROM HealthcareProviderClaim c JOIN FETCH c.healthcareProvider LEFT JOIN FETCH c.policy",
+           countQuery = "SELECT COUNT(c) FROM HealthcareProviderClaim c")
+    Page<HealthcareProviderClaim> findAllWithProvider(Pageable pageable);
+
+    @Query(value = """
+        SELECT c FROM HealthcareProviderClaim c
+        JOIN FETCH c.healthcareProvider
+        LEFT JOIN FETCH c.policy
+        WHERE c.status = :status
+    """, countQuery = "SELECT COUNT(c) FROM HealthcareProviderClaim c WHERE c.status = :status")
+    Page<HealthcareProviderClaim> findByStatusWithProvider(@Param("status") ClaimStatus status, Pageable pageable);
 
     void deleteAllByPolicy(Policy policy);
 
@@ -45,11 +64,15 @@ public interface HealthcareProviderClaimRepository extends JpaRepository<Healthc
     @Query("""
     SELECT c.healthcareProvider.id AS providerId,
            c.healthcareProvider.fullName AS providerName,
-           SUM(c.amount) AS totalAmount,
+           COALESCE(SUM(c.insuranceCoveredAmount), 0) AS totalAmount,
            c.healthcareProvider.requestedRole AS providerType,
            COUNT(c) AS claimCount
     FROM HealthcareProviderClaim c
-    WHERE c.status = com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL
+    WHERE c.status IN (
+        com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL,
+        com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAYMENT_PENDING,
+        com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAID
+    )
     AND c.healthcareProvider.requestedRole IN (com.insurancesystem.Model.Entity.Enums.RoleName.DOCTOR,
                    com.insurancesystem.Model.Entity.Enums.RoleName.PHARMACIST,
                    com.insurancesystem.Model.Entity.Enums.RoleName.LAB_TECH,
@@ -62,7 +85,11 @@ public interface HealthcareProviderClaimRepository extends JpaRepository<Healthc
     @Query("""
     SELECT c FROM HealthcareProviderClaim c
     WHERE c.healthcareProvider.id = :providerId
-    AND c.status = com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL
+    AND c.status IN (
+        com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL,
+        com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAYMENT_PENDING,
+        com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAID
+    )
     AND (:fromDate IS NULL OR c.serviceDate >= :fromDate)
     AND (:toDate IS NULL OR c.serviceDate <= :toDate)
     ORDER BY c.serviceDate DESC
@@ -76,12 +103,19 @@ public interface HealthcareProviderClaimRepository extends JpaRepository<Healthc
 
 
     @Query("""
-    SELECT COALESCE(SUM(c.amount),0)
+    SELECT COALESCE(SUM(c.insuranceCoveredAmount),0)
     FROM HealthcareProviderClaim c
-    WHERE c.status = com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL
+    WHERE c.status IN (
+        com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL,
+        com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAYMENT_PENDING,
+        com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAID
+    )
 """)
     Double getTotalApprovedAmount();
 
+
+    @Query("SELECT COALESCE(SUM(c.insuranceCoveredAmount),0) FROM HealthcareProviderClaim c WHERE c.status = :status")
+    double sumInsuranceCoveredByStatus(@Param("status") ClaimStatus status);
 
     @Query("SELECT COALESCE(SUM(c.amount),0) FROM HealthcareProviderClaim c WHERE c.status = :status")
     double sumAmountByStatus(@Param("status") ClaimStatus status);
@@ -91,12 +125,17 @@ public interface HealthcareProviderClaimRepository extends JpaRepository<Healthc
     @Query("""
         SELECT c FROM HealthcareProviderClaim c
         JOIN FETCH c.healthcareProvider
+        LEFT JOIN FETCH c.policy
         WHERE c.status IN :statuses
     """)
     List<HealthcareProviderClaim> findByStatusInWithProvider(@Param("statuses") List<ClaimStatus> statuses);
     @Query("""
     SELECT c FROM HealthcareProviderClaim c
-    WHERE c.status = com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL
+    WHERE c.status IN (
+        com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL,
+        com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAYMENT_PENDING,
+        com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAID
+    )
 """)
     List<HealthcareProviderClaim> findAllApprovedClaims();
 
@@ -141,6 +180,9 @@ AND (:to IS NULL OR c.serviceDate <= :to)
         @Param("specialization") String specialization,
         @Param("sinceDate") LocalDate sinceDate);
 
+    @Query("SELECT COUNT(DISTINCT c.clientId) FROM HealthcareProviderClaim c WHERE c.clientId IS NOT NULL")
+    long countDistinctClients();
+
     // ============= Usage Tracking Queries for GlobalPolicy =============
 
     @Query("""
@@ -167,7 +209,9 @@ AND (:to IS NULL OR c.serviceDate <= :to)
         WHERE c.clientId = :clientId
         AND YEAR(c.serviceDate) = :year
         AND MONTH(c.serviceDate) = :month
-        AND c.status = com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL
+        AND c.status IN (com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL,
+                        com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAYMENT_PENDING,
+                        com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAID)
     """)
     BigDecimal sumSpendingInMonth(@Param("clientId") UUID clientId, @Param("year") int year, @Param("month") int month);
 
@@ -175,9 +219,48 @@ AND (:to IS NULL OR c.serviceDate <= :to)
         SELECT COALESCE(SUM(c.insuranceCoveredAmount), 0) FROM HealthcareProviderClaim c
         WHERE c.clientId = :clientId
         AND YEAR(c.serviceDate) = :year
-        AND c.status = com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL
+        AND c.status IN (com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL,
+                        com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAYMENT_PENDING,
+                        com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAID)
     """)
     BigDecimal sumSpendingInYear(@Param("clientId") UUID clientId, @Param("year") int year);
+
+    // System-wide counts (no clientId filter) for quick stats
+    @Query("""
+        SELECT COUNT(c) FROM HealthcareProviderClaim c
+        WHERE YEAR(c.serviceDate) = :year
+        AND MONTH(c.serviceDate) = :month
+        AND c.status NOT IN (com.insurancesystem.Model.Entity.Enums.ClaimStatus.REJECTED_FINAL,
+                            com.insurancesystem.Model.Entity.Enums.ClaimStatus.RETURNED_TO_PROVIDER)
+    """)
+    int countAllVisitsInMonth(@Param("year") int year, @Param("month") int month);
+
+    @Query("""
+        SELECT COUNT(c) FROM HealthcareProviderClaim c
+        WHERE YEAR(c.serviceDate) = :year
+        AND c.status NOT IN (com.insurancesystem.Model.Entity.Enums.ClaimStatus.REJECTED_FINAL,
+                            com.insurancesystem.Model.Entity.Enums.ClaimStatus.RETURNED_TO_PROVIDER)
+    """)
+    int countAllVisitsInYear(@Param("year") int year);
+
+    @Query("""
+        SELECT COALESCE(SUM(c.insuranceCoveredAmount), 0) FROM HealthcareProviderClaim c
+        WHERE YEAR(c.serviceDate) = :year
+        AND MONTH(c.serviceDate) = :month
+        AND c.status IN (com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL,
+                        com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAYMENT_PENDING,
+                        com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAID)
+    """)
+    BigDecimal sumAllSpendingInMonth(@Param("year") int year, @Param("month") int month);
+
+    @Query("""
+        SELECT COALESCE(SUM(c.insuranceCoveredAmount), 0) FROM HealthcareProviderClaim c
+        WHERE YEAR(c.serviceDate) = :year
+        AND c.status IN (com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL,
+                        com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAYMENT_PENDING,
+                        com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAID)
+    """)
+    BigDecimal sumAllSpendingInYear(@Param("year") int year);
 
     @Query("""
         SELECT COUNT(c) FROM HealthcareProviderClaim c
@@ -189,27 +272,48 @@ AND (:to IS NULL OR c.serviceDate <= :to)
     """)
     int countServiceUsageSince(@Param("clientId") UUID clientId, @Param("serviceName") String serviceName, @Param("sinceDate") LocalDate sinceDate);
 
-    // Get client usage summary for a period
+    // Get client usage summary for a period (returns: clientId, clientName, count, insurancePaid, totalAmount, clientPaid)
     @Query("""
-        SELECT c.clientId, c.clientName, COUNT(c), COALESCE(SUM(c.insuranceCoveredAmount), 0)
+        SELECT c.clientId, c.clientName, COUNT(c),
+               COALESCE(SUM(c.insuranceCoveredAmount), 0),
+               COALESCE(SUM(c.amount), 0),
+               COALESCE(SUM(c.clientPayAmount), 0)
         FROM HealthcareProviderClaim c
         WHERE c.serviceDate BETWEEN :fromDate AND :toDate
-        AND c.status = com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL
+        AND c.status IN (
+            com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL,
+            com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAYMENT_PENDING,
+            com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAID
+        )
         GROUP BY c.clientId, c.clientName
         ORDER BY SUM(c.insuranceCoveredAmount) DESC
     """)
     List<Object[]> getClientUsageSummary(@Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
 
-    // Get service usage breakdown
+    // Get service usage breakdown (returns: description, count, insurancePaid, totalAmount)
     @Query("""
-        SELECT c.description, COUNT(c), COALESCE(SUM(c.insuranceCoveredAmount), 0)
+        SELECT c.description, COUNT(c),
+               COALESCE(SUM(c.insuranceCoveredAmount), 0),
+               COALESCE(SUM(c.amount), 0)
         FROM HealthcareProviderClaim c
         WHERE c.serviceDate BETWEEN :fromDate AND :toDate
-        AND c.status = com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL
+        AND c.status IN (
+            com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL,
+            com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAYMENT_PENDING,
+            com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAID
+        )
         GROUP BY c.description
         ORDER BY COUNT(c) DESC
     """)
     List<Object[]> getServiceUsageBreakdown(@Param("fromDate") LocalDate fromDate, @Param("toDate") LocalDate toDate);
+
+    // Fix #60: Check for duplicate claims by roleSpecificData content
+    @Query("SELECT COUNT(c) > 0 FROM HealthcareProviderClaim c " +
+           "WHERE c.roleSpecificData LIKE CONCAT('%', :referenceId, '%') " +
+           "AND c.status NOT IN :excludedStatuses")
+    boolean existsByRoleSpecificDataContainingAndStatusNotIn(
+            @Param("referenceId") String referenceId,
+            @Param("excludedStatuses") List<ClaimStatus> excludedStatuses);
 
 }
 

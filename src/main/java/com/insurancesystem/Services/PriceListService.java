@@ -27,6 +27,7 @@ public class PriceListService {
     private final DoctorSpecializationRepository doctorSpecializationRepository;
     private final MedicalDiagnosisRepository medicalDiagnosisRepository;
 
+    @Transactional
     public PriceListResponseDTO create(CreatePriceListDTO dto) {
         PriceList entity = PriceList.builder()
                 .providerType(dto.getProviderType())
@@ -67,10 +68,19 @@ public class PriceListService {
         entity.setMinAge(dto.getMinAge());
         entity.setMaxAge(dto.getMaxAge());
 
+        // Set coverage fields if provided
+        if (dto.getCoverageStatus() != null) {
+            entity.setCoverageStatus(dto.getCoverageStatus());
+        }
+        if (dto.getCoveragePercentage() != null) {
+            entity.setCoveragePercentage(Math.max(0, Math.min(100, dto.getCoveragePercentage())));
+        }
+
         priceListRepository.save(entity);
         return priceListMapper.toDto(entity);
     }
 
+    @Transactional
     public PriceListResponseDTO updatePrice(UUID id, UpdatePriceListDTO dto) {
         PriceList price = priceListRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Price not found"));
@@ -127,10 +137,19 @@ public class PriceListService {
             price.setMaxAge(dto.getMaxAge());
         }
 
+        // Update coverage fields if provided
+        if (dto.getCoverageStatus() != null) {
+            price.setCoverageStatus(dto.getCoverageStatus());
+        }
+        if (dto.getCoveragePercentage() != null) {
+            price.setCoveragePercentage(Math.max(0, Math.min(100, dto.getCoveragePercentage())));
+        }
+
         priceListRepository.save(price);
         return priceListMapper.toDto(price);
     }
 
+    @Transactional
     public void deletePrice(UUID id) {
         priceListRepository.deleteById(id);
     }

@@ -4,6 +4,7 @@ import com.insurancesystem.Model.Entity.Enums.LabRequestStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 @Entity
@@ -41,8 +42,8 @@ public class RadiologyRequest {
     @JoinColumn(name = "price_id")
     private PriceList test;
 
-    private Double enteredPrice;
-    private Double approvedPrice; // 🆕 السعر المعتمد
+    private BigDecimal enteredPrice;
+    private BigDecimal approvedPrice; // 🆕 السعر المعتمد
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "radiologist_id")

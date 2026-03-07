@@ -141,16 +141,18 @@ public class FamilyMemberService {
 
     /* ===================== UPDATE STATUS ===================== */
 
+    @Transactional
     public FamilyMemberDTO updateStatus(UUID memberId, ProfileStatus status) {
         FamilyMember member = familyRepo.findById(memberId)
                 .orElseThrow(() -> new NotFoundException("Family member not found"));
 
         member.setStatus(status);
-        return familyMemberMapper.toDto(member);
+        return familyMemberMapper.toDto(familyRepo.save(member));
     }
 
     /* ===================== DELETE ===================== */
 
+    @Transactional
     public void deleteFamilyMember(String username, UUID memberId) {
         Client client = clientRepo.findByEmail(username.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Client not found"));

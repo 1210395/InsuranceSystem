@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -26,6 +27,7 @@ public class MedicalRecordService {
     private final MedicalRecordMapper medicalRecordMapper;
 
     // ➕ إنشاء سجل جديد (Doctor فقط)
+    @Transactional
     public MedicalRecordDTO createRecord(MedicalRecordDTO dto) {
         // جلب المستخدم الحالي (الدكتور) من SecurityContext
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -49,12 +51,14 @@ public class MedicalRecordService {
 
 
     //  جلب كل السجلات (Doctor أو Manager)
+    @Transactional(readOnly = true)
     public List<MedicalRecordDTO> getAll() {
         return recordRepo.findAll()
                 .stream().map(medicalRecordMapper::toDto).collect(Collectors.toList());
     }
 
     //  جلب سجلات عضو محدد
+    @Transactional(readOnly = true)
     public List<MedicalRecordDTO> getByMember(UUID memberId) {
         Client member = clientRepo.findById(memberId)
                 .orElseThrow(() -> new NotFoundException("Member not found"));
@@ -73,6 +77,7 @@ public class MedicalRecordService {
     }
 
     //  جلب سجل واحد
+    @Transactional(readOnly = true)
     public MedicalRecordDTO getById(UUID id) {
         MedicalRecord record = recordRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException("Medical record not found"));
@@ -90,6 +95,7 @@ public class MedicalRecordService {
     }
 
     //  تحديث سجل (Doctor فقط)
+    @Transactional
     public MedicalRecordDTO updateRecord(UUID id, MedicalRecordDTO dto) {
         MedicalRecord record = recordRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException("Medical record not found"));
@@ -103,6 +109,7 @@ public class MedicalRecordService {
     }
 
     //  حذف سجل (Doctor فقط)
+    @Transactional
     public void deleteRecord(UUID id) {
         if (!recordRepo.existsById(id)) {
             throw new NotFoundException("Medical record not found");

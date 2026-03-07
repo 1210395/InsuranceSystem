@@ -1123,7 +1123,7 @@ public class DataInitializer {
             .description(description)
             .diagnosis(diagnosis)
             .treatmentDetails(treatmentDetails)
-            .amount(amount)
+            .amount(amount != null ? java.math.BigDecimal.valueOf(amount) : java.math.BigDecimal.ZERO)
             .serviceDate(serviceDate)
             .status(status)
             .submittedAt(Instant.now().minusSeconds(86400 * 30)) // Submitted 30 days ago

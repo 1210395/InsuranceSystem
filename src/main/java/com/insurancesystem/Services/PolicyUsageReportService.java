@@ -100,29 +100,48 @@ public class PolicyUsageReportService {
         List<Object[]> claimStats = claimRepository.getClientUsageSummary(fromDate, toDate);
         List<Object[]> serviceStats = claimRepository.getServiceUsageBreakdown(fromDate, toDate);
 
-        // Calculate totals
+        // Calculate totals from query: [clientId, clientName, count, insurancePaid, totalAmount, clientPaid]
         int totalClaims = 0;
         BigDecimal totalClaimAmount = BigDecimal.ZERO;
         BigDecimal totalInsurancePaid = BigDecimal.ZERO;
+        BigDecimal totalClientPaid = BigDecimal.ZERO;
         Set<UUID> uniqueClientIds = new HashSet<>();
 
         for (Object[] stat : claimStats) {
             UUID clientId = (UUID) stat[0];
             Long count = (Long) stat[2];
             BigDecimal insurancePaid = (BigDecimal) stat[3];
+            BigDecimal claimAmount = (BigDecimal) stat[4];
+            BigDecimal clientPaid = (BigDecimal) stat[5];
 
             uniqueClientIds.add(clientId);
             totalClaims += count.intValue();
             totalInsurancePaid = totalInsurancePaid.add(insurancePaid);
+            totalClaimAmount = totalClaimAmount.add(claimAmount);
+            totalClientPaid = totalClientPaid.add(clientPaid);
         }
 
-        // Build top services list
+        // Count rejected claims in the same period
+        long rejectedCount = claimRepository.countByStatus(com.insurancesystem.Model.Entity.Enums.ClaimStatus.REJECTED_FINAL)
+                + claimRepository.countByStatus(com.insurancesystem.Model.Entity.Enums.ClaimStatus.REJECTED_MEDICAL);
+
+        // Calculate approval rate
+        BigDecimal approvalRate = BigDecimal.ZERO;
+        long totalForRate = totalClaims + rejectedCount;
+        if (totalForRate > 0) {
+            approvalRate = BigDecimal.valueOf(totalClaims)
+                    .multiply(BigDecimal.valueOf(100))
+                    .divide(BigDecimal.valueOf(totalForRate), 2, RoundingMode.HALF_UP);
+        }
+
+        // Build top services list: [description, count, insurancePaid, totalAmount]
         List<ServiceUsageStat> topServices = serviceStats.stream()
                 .limit(10)
                 .map(stat -> ServiceUsageStat.builder()
                         .serviceName((String) stat[0])
                         .usageCount(((Long) stat[1]).intValue())
                         .insurancePaid((BigDecimal) stat[2])
+                        .totalAmount((BigDecimal) stat[3])
                         .build())
                 .collect(Collectors.toList());
 
@@ -133,7 +152,7 @@ public class PolicyUsageReportService {
                         .clientId((UUID) stat[0])
                         .clientName((String) stat[1])
                         .claimCount(((Long) stat[2]).intValue())
-                        .totalSpent((BigDecimal) stat[3])
+                        .totalSpent((BigDecimal) stat[4])
                         .build())
                 .collect(Collectors.toList());
 
@@ -147,7 +166,12 @@ public class PolicyUsageReportService {
                 .reportPeriodStart(fromDate)
                 .reportPeriodEnd(toDate)
                 .totalClaims(totalClaims)
+                .approvedClaims(totalClaims)
+                .rejectedClaims((int) rejectedCount)
+                .totalClaimAmount(totalClaimAmount)
                 .totalInsurancePaid(totalInsurancePaid)
+                .totalClientPaid(totalClientPaid)
+                .approvalRate(approvalRate)
                 .totalServicesInPolicy((int) totalServicesInPolicy)
                 .servicesUsed(servicesUsed)
                 .topServices(topServices)
@@ -159,18 +183,16 @@ public class PolicyUsageReportService {
     @Transactional(readOnly = true)
     public Map<String, Object> getQuickStats() {
         LocalDate now = LocalDate.now();
-        LocalDate startOfMonth = now.withDayOfMonth(1);
-        LocalDate startOfYear = now.withDayOfYear(1);
 
         Map<String, Object> stats = new HashMap<>();
 
-        // This month's stats
-        int monthClaims = claimRepository.countVisitsInMonth(null, now.getYear(), now.getMonthValue());
-        BigDecimal monthSpending = claimRepository.sumSpendingInMonth(null, now.getYear(), now.getMonthValue());
+        // This month's stats (system-wide, no client filter)
+        int monthClaims = claimRepository.countAllVisitsInMonth(now.getYear(), now.getMonthValue());
+        BigDecimal monthSpending = claimRepository.sumAllSpendingInMonth(now.getYear(), now.getMonthValue());
 
-        // This year's stats
-        int yearClaims = claimRepository.countVisitsInYear(null, now.getYear());
-        BigDecimal yearSpending = claimRepository.sumSpendingInYear(null, now.getYear());
+        // This year's stats (system-wide, no client filter)
+        int yearClaims = claimRepository.countAllVisitsInYear(now.getYear());
+        BigDecimal yearSpending = claimRepository.sumAllSpendingInYear(now.getYear());
 
         stats.put("monthClaims", monthClaims);
         stats.put("monthSpending", monthSpending != null ? monthSpending : BigDecimal.ZERO);

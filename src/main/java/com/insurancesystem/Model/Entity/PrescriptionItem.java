@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -57,21 +58,21 @@ public class PrescriptionItem {
      * Price per unit (calculated from union price / package quantity)
      * Used for claim calculation
      */
-    private Double unionPricePerUnit;
+    private BigDecimal unionPricePerUnit;
 
     /**
      * Pharmacy price per unit (calculated from pharmacist price / package quantity)
      * Used for claim calculation
      */
-    private Double pharmacistPricePerUnit;
+    private BigDecimal pharmacistPricePerUnit;
 
-    private Double pharmacistPrice; // Total price entered by pharmacist
-    private Double finalPrice; // Final claim amount = min(unionPricePerUnit, pharmacistPricePerUnit) × coveredQuantity
+    private BigDecimal pharmacistPrice; // Total price entered by pharmacist
+    private BigDecimal finalPrice; // Final claim amount = min(unionPricePerUnit, pharmacistPricePerUnit) × coveredQuantity
 
     /**
      * Union price for the calculated quantity (saved during verify for display/comparison)
      */
-    private Double unionPriceForCalculatedQuantity;
+    private BigDecimal unionPriceForCalculatedQuantity;
 
     /**
      * Reason provided by pharmacist when their price is higher than the union price

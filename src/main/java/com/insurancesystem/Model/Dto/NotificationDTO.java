@@ -13,6 +13,7 @@ import java.util.UUID;
 public class NotificationDTO {
     private UUID id;
     private String message;
+    private String englishMessage;
     private boolean read;
     private Instant createdAt;
     private String recipientName; // اسم المستفيد (اختياري للعرض)

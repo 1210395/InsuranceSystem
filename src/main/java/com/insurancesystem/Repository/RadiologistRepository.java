@@ -26,30 +26,33 @@ public interface RadiologistRepository extends JpaRepository<RadiologyRequest, U
     // ✅ عدد طلبات الأشعة المعلقة لراديولوجي معين
     long countByStatusAndRadiologistId(LabRequestStatus status, UUID radiologistId);
 
+    // ✅ عدد طلبات الأشعة بحالة معينة
+    long countByStatus(LabRequestStatus status);
+
     // ✅ جميع طلبات الأشعة بحالة معينة
     List<RadiologyRequest> findByStatus(LabRequestStatus status);
 
     // Eager fetch member for radiologist queries
     @Query("SELECT DISTINCT rr FROM RadiologyRequest rr " +
-           "LEFT JOIN FETCH rr.member " +
+           "LEFT JOIN FETCH rr.member LEFT JOIN FETCH rr.test " +
            "WHERE rr.radiologist.id = :radiologistId")
     List<RadiologyRequest> findByRadiologistIdWithMember(@Param("radiologistId") UUID radiologistId);
 
     // Eager fetch member for doctor queries
     @Query("SELECT DISTINCT rr FROM RadiologyRequest rr " +
-           "LEFT JOIN FETCH rr.member " +
+           "LEFT JOIN FETCH rr.member LEFT JOIN FETCH rr.test " +
            "WHERE rr.doctor.id = :doctorId")
     List<RadiologyRequest> findByDoctorIdWithMember(@Param("doctorId") UUID doctorId);
 
     // Eager fetch member for member queries
     @Query("SELECT DISTINCT rr FROM RadiologyRequest rr " +
-           "LEFT JOIN FETCH rr.member " +
+           "LEFT JOIN FETCH rr.member LEFT JOIN FETCH rr.test " +
            "WHERE rr.member.id = :memberId")
     List<RadiologyRequest> findByMemberIdWithMember(@Param("memberId") UUID memberId);
 
     // Eager fetch member for status queries
     @Query("SELECT DISTINCT rr FROM RadiologyRequest rr " +
-           "LEFT JOIN FETCH rr.member " +
+           "LEFT JOIN FETCH rr.member LEFT JOIN FETCH rr.test " +
            "WHERE rr.status = :status")
     List<RadiologyRequest> findByStatusWithMember(@Param("status") LabRequestStatus status);
 

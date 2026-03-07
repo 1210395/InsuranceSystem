@@ -1,6 +1,8 @@
 package com.insurancesystem.Services;
 
+import com.insurancesystem.Exception.BadRequestException;
 import com.insurancesystem.Exception.NotFoundException;
+import com.insurancesystem.Exception.UnauthorizedException;
 import com.insurancesystem.Model.Dto.ClientDto;
 import com.insurancesystem.Model.Dto.LabRequestDTO;
 import com.insurancesystem.Model.Dto.UpdateUserDTO;
@@ -120,7 +122,7 @@ public class LabRequestService {
             member = clientRepo.findByFullName(dto.getMemberName())
                     .orElseThrow(() -> new NotFoundException("Member not found"));
         } else {
-            throw new RuntimeException("Member info required");
+            throw new BadRequestException("Member info required");
         }
 
         log.info("✅ Member found: {}", member.getFullName());
@@ -242,6 +244,7 @@ public class LabRequestService {
     }
 
     // 📖 Doctor يشوف طلباته
+    @Transactional(readOnly = true)
     public List<LabRequestDTO> getByDoctor() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
@@ -269,6 +272,7 @@ public class LabRequestService {
     }
 
     // 📖 Member يشوف طلباته
+    @Transactional(readOnly = true)
     public List<LabRequestDTO> getMyLabs() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
@@ -277,20 +281,11 @@ public class LabRequestService {
                 .orElseThrow(() -> new NotFoundException("Member not found"));
 
         log.info("🔍 Fetching lab requests for member: {} (ID: {})", member.getFullName(), member.getId());
-        
-        List<LabRequest> labRequests = labRepo.findByMemberId(member.getId());
-        
-        log.info("✅ Found {} lab requests for member: {}", labRequests.size(), member.getFullName());
-        for (LabRequest lr : labRequests) {
-            log.info("  - Lab Request ID: {}, Doctor: {}, Status: {}, Test: {}", 
-                    lr.getId(), 
-                    lr.getDoctor() != null ? lr.getDoctor().getFullName() : "N/A",
-                    lr.getStatus(),
-                    lr.getTestName());
-        }
-        
+
         // Use eager fetch query to ensure member is loaded
         List<LabRequest> labRequestsWithMember = labRepo.findByMemberIdWithMember(member.getId());
+
+        log.info("✅ Found {} lab requests for member: {}", labRequestsWithMember.size(), member.getFullName());
         
         // Force initialization of member fields to ensure they're loaded (same as PrescriptionService)
         for (LabRequest r : labRequestsWithMember) {
@@ -310,6 +305,7 @@ public class LabRequestService {
     }
 
     // 📖 Lab Tech يشوف الطلبات المعلقة + الجارية
+    @Transactional(readOnly = true)
     public List<LabRequestDTO> getPending() {
         // Fetch both PENDING and IN_PROGRESS requests
         List<LabRequest> pendingRequests = labRepo.findByStatusWithMember(LabRequestStatus.PENDING);
@@ -352,14 +348,16 @@ public class LabRequestService {
                 .orElseThrow(() -> new NotFoundException("Lab request not found"));
 
         if (request.getStatus() != LabRequestStatus.PENDING) {
-            throw new RuntimeException("Can only accept pending requests");
+            throw new BadRequestException("Can only accept pending requests");
         }
 
-        request.setEnteredPrice(enteredPrice);
+        java.math.BigDecimal enteredPriceBD = java.math.BigDecimal.valueOf(enteredPrice);
+        request.setEnteredPrice(enteredPriceBD);
 
         // 🟢 حساب السعر المعتمد
         Double unionPrice = request.getTest().getPrice();
-        Double approvedPrice = Math.min(enteredPrice, unionPrice);
+        java.math.BigDecimal unionPriceBD = unionPrice != null ? java.math.BigDecimal.valueOf(unionPrice) : java.math.BigDecimal.ZERO;
+        java.math.BigDecimal approvedPrice = enteredPriceBD.min(unionPriceBD);
 
         request.setApprovedPrice(approvedPrice);
         request.setStatus(LabRequestStatus.IN_PROGRESS);
@@ -381,7 +379,7 @@ public class LabRequestService {
                 .orElseThrow(() -> new NotFoundException("Lab request not found"));
 
         if (request.getStatus() == LabRequestStatus.COMPLETED) {
-            throw new RuntimeException("Result already uploaded");
+            throw new BadRequestException("Result already uploaded");
         }
 
         try {
@@ -406,24 +404,30 @@ public class LabRequestService {
         log.info("✅ Result uploaded successfully");
 
         // 🔔 إشعار للمريض بإكمال الفحص
-        notificationService.sendToUser(
-                saved.getMember().getId(),
-                "✅ Lab test results are ready: " + saved.getTest().getServiceName()
-        );
-        log.info("✅ Notification sent to member");
+        if (saved.getMember() != null) {
+            notificationService.sendToUser(
+                    saved.getMember().getId(),
+                    "✅ Lab test results are ready: " + saved.getTest().getServiceName()
+            );
+            log.info("✅ Notification sent to member");
+        }
 
         // 🔔 إشعار للطبيب بإكمال الفحص
-        notificationService.sendToUser(
-                saved.getDoctor().getId(),
-                "✅ Lab test completed for patient " + saved.getMember().getFullName() +
-                        " - Test: " + saved.getTest().getServiceName()
-        );
-        log.info("✅ Notification sent to doctor");
+        if (saved.getDoctor() != null) {
+            String memberName = saved.getMember() != null ? saved.getMember().getFullName() : "Unknown";
+            notificationService.sendToUser(
+                    saved.getDoctor().getId(),
+                    "✅ Lab test completed for patient " + memberName +
+                            " - Test: " + saved.getTest().getServiceName()
+            );
+            log.info("✅ Notification sent to doctor");
+        }
 
         return labRequestMapper.toDto(saved, familyMemberRepo);
     }
 
     // 📖 Member أو Doctor يشوف نتيجة فحص
+    @Transactional(readOnly = true)
     public LabRequestDTO getResult(UUID id) {
         // Use query that eagerly fetches member with dateOfBirth and gender
         LabRequest request = labRepo.findByIdWithMember(id)
@@ -444,12 +448,12 @@ public class LabRequestService {
         LabRequest request = labRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException("Lab request not found"));
 
-        if (!request.getDoctor().getId().equals(doctor.getId())) {
-            throw new RuntimeException("You are not allowed to update this request");
+        if (request.getDoctor() == null || !request.getDoctor().getId().equals(doctor.getId())) {
+            throw new UnauthorizedException("You are not allowed to update this request");
         }
 
         if (request.getStatus() == LabRequestStatus.COMPLETED) {
-            throw new RuntimeException("Cannot update a completed lab request");
+            throw new BadRequestException("Cannot update a completed lab request");
         }
 
         request.setNotes(dto.getNotes());
@@ -470,18 +474,19 @@ public class LabRequestService {
         LabRequest request = labRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException("Lab request not found"));
 
-        if (!request.getDoctor().getId().equals(doctor.getId())) {
-            throw new RuntimeException("You are not allowed to delete this request");
+        if (request.getDoctor() == null || !request.getDoctor().getId().equals(doctor.getId())) {
+            throw new UnauthorizedException("You are not allowed to delete this request");
         }
 
         if (request.getStatus() == LabRequestStatus.COMPLETED) {
-            throw new RuntimeException("Cannot delete a completed lab request");
+            throw new BadRequestException("Cannot delete a completed lab request");
         }
 
         labRepo.delete(request);
     }
 
     // 📊 Lab Technician يشوف إحصائيات الطلبات
+    @Transactional(readOnly = true)
     public LabRequestDTO getLabStats() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
@@ -489,9 +494,12 @@ public class LabRequestService {
         Client labWorker = clientRepo.findByEmail(currentUsername.toLowerCase())
                 .orElseThrow(() -> new NotFoundException("Lab worker not found"));
 
-        long pending = labRepo.countByStatusAndLabTechId(LabRequestStatus.PENDING, labWorker.getId());
+        // PENDING requests are system-wide (not yet assigned to any lab tech)
+        long pending = labRepo.countByStatus(LabRequestStatus.PENDING);
+        // IN_PROGRESS and COMPLETED are specific to this lab tech
+        long inProgress = labRepo.countByStatusAndLabTechId(LabRequestStatus.IN_PROGRESS, labWorker.getId());
         long completed = labRepo.countByStatusAndLabTechId(LabRequestStatus.COMPLETED, labWorker.getId());
-        long total = pending + completed;
+        long total = pending + inProgress + completed;
 
         return LabRequestDTO.builder()
                 .total(total)
@@ -501,6 +509,7 @@ public class LabRequestService {
     }
 
     // 📖 Lab Tech يشوف كل طلباته
+    @Transactional(readOnly = true)
     public List<LabRequestDTO> getAllForCurrentLab() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String currentUsername = auth.getName();
@@ -580,6 +589,7 @@ public class LabRequestService {
     }
 
     // 📖 إرجاع كل الفنيين (Lab Technicians)
+    @Transactional(readOnly = true)
     public List<ClientDto> getAllLabTechs() {
         return clientRepo.findByRoles_Name(RoleName.LAB_TECH)
                 .stream()
@@ -588,10 +598,10 @@ public class LabRequestService {
     }
 
     // 📖 Get available lab tests for doctors (from price list with type LAB)
+    @Transactional(readOnly = true)
     public List<com.insurancesystem.Model.Dto.PriceListResponseDTO> getAvailableLabTests() {
-        return priceListRepository.findByProviderType(com.insurancesystem.Model.Entity.Enums.ProviderType.LAB)
+        return priceListRepository.findByProviderTypeAndActive(com.insurancesystem.Model.Entity.Enums.ProviderType.LAB, true)
                 .stream()
-                .filter(PriceList::isActive)
                 .map(priceListMapper::toDto)
                 .collect(Collectors.toList());
     }

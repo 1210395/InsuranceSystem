@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -16,7 +17,7 @@ import java.nio.charset.StandardCharsets;
 @RequestMapping("/api/templates")
 @RequiredArgsConstructor
 @Slf4j
-@CrossOrigin(origins = "*")
+@PreAuthorize("hasRole('INSURANCE_MANAGER')")
 public class TemplateController {
 
     private final TemplateGeneratorService templateGeneratorService;

@@ -30,7 +30,7 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
 
         // Only rate limit auth endpoints strictly
-        if (path.startsWith("/api/auth/login") || path.startsWith("/api/auth/forgot-password")) {
+        if (path.startsWith("/api/auth/login") || path.startsWith("/api/auth/forgot-password") || path.startsWith("/api/auth/register")) {
             String clientIP = getClientIP(request);
             String key = clientIP + ":" + path;
 

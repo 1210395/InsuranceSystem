@@ -203,6 +203,7 @@ public class VisitService {
     /**
      * Get all visits for a patient (employee or family member)
      */
+    @Transactional(readOnly = true)
     public List<VisitDTO> getPatientVisits(UUID patientId, UUID familyMemberId) {
         if (patientId != null && familyMemberId != null) {
             throw new BadRequestException("Cannot specify both patientId and familyMemberId.");
@@ -226,6 +227,7 @@ public class VisitService {
     /**
      * Get visits for a patient in a specific year
      */
+    @Transactional(readOnly = true)
     public List<VisitDTO> getPatientVisitsByYear(UUID patientId, UUID familyMemberId, Integer year) {
         if (patientId != null && familyMemberId != null) {
             throw new BadRequestException("Cannot specify both patientId and familyMemberId.");
@@ -253,6 +255,7 @@ public class VisitService {
     /**
      * Get visit statistics for a patient in a year
      */
+    @Transactional(readOnly = true)
     public VisitDTO.VisitStatistics getPatientVisitStatistics(UUID patientId, UUID familyMemberId, Integer year) {
         if (patientId != null && familyMemberId != null) {
             throw new BadRequestException("Cannot specify both patientId and familyMemberId.");

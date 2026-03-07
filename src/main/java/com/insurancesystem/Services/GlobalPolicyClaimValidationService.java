@@ -30,6 +30,7 @@ public class GlobalPolicyClaimValidationService {
     private final ClientRepository clientRepository;
     private final FamilyMemberRepository familyMemberRepository;
     private final HealthcareProviderClaimRepository claimRepository;
+    private final ClientServiceUsageRepository clientServiceUsageRepository;
 
     @Data
     @Builder
@@ -228,7 +229,7 @@ public class GlobalPolicyClaimValidationService {
             if (monthlySpending.add(claimAmount).compareTo(limits.getMaxSpendingPerMonth()) > 0) {
                 BigDecimal remaining = limits.getMaxSpendingPerMonth().subtract(monthlySpending);
                 return notCovered("MONTHLY_SPENDING_EXCEEDED",
-                        "Monthly spending limit exceeded. Remaining: ₪" + remaining.setScale(2, RoundingMode.HALF_UP));
+                        "Monthly spending limit exceeded. Remaining: " + remaining.setScale(2, RoundingMode.HALF_UP) + " JOD");
             }
         }
 
@@ -239,7 +240,7 @@ public class GlobalPolicyClaimValidationService {
             if (yearlySpending.add(claimAmount).compareTo(limits.getMaxSpendingPerYear()) > 0) {
                 BigDecimal remaining = limits.getMaxSpendingPerYear().subtract(yearlySpending);
                 return notCovered("YEARLY_SPENDING_EXCEEDED",
-                        "Yearly spending limit exceeded. Remaining: ₪" + remaining.setScale(2, RoundingMode.HALF_UP));
+                        "Yearly spending limit exceeded. Remaining: " + remaining.setScale(2, RoundingMode.HALF_UP) + " JOD");
             }
         }
 
@@ -252,9 +253,48 @@ public class GlobalPolicyClaimValidationService {
             return ClaimValidationResult.builder().covered(true).build();
         }
 
-        // Category limits validation is tracked through ClientUsage table
-        // For now, we allow if no specific tracking is set up
-        // TODO: Implement detailed category tracking when ClientUsage is enhanced
+        CategoryLimits limits = limitsOpt.get();
+        LocalDateTime now = LocalDateTime.now();
+        int currentYear = now.getYear();
+        int currentMonth = now.getMonthValue();
+
+        // Check monthly visit limit
+        if (limits.getMaxVisitsPerMonth() != null) {
+            int monthlyVisits = clientServiceUsageRepository.getCategoryUsageCount(clientId, categoryId, currentYear, currentMonth);
+            if (monthlyVisits >= limits.getMaxVisitsPerMonth()) {
+                return notCovered("CATEGORY_MONTHLY_VISITS_EXCEEDED",
+                        "Monthly visit limit (" + limits.getMaxVisitsPerMonth() + ") for this category exceeded");
+            }
+        }
+
+        // Check yearly visit limit
+        if (limits.getMaxVisitsPerYear() != null) {
+            int yearlyVisits = clientServiceUsageRepository.getCategoryUsageCount(clientId, categoryId, currentYear, null);
+            if (yearlyVisits >= limits.getMaxVisitsPerYear()) {
+                return notCovered("CATEGORY_YEARLY_VISITS_EXCEEDED",
+                        "Yearly visit limit (" + limits.getMaxVisitsPerYear() + ") for this category exceeded");
+            }
+        }
+
+        // Check monthly spending limit
+        if (limits.getMaxSpendingPerMonth() != null) {
+            BigDecimal monthlySpending = clientServiceUsageRepository.getCategorySpending(clientId, categoryId, currentYear, currentMonth);
+            if (monthlySpending.add(claimAmount).compareTo(limits.getMaxSpendingPerMonth()) > 0) {
+                BigDecimal remaining = limits.getMaxSpendingPerMonth().subtract(monthlySpending);
+                return notCovered("CATEGORY_MONTHLY_SPENDING_EXCEEDED",
+                        "Monthly spending limit for this category exceeded. Remaining: " + remaining.setScale(2, RoundingMode.HALF_UP) + " JOD");
+            }
+        }
+
+        // Check yearly spending limit
+        if (limits.getMaxSpendingPerYear() != null) {
+            BigDecimal yearlySpending = clientServiceUsageRepository.getCategorySpending(clientId, categoryId, currentYear, null);
+            if (yearlySpending.add(claimAmount).compareTo(limits.getMaxSpendingPerYear()) > 0) {
+                BigDecimal remaining = limits.getMaxSpendingPerYear().subtract(yearlySpending);
+                return notCovered("CATEGORY_YEARLY_SPENDING_EXCEEDED",
+                        "Yearly spending limit for this category exceeded. Remaining: " + remaining.setScale(2, RoundingMode.HALF_UP) + " JOD");
+            }
+        }
 
         return ClaimValidationResult.builder().covered(true).build();
     }

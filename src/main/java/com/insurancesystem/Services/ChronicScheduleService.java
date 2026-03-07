@@ -4,6 +4,7 @@ import com.insurancesystem.Exception.NotFoundException;
 import com.insurancesystem.Model.Dto.LabRequestDTO;
 import com.insurancesystem.Model.Dto.PrescriptionDTO;
 import com.insurancesystem.Model.Dto.PrescriptionItemDTO;
+import com.insurancesystem.Model.Dto.RadiologyRequestDTO;
 import com.insurancesystem.Model.Entity.ChronicPatientSchedule;
 import com.insurancesystem.Model.Entity.Client;
 import com.insurancesystem.Model.Entity.Enums.ProviderType;
@@ -112,6 +113,12 @@ public class ChronicScheduleService {
                 break;
             case "LAB":
                 createLabRequest(schedule, patient, medicalAdmin);
+                break;
+            case "RADIOLOGY":
+                createRadiologyRequest(schedule, patient, medicalAdmin);
+                break;
+            default:
+                log.warn("Unknown schedule type: {}", scheduleType);
                 break;
         }
 
@@ -261,6 +268,54 @@ public class ChronicScheduleService {
         }
     }
 
+    private void createRadiologyRequest(ChronicPatientSchedule schedule, Client patient, Client medicalAdmin) {
+        try {
+            log.info("📡 Creating radiology request for patient: {} - Test: {}",
+                    patient.getFullName(), schedule.getRadiologyTestName());
+
+            List<PriceList> radiologyTests = priceListRepository.findByProviderTypeAndServiceName(
+                    ProviderType.RADIOLOGY,
+                    schedule.getRadiologyTestName()
+            );
+
+            if (radiologyTests.isEmpty()) {
+                log.warn("Radiology test not found by exact name: {}, searching all...", schedule.getRadiologyTestName());
+                List<PriceList> allRadiologyTests = priceListRepository.findByProviderType(ProviderType.RADIOLOGY);
+                radiologyTests = allRadiologyTests.stream()
+                        .filter(test -> test.getServiceName() != null &&
+                                test.getServiceName().equalsIgnoreCase(schedule.getRadiologyTestName()))
+                        .collect(java.util.stream.Collectors.toList());
+            }
+
+            if (radiologyTests.isEmpty()) {
+                log.error("Radiology test not found in price list: {}", schedule.getRadiologyTestName());
+                throw new NotFoundException("Radiology test not found in price list: " + schedule.getRadiologyTestName());
+            }
+
+            PriceList radiologyTest = radiologyTests.get(0);
+            log.info("Found radiology test: {} (ID: {})", radiologyTest.getServiceName(), radiologyTest.getId());
+
+            RadiologyRequestDTO radiologyRequestDTO = RadiologyRequestDTO.builder()
+                    .memberId(patient.getId())
+                    .memberName(patient.getFullName())
+                    .testId(radiologyTest.getId())
+                    .testName(radiologyTest.getServiceName())
+                    .notes("Automatic request from chronic patient schedule" +
+                            (schedule.getNotes() != null ? " - " + schedule.getNotes() : ""))
+                    .build();
+
+            RadiologyRequestDTO createdRequest = radiologyRequestService.createRadiologyRequestWithDoctor(radiologyRequestDTO, medicalAdmin);
+
+            log.info("Radiology request created for patient: {} - Request ID: {}",
+                    patient.getFullName(), createdRequest.getId());
+
+        } catch (Exception e) {
+            log.error("Error creating radiology request for patient {} - Test {}: {}",
+                    patient.getFullName(), schedule.getRadiologyTestName(), e.getMessage(), e);
+            throw e;
+        }
+    }
+
     private String buildNotificationMessage(ChronicPatientSchedule schedule) {
         StringBuilder message = new StringBuilder("✅ Automatic schedule sent: ");
         
@@ -270,6 +325,9 @@ public class ChronicScheduleService {
                 break;
             case "LAB":
                 message.append("Lab test request: ").append(schedule.getLabTestName());
+                break;
+            case "RADIOLOGY":
+                message.append("Radiology test request: ").append(schedule.getRadiologyTestName());
                 break;
         }
         

@@ -15,6 +15,7 @@ import com.insurancesystem.Repository.ClientRepository;
 import com.insurancesystem.Repository.PolicyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -24,6 +25,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+@Deprecated
 @Service
 @RequiredArgsConstructor
 public class ClaimService {
@@ -47,7 +49,7 @@ public class ClaimService {
         Claim claim = claimMapper.toEntity(dto);
         claim.setMember(member);
         claim.setPolicy(policy);
-        claim.setStatus(ClaimStatus.PENDING);
+        claim.setStatus(ClaimStatus.PENDING_MEDICAL);
 
         if (invoiceImage != null && !invoiceImage.isEmpty()) {
             claim.setInvoiceImagePath(saveInvoice(invoiceImage));
@@ -93,11 +95,16 @@ public class ClaimService {
     }
 
     // موافقة على مطالبة
+    @Transactional
     public ClaimDTO approveClaim(UUID claimId) {
         Claim claim = claimRepo.findById(claimId)
                 .orElseThrow(() -> new NotFoundException("Claim not found"));
 
-        claim.setStatus(ClaimStatus.APPROVED);
+        if (claim.getStatus() != ClaimStatus.PENDING_MEDICAL && claim.getStatus() != ClaimStatus.PENDING) {
+            throw new IllegalStateException("Claim cannot be approved from status: " + claim.getStatus());
+        }
+
+        claim.setStatus(ClaimStatus.APPROVED_FINAL);
         claim.setApprovedAt(Instant.now());
         claimRepo.save(claim);
 
@@ -114,11 +121,16 @@ public class ClaimService {
     }
 
     // رفض مطالبة
+    @Transactional
     public ClaimDTO rejectClaim(UUID claimId, RejectClaimDTO dto) {
         Claim claim = claimRepo.findById(claimId)
                 .orElseThrow(() -> new NotFoundException("Claim not found"));
 
-        claim.setStatus(ClaimStatus.REJECTED);
+        if (claim.getStatus() != ClaimStatus.PENDING_MEDICAL && claim.getStatus() != ClaimStatus.PENDING) {
+            throw new IllegalStateException("Claim cannot be rejected from status: " + claim.getStatus());
+        }
+
+        claim.setStatus(ClaimStatus.REJECTED_FINAL);
         claim.setRejectedAt(Instant.now());
         claim.setRejectionReason(dto.getReason());
         claimRepo.save(claim);

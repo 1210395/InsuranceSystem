@@ -4,6 +4,7 @@ import com.insurancesystem.Model.Entity.Enums.ClaimStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
@@ -37,7 +38,7 @@ public class Claim {
     private String treatmentDetails; // تفاصيل العلاج
 
     @Column(nullable = false)
-    private Double amount; // قيمة المطالبة
+    private BigDecimal amount; // قيمة المطالبة
 
     @Column(nullable = false)
     private LocalDate serviceDate; // تاريخ تقديم الخدمة الطبية

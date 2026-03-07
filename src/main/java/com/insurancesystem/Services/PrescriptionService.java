@@ -25,6 +25,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.io.IOException;
 import java.nio.file.*;
 import java.time.Instant;
@@ -312,7 +314,7 @@ public class PrescriptionService {
                 .status(PrescriptionStatus.PENDING)
                 .diagnosis(dto.getDiagnosis())
                 .treatment(treatmentNotes)
-                .totalPrice(0.0)
+                .totalPrice(BigDecimal.ZERO)
                 .isChronic(dto.getIsChronic() != null ? dto.getIsChronic() : false) // ✅ حفظ علامة Chronic Disease
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
@@ -390,16 +392,16 @@ public class PrescriptionService {
 
             // Calculate union price per unit based on drug form (for display/storage only, actual comparison happens in verify())
             // حساب سعر الوحدة من النقابة (للعرض/الحفظ فقط، المقارنة الفعلية تحدث في verify())
-            Double unionPricePerUnit;
+            BigDecimal unionPricePerUnit;
             String formCreate = drugForm != null ? drugForm.toUpperCase() : "";
             if ("SYRUP".equals(formCreate) || "SPRAY".equals(formCreate) || "DROPS".equals(formCreate) || "CREAM".equals(formCreate) || "OINTMENT".equals(formCreate)) {
                 // للسائل/الكريم/القطرة: سعر الوحدة = سعر العلبة الواحدة (للعرض فقط)
                 // For liquid/cream/drops: unit price = price per package (for display only)
-                unionPricePerUnit = med.getPrice();
+                unionPricePerUnit = BigDecimal.valueOf(med.getPrice());
             } else {
                 // للحبوب/الحقن: سعر الوحدة = سعر الحبة/الحقنة الواحدة
                 // For tablets/injections: unit price = price per tablet/injection
-                unionPricePerUnit = quantityCalculator.calculateUnitPrice(med.getPrice(), packageQuantity);
+                unionPricePerUnit = BigDecimal.valueOf(quantityCalculator.calculateUnitPrice(med.getPrice(), packageQuantity));
             }
 
             PrescriptionItem item = PrescriptionItem.builder()
@@ -586,7 +588,7 @@ public class PrescriptionService {
         // Restrictions and active prescription checks are done at doctor side only
         // Pharmacist only enters price and calculations are done in backend
 
-        double total = 0.0;
+        BigDecimal total = BigDecimal.ZERO;
 
         for (PrescriptionItemDTO dto : itemsWithPrices) {
             PrescriptionItem item = prescriptionItemRepo.findById(dto.getId())
@@ -597,55 +599,57 @@ public class PrescriptionService {
 
             // الصيدلي يدخل السعر فقط للكمية المحددة (20 حبة مثلاً أو علبة كاملة)
             // Pharmacist enters price for the specified quantity (20 pills for example or full package)
-            Double pharmacistPrice = dto.getPharmacistPrice();
-            if (pharmacistPrice == null || pharmacistPrice <= 0) {
+            Double pharmacistPriceDto = dto.getPharmacistPrice();
+            if (pharmacistPriceDto == null || pharmacistPriceDto <= 0) {
                 throw new IllegalArgumentException("Pharmacist price must be provided and greater than 0");
             }
+            BigDecimal pharmacistPrice = BigDecimal.valueOf(pharmacistPriceDto);
 
             // service price = سعر النقابة للعلبة الكاملة (med.getPrice())
             // Service price = Union price for full package
-            Double servicePrice = med.getPrice();
-            if (servicePrice == null || servicePrice <= 0) {
+            Double servicePriceDto = med.getPrice();
+            if (servicePriceDto == null || servicePriceDto <= 0) {
                 throw new IllegalArgumentException("Service price (union price) must be valid and greater than 0");
             }
+            BigDecimal servicePrice = BigDecimal.valueOf(servicePriceDto);
 
             // Update item with all calculated values
             Integer calculatedQuantity = item.getCalculatedQuantity(); // الكمية المحسوبة (20 حبة مثلاً أو 1 علبة)
-            
+
             if (calculatedQuantity == null || calculatedQuantity <= 0) {
                 throw new IllegalArgumentException("Calculated quantity must be set before verification");
             }
-            
+
             // حساب سعر النقابة للكمية المحسوبة نفسها
             // Calculate union price for the calculated quantity
-            Double unionPriceForCalculatedQuantity;
+            BigDecimal unionPriceForCalculatedQuantity;
             String form = drugForm != null ? drugForm.toUpperCase() : "";
-            
-            log.info("🔍 [VERIFY] Medicine: {}, Form: {}, Calculated Qty: {}, Service Price (package): {}", 
+
+            log.info("🔍 [VERIFY] Medicine: {}, Form: {}, Calculated Qty: {}, Service Price (package): {}",
                     med.getServiceName(), form, calculatedQuantity, servicePrice);
-            
+
             if ("SYRUP".equals(form) || "SPRAY".equals(form) || "DROPS".equals(form) || "CREAM".equals(form) || "OINTMENT".equals(form)) {
                 // للسائل/الكريم/القطرة: الكمية = عدد العبوات، إذن سعر النقابة = servicePrice × عدد العبوات
                 // For liquid/cream/drops: quantity = number of packages, so union price = servicePrice × number of packages
                 // calculatedQuantity = عدد العبوات (مثلاً 2 علب)
                 // calculatedQuantity = number of packages (e.g., 2 bottles)
-                unionPriceForCalculatedQuantity = servicePrice * calculatedQuantity;
-                log.info("💧 [VERIFY] Liquid/Cream/Drops detected - Number of packages: {}, Service Price per package: {}, Union price total: {} = {} × {}", 
+                unionPriceForCalculatedQuantity = servicePrice.multiply(BigDecimal.valueOf(calculatedQuantity));
+                log.info("💧 [VERIFY] Liquid/Cream/Drops detected - Number of packages: {}, Service Price per package: {}, Union price total: {} = {} × {}",
                         calculatedQuantity, servicePrice, unionPriceForCalculatedQuantity, servicePrice, calculatedQuantity);
             } else {
                 // للحبوب/الحقن: نحسب سعر النقابة للكمية المحسوبة
                 // For tablets/injections: calculate union price for calculated quantity
                 Integer packageQuantity = quantityCalculator.extractPackageQuantity(med);
                 log.info("💊 [VERIFY] Tablet/Injection - Package Qty: {}", packageQuantity);
-                
+
                 if (packageQuantity != null && packageQuantity > 0 && calculatedQuantity > 0) {
                     // سعر الوحدة الواحدة = servicePrice / packageQuantity
                     // Price per unit = servicePrice / packageQuantity
-                    Double unitPrice = servicePrice / packageQuantity;
+                    BigDecimal unitPrice = servicePrice.divide(BigDecimal.valueOf(packageQuantity), 10, RoundingMode.HALF_UP);
                     // سعر الكمية المحسوبة = unitPrice × calculatedQuantity
                     // Price for calculated quantity = unitPrice × calculatedQuantity
-                    unionPriceForCalculatedQuantity = unitPrice * calculatedQuantity;
-                    log.info("💊 [VERIFY] Unit Price: {} = {} / {}, Union Price for {} units: {} = {} × {}", 
+                    unionPriceForCalculatedQuantity = unitPrice.multiply(BigDecimal.valueOf(calculatedQuantity));
+                    log.info("💊 [VERIFY] Unit Price: {} = {} / {}, Union Price for {} units: {} = {} × {}",
                             unitPrice, servicePrice, packageQuantity, calculatedQuantity, unionPriceForCalculatedQuantity, unitPrice, calculatedQuantity);
                 } else {
                     // إذا لم توجد كمية، نستخدم servicePrice مباشرة
@@ -659,29 +663,29 @@ public class PrescriptionService {
             // Comparison: Compare pharmacist price (for calculated quantity) with union price (for calculated quantity) and take the minimum
             // المبلغ النهائي = أقل سعر بين سعر الصيدلي وسعر النقابة للكمية المحسوبة نفسها
             // Final amount = minimum of pharmacist price and union price for the same calculated quantity
-            
+
             // التحقق من القيم قبل المقارنة
             // Verify values before comparison
-            if (unionPriceForCalculatedQuantity == null || unionPriceForCalculatedQuantity <= 0) {
+            if (unionPriceForCalculatedQuantity.compareTo(BigDecimal.ZERO) <= 0) {
                 log.error("❌ [VERIFY] ERROR: unionPriceForCalculatedQuantity is invalid: {}", unionPriceForCalculatedQuantity);
                 throw new IllegalStateException("Union price for calculated quantity is invalid");
             }
-            
-            Double finalPrice = Math.min(pharmacistPrice, unionPriceForCalculatedQuantity);
-            
-            log.info("💰 [VERIFY] Price comparison - Pharmacist Price: {}, Union Price (for qty): {}, Final Price (min): {}", 
+
+            BigDecimal finalPrice = pharmacistPrice.min(unionPriceForCalculatedQuantity);
+
+            log.info("💰 [VERIFY] Price comparison - Pharmacist Price: {}, Union Price (for qty): {}, Final Price (min): {}",
                     pharmacistPrice, unionPriceForCalculatedQuantity, finalPrice);
-            
+
             // التحقق من أن finalPrice هو فعلاً الأقل
             // Verify that finalPrice is indeed the minimum
-            if (finalPrice > unionPriceForCalculatedQuantity) {
-                log.error("❌ [VERIFY] ERROR: finalPrice ({}) is greater than unionPriceForCalculatedQuantity ({})! This should never happen!", 
+            if (finalPrice.compareTo(unionPriceForCalculatedQuantity) > 0) {
+                log.error("❌ [VERIFY] ERROR: finalPrice ({}) is greater than unionPriceForCalculatedQuantity ({})! This should never happen!",
                         finalPrice, unionPriceForCalculatedQuantity);
                 throw new IllegalStateException("Final price calculation error: finalPrice > unionPriceForCalculatedQuantity");
             }
-            
-            if (finalPrice > pharmacistPrice) {
-                log.error("❌ [VERIFY] ERROR: finalPrice ({}) is greater than pharmacistPrice ({})! This should never happen!", 
+
+            if (finalPrice.compareTo(pharmacistPrice) > 0) {
+                log.error("❌ [VERIFY] ERROR: finalPrice ({}) is greater than pharmacistPrice ({})! This should never happen!",
                         finalPrice, pharmacistPrice);
                 throw new IllegalStateException("Final price calculation error: finalPrice > pharmacistPrice");
             }
@@ -689,66 +693,65 @@ public class PrescriptionService {
             item.setDispensedQuantity(calculatedQuantity);
             item.setCoveredQuantity(calculatedQuantity);
             item.setPharmacistPrice(pharmacistPrice);
-            
+
             // حفظ سعر الوحدة الواحدة من النقابة (للحفظ فقط)
             // Save union price per unit (for storage only)
             Integer packageQuantity = quantityCalculator.extractPackageQuantity(med);
-            Double unionPricePerUnit = quantityCalculator.calculateUnitPrice(servicePrice, packageQuantity);
+            BigDecimal unionPricePerUnit = BigDecimal.valueOf(quantityCalculator.calculateUnitPrice(servicePriceDto, packageQuantity));
             item.setUnionPricePerUnit(unionPricePerUnit);
-            
+
             // حساب سعر الوحدة من الصيدلي (للحفظ فقط، لا يعرض للصيدلي)
             // Calculate pharmacist price per unit (for storage only, not shown to pharmacist)
-            Double pharmacistPricePerUnit = calculatedQuantity != null && calculatedQuantity > 0 
-                ? pharmacistPrice / calculatedQuantity 
-                : 0.0;
+            BigDecimal pharmacistPricePerUnit = calculatedQuantity != null && calculatedQuantity > 0
+                ? pharmacistPrice.divide(BigDecimal.valueOf(calculatedQuantity), 10, RoundingMode.HALF_UP)
+                : BigDecimal.ZERO;
             item.setPharmacistPricePerUnit(pharmacistPricePerUnit);
-            
+
             item.setFinalPrice(finalPrice);
             item.setUnionPriceForCalculatedQuantity(unionPriceForCalculatedQuantity);
 
             // Save reason if pharmacist price > union price
-            if (pharmacistPrice > unionPriceForCalculatedQuantity && dto.getPriceHigherReason() != null) {
+            if (pharmacistPrice.compareTo(unionPriceForCalculatedQuantity) > 0 && dto.getPriceHigherReason() != null) {
                 item.setPriceHigherReason(dto.getPriceHigherReason());
                 log.info("⚠️ [VERIFY] Price override - Pharmacist price ({}) > Union price ({}), Reason: {}",
                         pharmacistPrice, unionPriceForCalculatedQuantity, dto.getPriceHigherReason());
             }
 
             item.setUpdatedAt(Instant.now());
-            
+
             // التحقق من أن finalPrice تم حفظه بشكل صحيح
             // Verify that finalPrice is saved correctly
             PrescriptionItem savedItem = prescriptionItemRepo.save(item);
-            
+
             // التحقق من القيم المحفوظة
             // Verify saved values
-            log.info("🔍 [VERIFY] Saved values - FinalPrice: {}, PharmacistPrice: {}, UnionPriceForQty: {}", 
+            log.info("🔍 [VERIFY] Saved values - FinalPrice: {}, PharmacistPrice: {}, UnionPriceForQty: {}",
                     savedItem.getFinalPrice(), savedItem.getPharmacistPrice(), unionPriceForCalculatedQuantity);
-            
+
             if (savedItem.getFinalPrice() == null) {
                 log.error("❌ [VERIFY] ERROR: FinalPrice is NULL after save!");
                 throw new IllegalStateException("FinalPrice is NULL after save");
             }
-            
-            // استخدام Double.compare للتأكد من المقارنة الصحيحة (لتجنب مشاكل floating point)
-            // Use Double.compare for accurate comparison (to avoid floating point issues)
-            if (Double.compare(savedItem.getFinalPrice(), finalPrice) != 0) {
-                log.error("❌ [VERIFY] ERROR: FinalPrice was not saved correctly! Expected: {}, Actual: {}", 
+
+            // Use compareTo for BigDecimal comparison
+            if (savedItem.getFinalPrice().compareTo(finalPrice) != 0) {
+                log.error("❌ [VERIFY] ERROR: FinalPrice was not saved correctly! Expected: {}, Actual: {}",
                         finalPrice, savedItem.getFinalPrice());
                 throw new IllegalStateException("Failed to save finalPrice correctly. Expected: " + finalPrice + ", Actual: " + savedItem.getFinalPrice());
             }
-            
+
             // التحقق النهائي: finalPrice يجب أن يكون الأقل
             // Final verification: finalPrice must be the minimum
-            if (Double.compare(savedItem.getFinalPrice(), unionPriceForCalculatedQuantity) > 0) {
-                log.error("❌ [VERIFY] CRITICAL ERROR: Saved finalPrice ({}) is greater than unionPriceForCalculatedQuantity ({})!", 
+            if (savedItem.getFinalPrice().compareTo(unionPriceForCalculatedQuantity) > 0) {
+                log.error("❌ [VERIFY] CRITICAL ERROR: Saved finalPrice ({}) is greater than unionPriceForCalculatedQuantity ({})!",
                         savedItem.getFinalPrice(), unionPriceForCalculatedQuantity);
                 throw new IllegalStateException("CRITICAL: Saved finalPrice is greater than union price!");
             }
-            
-            log.info("✅ [VERIFY] FinalPrice saved successfully: {} (should be min of {} and {})", 
+
+            log.info("✅ [VERIFY] FinalPrice saved successfully: {} (should be min of {} and {})",
                     savedItem.getFinalPrice(), pharmacistPrice, unionPriceForCalculatedQuantity);
 
-            total += finalPrice;
+            total = total.add(finalPrice);
         }
 
         prescription.setPharmacist(pharmacist);
@@ -758,18 +761,23 @@ public class PrescriptionService {
         prescriptionRepo.save(prescription);
 
         // 🔔 إشعار للمريض
-        notificationService.sendToUser(
-                prescription.getMember().getId(),
-                "✅ تمت الموافقة على وصفتك من الصيدلي " + pharmacist.getFullName() +
-                        " - المجموع: " + total + " ₪"
-        );
+        if (prescription.getMember() != null) {
+            notificationService.sendToUser(
+                    prescription.getMember().getId(),
+                    "✅ تمت الموافقة على وصفتك من الصيدلي " + pharmacist.getFullName() +
+                            " - المجموع: " + total + " دينار"
+            );
+        }
 
         // 🔔 إشعار للطبيب
-        notificationService.sendToUser(
-                prescription.getDoctor().getId(),
-                "✅ تمت الموافقة على وصفتك للمريض " + prescription.getMember().getFullName() +
-                        " من الصيدلي " + pharmacist.getFullName()
-        );
+        if (prescription.getDoctor() != null) {
+            notificationService.sendToUser(
+                    prescription.getDoctor().getId(),
+                    "✅ تمت الموافقة على وصفتك للمريض " +
+                            (prescription.getMember() != null ? prescription.getMember().getFullName() : "غير محدد") +
+                            " من الصيدلي " + pharmacist.getFullName()
+            );
+        }
 
         return prescriptionMapper.toDto(prescription, familyMemberRepo);
     }
@@ -790,17 +798,22 @@ public class PrescriptionService {
         prescriptionRepo.save(prescription);
 
         // 🔔 إشعار للمريض
-        notificationService.sendToUser(
-                prescription.getMember().getId(),
-                "❌ تم رفض وصفتك من الصيدلي " + pharmacist.getFullName()
-        );
+        if (prescription.getMember() != null) {
+            notificationService.sendToUser(
+                    prescription.getMember().getId(),
+                    "❌ تم رفض وصفتك من الصيدلي " + pharmacist.getFullName()
+            );
+        }
 
         // 🔔 إشعار للطبيب
-        notificationService.sendToUser(
-                prescription.getDoctor().getId(),
-                "❌ تم رفض وصفتك للمريض " + prescription.getMember().getFullName() +
-                        " من الصيدلي " + pharmacist.getFullName()
-        );
+        if (prescription.getDoctor() != null) {
+            notificationService.sendToUser(
+                    prescription.getDoctor().getId(),
+                    "❌ تم رفض وصفتك للمريض " +
+                            (prescription.getMember() != null ? prescription.getMember().getFullName() : "غير محدد") +
+                            " من الصيدلي " + pharmacist.getFullName()
+            );
+        }
 
         return prescriptionMapper.toDto(prescription, familyMemberRepo);
     }
@@ -808,11 +821,20 @@ public class PrescriptionService {
     // Doctor updates prescription
     @Transactional
     public PrescriptionDTO update(UUID id, PrescriptionDTO dto) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        Client doctor = clientRepo.findByEmail(auth.getName().toLowerCase())
+                .orElseThrow(() -> new NotFoundException("DOCTOR_NOT_FOUND"));
+
         Prescription prescription = prescriptionRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException("PRESCRIPTION_NOT_FOUND"));
 
         if (prescription.getStatus() != PrescriptionStatus.PENDING) {
             throw new IllegalStateException("CANNOT_UPDATE_NON_PENDING");
+        }
+
+        // Verify the doctor owns this prescription
+        if (prescription.getDoctor() == null || !prescription.getDoctor().getId().equals(doctor.getId())) {
+            throw new IllegalStateException("CANNOT_UPDATE_OTHER_DOCTOR_PRESCRIPTION");
         }
 
         prescription.setDiagnosis(dto.getDiagnosis());
@@ -856,16 +878,13 @@ public class PrescriptionService {
 
             // Calculate union price per unit based on drug form (for display/storage only, actual comparison happens in verify())
             // حساب سعر الوحدة من النقابة (للعرض/الحفظ فقط، المقارنة الفعلية تحدث في verify())
-            Double unionPricePerUnit;
+            BigDecimal unionPricePerUnit;
             String formUpdate = drugForm != null ? drugForm.toUpperCase() : "";
             if ("SYRUP".equals(formUpdate) || "SPRAY".equals(formUpdate) || "DROPS".equals(formUpdate) || "CREAM".equals(formUpdate) || "OINTMENT".equals(formUpdate)) {
-                // للسائل/الكريم/القطرة: سعر الوحدة = سعر العلبة الواحدة (للعرض فقط)
-                // For liquid/cream/drops: unit price = price per package (for display only)
-                unionPricePerUnit = med.getPrice();
+                unionPricePerUnit = med.getPrice() != null ? BigDecimal.valueOf(med.getPrice()) : BigDecimal.ZERO;
             } else {
-                // للحبوب/الحقن: سعر الوحدة = سعر الحبة/الحقنة الواحدة
-                // For tablets/injections: unit price = price per tablet/injection
-                unionPricePerUnit = quantityCalculator.calculateUnitPrice(med.getPrice(), packageQuantity);
+                Double unitPriceDouble = quantityCalculator.calculateUnitPrice(med.getPrice(), packageQuantity);
+                unionPricePerUnit = unitPriceDouble != null ? BigDecimal.valueOf(unitPriceDouble) : BigDecimal.ZERO;
             }
 
             PrescriptionItem item = PrescriptionItem.builder()
@@ -889,17 +908,19 @@ public class PrescriptionService {
         prescriptionRepo.save(prescription);
 
         // 🔔 إشعار للمريض
-        notificationService.sendToUser(
-                prescription.getMember().getId(),
-                "✏️ تم تحديث وصفتك الطبية من الدكتور " + prescription.getDoctor().getFullName()
-        );
+        if (prescription.getMember() != null && prescription.getDoctor() != null) {
+            notificationService.sendToUser(
+                    prescription.getMember().getId(),
+                    "✏️ تم تحديث وصفتك الطبية من الدكتور " + prescription.getDoctor().getFullName()
+            );
+        }
 
         // 🔔 إشعار للصيادلة (في حالة وجود صيدلي مرتبط)
-        if (prescription.getPharmacist() != null) {
+        if (prescription.getPharmacist() != null && prescription.getDoctor() != null) {
             notificationService.sendToUser(
                     prescription.getPharmacist().getId(),
                     "✏️ تم تحديث الوصفة الطبية من الدكتور " + prescription.getDoctor().getFullName() +
-                            " للمريض " + prescription.getMember().getFullName()
+                            " للمريض " + (prescription.getMember() != null ? prescription.getMember().getFullName() : "غير محدد")
             );
         }
 
@@ -909,6 +930,10 @@ public class PrescriptionService {
     // Doctor deletes prescription
     @Transactional
     public void delete(UUID id) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        Client doctor = clientRepo.findByEmail(auth.getName().toLowerCase())
+                .orElseThrow(() -> new NotFoundException("DOCTOR_NOT_FOUND"));
+
         Prescription prescription = prescriptionRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException("PRESCRIPTION_NOT_FOUND"));
 
@@ -916,16 +941,24 @@ public class PrescriptionService {
             throw new IllegalStateException("CANNOT_DELETE_NON_PENDING");
         }
 
+        // Verify the doctor owns this prescription
+        if (prescription.getDoctor() == null || !prescription.getDoctor().getId().equals(doctor.getId())) {
+            throw new IllegalStateException("CANNOT_DELETE_OTHER_DOCTOR_PRESCRIPTION");
+        }
+
         // 🔔 إشعار للمريض
-        notificationService.sendToUser(
-                prescription.getMember().getId(),
-                "🗑️ تم حذف وصفتك الطبية من الدكتور " + prescription.getDoctor().getFullName()
-        );
+        if (prescription.getMember() != null && prescription.getDoctor() != null) {
+            notificationService.sendToUser(
+                    prescription.getMember().getId(),
+                    "🗑️ تم حذف وصفتك الطبية من الدكتور " + prescription.getDoctor().getFullName()
+            );
+        }
 
         prescriptionRepo.delete(prescription);
     }
 
     // Doctor stats
+    @Transactional(readOnly = true)
     public PrescriptionDTO getDoctorStats() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         Client doctor = clientRepo.findByEmail(auth.getName().toLowerCase())
@@ -940,6 +973,7 @@ public class PrescriptionService {
     }
 
     // Pharmacist stats
+    @Transactional(readOnly = true)
     public PrescriptionDTO getPharmacistStats() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         Client pharmacist = clientRepo.findByEmail(auth.getName().toLowerCase())
@@ -1136,6 +1170,7 @@ public class PrescriptionService {
     }
 
     // Get all pharmacists
+    @Transactional(readOnly = true)
     public List<ClientDto> getAllPharmacists() {
         return clientRepo.findByRoles_Name(RoleName.PHARMACIST)
                 .stream()
@@ -1144,6 +1179,7 @@ public class PrescriptionService {
     }
 
     // Get available medicines for doctors (from price list with type PHARMACY)
+    @Transactional(readOnly = true)
     public List<com.insurancesystem.Model.Dto.PriceListResponseDTO> getAvailableMedicines() {
         return priceListRepo.findByProviderType(com.insurancesystem.Model.Entity.Enums.ProviderType.PHARMACY)
                 .stream()
@@ -1163,6 +1199,7 @@ public class PrescriptionService {
      * @param medicineId - Medicine ID to check
      * @return Map with active status, prescription status, and expiry date if applicable
      */
+    @Transactional(readOnly = true)
     public Map<String, Object> checkActivePrescription(String memberName, UUID medicineId) {
         log.info("🔍 [CHECK ACTIVE] Checking medicine {} for member {}", medicineId, memberName);
         Map<String, Object> response = new HashMap<>();
@@ -1473,18 +1510,23 @@ public class PrescriptionService {
         prescriptionRepo.save(prescription);
 
         // 🔔 إشعار للمريض
-        notificationService.sendToUser(
-                prescription.getMember().getId(),
-                "💊 تم صرف الأدوية من وصفتك الطبية بواسطة الصيدلي " + pharmacist.getFullName() +
-                        " - المجموع: " + prescription.getTotalPrice() + " ₪. شكراً لاستخدامك خدماتنا."
-        );
+        if (prescription.getMember() != null) {
+            notificationService.sendToUser(
+                    prescription.getMember().getId(),
+                    "💊 تم صرف الأدوية من وصفتك الطبية بواسطة الصيدلي " + pharmacist.getFullName() +
+                            " - المجموع: " + prescription.getTotalPrice() + " دينار. شكراً لاستخدامك خدماتنا."
+            );
+        }
 
         // 🔔 إشعار للطبيب
-        notificationService.sendToUser(
-                prescription.getDoctor().getId(),
-                "💊 تم صرف الأدوية من وصفتك للمريض " + prescription.getMember().getFullName() +
-                        " بواسطة الصيدلي " + pharmacist.getFullName()
-        );
+        if (prescription.getDoctor() != null) {
+            notificationService.sendToUser(
+                    prescription.getDoctor().getId(),
+                    "💊 تم صرف الأدوية من وصفتك للمريض " +
+                            (prescription.getMember() != null ? prescription.getMember().getFullName() : "غير محدد") +
+                            " بواسطة الصيدلي " + pharmacist.getFullName()
+            );
+        }
 
         return prescriptionMapper.toDto(prescription, familyMemberRepo);
     }

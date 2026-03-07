@@ -115,11 +115,7 @@ public class ClientServices {
 
     @Transactional(readOnly = true)
     public List<ClientDto> listUsersWithPendingRole() {
-        return clientRepo.findAll().stream()
-                .filter(u -> u.getRoleRequestStatus() == RoleRequestStatus.PENDING)
-                // Only include new registrations (users with no existing roles)
-                // Exclude existing clients who somehow have PENDING status (role change not allowed)
-                .filter(u -> u.getRoles() == null || u.getRoles().isEmpty())
+        return clientRepo.findPendingRoleRequests().stream()
                 .map(clientMapper::toDTO)
                 .toList();
     }
@@ -140,11 +136,16 @@ public class ClientServices {
         // تخصيص الأدوار بحيث:
         // إذا كان الدور هو "INSURANCE_CLIENT"، يتم إرسال إشعار للمسؤول الطبي
         if (role.getName() == RoleName.INSURANCE_CLIENT) {
-            notificationService.sendToUser(u.getId(), "تمت الموافقة على حسابك كعميل. يمكنك تسجيل الدخول الآن.");
-            // إرسال إشعار للمسؤول الطبي
-            notificationService.sendToRole(RoleName.MEDICAL_ADMIN, "تمت الموافقة على طلبك كعميل: " + u.getFullName());
+            notificationService.sendToUser(u.getId(),
+                    "تمت الموافقة على حسابك كعميل. يمكنك تسجيل الدخول الآن.",
+                    "Your account has been approved as a client. You can log in now.");
+            notificationService.sendToRole(RoleName.MEDICAL_ADMIN,
+                    "تمت الموافقة على طلبك كعميل: " + u.getFullName(),
+                    "Client account approved: " + u.getFullName());
         } else {
-            notificationService.sendToUser(u.getId(), "تمت الموافقة على طلب دورك.");
+            notificationService.sendToUser(u.getId(),
+                    "تمت الموافقة على طلب دورك.",
+                    "Your role request has been approved.");
         }
 
         clientRepo.save(u);
@@ -169,14 +170,16 @@ public class ClientServices {
         clientRepo.save(u);
 
         emailService.sendRoleRejectionEmail(u.getEmail(), u.getFullName(), u.getRequestedRole(), reason);
-        notificationService.sendToUser(u.getId(), "❌ تم رفض طلب حسابك. السبب: " + reason);
+        notificationService.sendToUser(u.getId(),
+                "❌ تم رفض طلب حسابك. السبب: " + reason,
+                "❌ Your account request has been rejected. Reason: " + reason);
         notificationService.markNotificationAsReadByMessage(RoleName.INSURANCE_MANAGER,
                 "مستخدم جديد (" + u.getFullName() + ") سجل وينتظر الموافقة.");
     }
 
     public ClientDto updateByEmail(String email, UpdateUserDTO dto, MultipartFile[] universityCards) {
         Client client = clientRepo.findByEmail(email.toLowerCase())
-                .orElseThrow(() -> new RuntimeException("Client not found"));
+                .orElseThrow(() -> new NotFoundException("Client not found"));
 
 
 
@@ -262,7 +265,9 @@ public class ClientServices {
         client.setStatus(MemberStatus.DEACTIVATED);
         client.setUpdatedAt(Instant.now());
         clientRepo.save(client);
-        notificationService.sendToUser(client.getId(), "🚫 تم تعطيل حسابك من قبل الإدارة. السبب: " + reason);
+        notificationService.sendToUser(client.getId(),
+                "🚫 تم تعطيل حسابك من قبل الإدارة. السبب: " + reason,
+                "🚫 Your account has been deactivated by administration. Reason: " + reason);
     }
 
     @Transactional
@@ -277,7 +282,9 @@ public class ClientServices {
         client.setStatus(MemberStatus.ACTIVE);
         client.setUpdatedAt(Instant.now());
         clientRepo.save(client);
-        notificationService.sendToUser(client.getId(), "✅ تم إعادة تفعيل حسابك بنجاح.");
+        notificationService.sendToUser(client.getId(),
+                "✅ تم إعادة تفعيل حسابك بنجاح.",
+                "✅ Your account has been reactivated successfully.");
     }
 
 
@@ -317,7 +324,7 @@ public class ClientServices {
     }
     public void clearUniversityCardsByEmail(String email) {
         Client client = clientRepo.findByEmail(email.toLowerCase())
-                .orElseThrow(() -> new RuntimeException("Client not found"));
+                .orElseThrow(() -> new NotFoundException("Client not found"));
         for (String pathStr : client.getUniversityCardImages()) {
             try {
                 if (pathStr != null && pathStr.startsWith("/uploads/")) {
@@ -329,8 +336,6 @@ public class ClientServices {
                 log.warn("Failed to delete university card image at path {}: {}", pathStr, e.getMessage());
             }
         }
-        client.getUniversityCardImages().clear();
-
         client.getUniversityCardImages().clear();
         client.setUpdatedAt(Instant.now());
         clientRepo.save(client);

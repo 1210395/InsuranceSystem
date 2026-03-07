@@ -4,6 +4,7 @@ import com.insurancesystem.Model.Entity.Enums.PrescriptionStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -43,7 +44,7 @@ public class Prescription {
     @Builder.Default
     private List<PrescriptionItem> items = new ArrayList<>();
 
-    private Double totalPrice;
+    private BigDecimal totalPrice;
 
     // 🔥 NEW
     @Column(columnDefinition = "TEXT")

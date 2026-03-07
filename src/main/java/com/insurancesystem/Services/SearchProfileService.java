@@ -1,5 +1,6 @@
 package com.insurancesystem.Services;
 
+import com.insurancesystem.Exception.BadRequestException;
 import com.insurancesystem.Exception.NotFoundException;
 import com.insurancesystem.Model.Dto.SearchProfileDto;
 import com.insurancesystem.Model.Entity.Client;
@@ -14,6 +15,7 @@ import com.insurancesystem.Security.CustomUserDetailsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -21,6 +23,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class SearchProfileService {
 
     private final SearchProfileRepository repository;
@@ -32,12 +35,12 @@ public class SearchProfileService {
         // 🧑‍💻 المستخدم الحالي (صاحب الطلب)
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         Client currentUser = clientRepository.findByEmail(email.toLowerCase())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new NotFoundException("User not found"));
 
         // ✅ Check if user already has a profile
         List<SearchProfile> existingProfiles = repository.findAllByOwnerId(currentUser.getId());
         if (!existingProfiles.isEmpty()) {
-            throw new RuntimeException("You already have a profile. Only one profile per user is allowed.");
+            throw new BadRequestException("You already have a profile. Only one profile per user is allowed.");
         }
 
         SearchProfile entity = searchProfileMapper.toEntity(dto);

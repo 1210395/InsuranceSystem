@@ -6,7 +6,9 @@ import com.insurancesystem.Model.Dto.DoctorSpecializationRequestDto;
 import com.insurancesystem.Model.Dto.DoctorSpecializationResponseDto;
 import com.insurancesystem.Model.Entity.DoctorSpecializationEntity;
 import com.insurancesystem.Model.MapStruct.DoctorSpecializationMapper;
+import com.insurancesystem.Exception.NotFoundException;
 import com.insurancesystem.Repository.DoctorSpecializationRepository;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -42,7 +44,7 @@ public class DoctorSpecializationService {
      */
     public DoctorSpecializationResponseDto getSpecializationByName(String name) {
         DoctorSpecializationEntity entity = repository.findByDisplayName(name)
-                .orElseThrow(() -> new RuntimeException("Specialization not found with name: " + name));
+                .orElseThrow(() -> new NotFoundException("Specialization not found with name: " + name));
         return mapper.toResponseDto(entity);
     }
 
@@ -52,6 +54,7 @@ public class DoctorSpecializationService {
      * @param requestDto DoctorSpecializationRequestDto
      * @return DoctorSpecializationResponseDto
      */
+    @Transactional
     public DoctorSpecializationResponseDto saveSpecialization(DoctorSpecializationRequestDto requestDto) {
         DoctorSpecializationEntity entity = mapper.toEntity(requestDto); // Convert RequestDto to Entity
         DoctorSpecializationEntity savedEntity = repository.save(entity);
@@ -63,9 +66,10 @@ public class DoctorSpecializationService {
      *
      * @param id Specialization ID
      */
+    @Transactional
     public void deleteSpecializationById(Long id) {
         if (!repository.existsById(id)) {
-            throw new RuntimeException("Specialization not found with ID: " + id);
+            throw new NotFoundException("Specialization not found with ID: " + id);
         }
         repository.deleteById(id);
     }
@@ -77,6 +81,7 @@ public class DoctorSpecializationService {
      * @param requestDto Updated specialization data
      * @return Updated DoctorSpecializationResponseDto
      */
+    @Transactional
     public DoctorSpecializationResponseDto updateSpecialization(Long id, DoctorSpecializationRequestDto requestDto) {
         // Fetch the existing specialization
         DoctorSpecializationEntity existingEntity = repository.findById(id)

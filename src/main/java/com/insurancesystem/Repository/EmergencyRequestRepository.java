@@ -30,6 +30,9 @@ public interface EmergencyRequestRepository extends JpaRepository<EmergencyReque
     @Query("SELECT COUNT(e) FROM EmergencyRequest e WHERE e.status = :status")
     long countByStatus(@Param("status") EmergencyStatus status);
 
+    @Query("SELECT COUNT(DISTINCT e.member.id) FROM EmergencyRequest e")
+    long countDistinctMembers();
+
     // ✅ جميع طلبات الطوارئ حسب الـ status
     List<EmergencyRequest> findByStatus(EmergencyStatus status);
 

@@ -19,14 +19,16 @@ public class FinancialReportService {
     private final HealthcareProviderClaimRepository claimRepo;
 
     public FinancialReportDto generateReport() {
-        double totalExpenses = claimRepo.sumAmountByStatus(ClaimStatus.APPROVED_FINAL);
+        double totalExpenses = claimRepo.sumInsuranceCoveredByStatus(ClaimStatus.APPROVED_FINAL)
+                + claimRepo.sumInsuranceCoveredByStatus(ClaimStatus.PAYMENT_PENDING)
+                + claimRepo.sumInsuranceCoveredByStatus(ClaimStatus.PAID);
 
         List<FinancialReportDto.TopProvider> topProviders = claimRepo.findTopProviders()
                 .stream()
                 .map(r -> FinancialReportDto.TopProvider.builder()
                         .providerId((UUID) r[0])
                         .providerName((String) r[1])
-                        .totalAmount((Double) r[2])
+                        .totalAmount(r[2] instanceof java.math.BigDecimal bd ? bd.doubleValue() : ((Number) r[2]).doubleValue())
                         .providerType(r[3] != null ? r[3].toString() : "OTHER")
                         .claimCount(((Long) r[4]).intValue())
                         .build())

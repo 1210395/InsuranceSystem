@@ -108,8 +108,8 @@ public class GlobalPolicyManagementService {
             throw new BadRequestException("Only draft policies can be activated");
         }
 
-        // Deactivate current active policy
-        globalPolicyRepository.findActivePolicy().ifPresent(activePolicy -> {
+        // Deactivate current active policy (with pessimistic lock to prevent concurrent activation)
+        globalPolicyRepository.findActivePolicyForUpdate().ifPresent(activePolicy -> {
             activePolicy.setStatus(GlobalPolicyStatus.EXPIRED);
             globalPolicyRepository.save(activePolicy);
         });
@@ -238,7 +238,7 @@ public class GlobalPolicyManagementService {
                 .collect(Collectors.toList());
 
         long servicesCount = serviceCoverageRepository.countByPolicyId(policy.getId());
-        long categoriesCount = serviceCategoryRepository.count();
+        long categoriesCount = categoryLimitsDTOs.size();
 
         return GlobalPolicyDTO.builder()
                 .id(policy.getId())

@@ -37,7 +37,7 @@ public interface RadiologyRequestMapper {
             expression = "java(request.getTest() != null ? request.getTest().getServiceName() : null)")
 
     @Mapping(target = "approvedPrice",
-            expression = "java(request.getApprovedPrice() != null ? request.getApprovedPrice() : (request.getTest() != null ? request.getTest().getPrice() : null))")
+            expression = "java(request.getApprovedPrice() != null ? request.getApprovedPrice().doubleValue() : (request.getTest() != null ? request.getTest().getPrice() : null))")
 
     @Mapping(target = "employeeId",
             expression = "java(request.getMember() != null ? request.getMember().getEmployeeId() : null)")

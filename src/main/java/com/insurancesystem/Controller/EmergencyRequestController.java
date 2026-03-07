@@ -23,7 +23,6 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/emergencies")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 public class EmergencyRequestController {
 
     private final EmergencyRequestService emergencyService;

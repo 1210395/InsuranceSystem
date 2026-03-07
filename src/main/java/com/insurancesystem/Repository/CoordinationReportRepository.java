@@ -18,9 +18,13 @@ public interface CoordinationReportRepository
     // 1️⃣ Total expenses by period
     // ===============================
     @Query("""
-        SELECT COALESCE(SUM(c.amount), 0)
+        SELECT COALESCE(SUM(c.insuranceCoveredAmount), 0)
         FROM HealthcareProviderClaim c
-        WHERE c.status = 'APPROVED'
+        WHERE c.status IN (
+            com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL,
+            com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAYMENT_PENDING,
+            com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAID
+        )
         AND c.serviceDate BETWEEN :from AND :to
     """)
     Double totalExpensesByPeriod(
@@ -33,9 +37,13 @@ public interface CoordinationReportRepository
     // ===============================
     @Query("""
         SELECT c.healthcareProvider.fullName,
-               SUM(c.amount)
+               COALESCE(SUM(c.insuranceCoveredAmount), 0)
         FROM HealthcareProviderClaim c
-        WHERE c.status = 'APPROVED'
+        WHERE c.status IN (
+            com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL,
+            com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAYMENT_PENDING,
+            com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAID
+        )
         GROUP BY c.healthcareProvider.fullName
     """)
     List<Object[]> expensesByProvider();
@@ -45,9 +53,13 @@ public interface CoordinationReportRepository
     // ===============================
     @Query("""
         SELECT c.clientName,
-               SUM(c.amount)
+               COALESCE(SUM(c.insuranceCoveredAmount), 0)
         FROM HealthcareProviderClaim c
-        WHERE c.status = 'APPROVED'
+        WHERE c.status IN (
+            com.insurancesystem.Model.Entity.Enums.ClaimStatus.APPROVED_FINAL,
+            com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAYMENT_PENDING,
+            com.insurancesystem.Model.Entity.Enums.ClaimStatus.PAID
+        )
         GROUP BY c.clientName
     """)
     List<Object[]> patientConsumption();

@@ -1,5 +1,6 @@
 package com.insurancesystem.Model.Dto;
 
+import com.insurancesystem.Model.Entity.Enums.CoverageStatus;
 import lombok.Data;
 
 import java.util.List;
@@ -52,4 +53,16 @@ public class UpdatePriceListDTO {
      * If empty list, restrictions are cleared (available for all diagnoses)
      */
     private List<UUID> allowedDiagnosisIds;
+
+    /**
+     * Coverage status (COVERED, NOT_COVERED, REQUIRES_APPROVAL)
+     * If null, the field is not updated
+     */
+    private CoverageStatus coverageStatus;
+
+    /**
+     * Coverage percentage (0-100)
+     * If null, the field is not updated
+     */
+    private Integer coveragePercentage;
 }

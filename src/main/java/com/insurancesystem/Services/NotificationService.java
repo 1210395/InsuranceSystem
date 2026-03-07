@@ -12,6 +12,7 @@ import com.insurancesystem.Repository.ClientRepository;
 import com.insurancesystem.Repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -34,14 +35,12 @@ public class NotificationService {
      * Returns null if no INSURANCE_MANAGER exists (e.g., fresh database).
      */
     private Client getSystemSender() {
-        return clientRepo.findAll().stream()
-                .filter(c -> c.getRoles().stream()
-                        .anyMatch(r -> r.getName() == RoleName.INSURANCE_MANAGER))
-                .findFirst()
-                .orElse(null);
+        List<Client> managers = clientRepo.findByRoleOrRequestedRole(RoleName.INSURANCE_MANAGER);
+        return managers.isEmpty() ? null : managers.get(0);
     }
 
     // ➕ إرسال إشعار يدوي (استفسار أو رد)
+    @Transactional
     public void createNotification(UUID senderId, UUID recipientId, String message, UUID repliedNotificationId) {
         Client recipient = clientRepo.findById(recipientId)
                 .orElseThrow(() -> new NotFoundException("Recipient not found"));
@@ -67,6 +66,7 @@ public class NotificationService {
         notificationRepo.save(notification);
     }
 
+    @Transactional(readOnly = true)
     public List<NotificationDTO> getUserNotifications(UUID recipientId) {
         Client recipient = clientRepo.findById(recipientId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
@@ -77,10 +77,16 @@ public class NotificationService {
                 .toList();
     }
 
+    @Transactional
     public void sendToUser(UUID recipientId, String message) {
+        sendToUser(recipientId, message, null);
+    }
+
+    @Transactional
+    public void sendToUser(UUID recipientId, String arabicMessage, String englishMessage) {
         Client systemSender = getSystemSender();
         if (systemSender == null) {
-            log.warn("No Insurance Manager found - skipping system notification to user {}: {}", recipientId, message);
+            log.warn("No Insurance Manager found - skipping system notification to user {}: {}", recipientId, arabicMessage);
             return;
         }
 
@@ -90,7 +96,8 @@ public class NotificationService {
         Notification notification = Notification.builder()
                 .recipient(recipient)
                 .sender(systemSender)
-                .message(message)
+                .message(arabicMessage)
+                .englishMessage(englishMessage)
                 .read(false)
                 .type(NotificationType.SYSTEM)
                 .build();
@@ -98,16 +105,20 @@ public class NotificationService {
         notificationRepo.save(notification);
     }
 
+    @Transactional
     public void sendToRole(RoleName roleName, String message) {
+        sendToRole(roleName, message, null);
+    }
+
+    @Transactional
+    public void sendToRole(RoleName roleName, String arabicMessage, String englishMessage) {
         Client systemSender = getSystemSender();
         if (systemSender == null) {
-            log.warn("No Insurance Manager found - skipping system notification to role {}: {}", roleName, message);
+            log.warn("No Insurance Manager found - skipping system notification to role {}: {}", roleName, arabicMessage);
             return;
         }
 
-        List<Client> clients = clientRepo.findAll().stream()
-                .filter(c -> c.getRoles().stream().anyMatch(r -> r.getName() == roleName))
-                .toList();
+        List<Client> clients = clientRepo.findByRoleOrRequestedRole(roleName);
 
         if (clients.isEmpty()) {
             log.warn("No users with role {} found - skipping notification", roleName);
@@ -118,7 +129,8 @@ public class NotificationService {
                 .map(client -> Notification.builder()
                         .recipient(client)
                         .sender(systemSender)
-                        .message(message)
+                        .message(arabicMessage)
+                        .englishMessage(englishMessage)
                         .read(false)
                         .type(NotificationType.SYSTEM)
                         .build())
@@ -127,6 +139,7 @@ public class NotificationService {
         notificationRepo.saveAll(notifications);
     }
 
+    @Transactional
     public void markAllAsRead(UUID recipientId) {
         Client recipient = clientRepo.findById(recipientId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
@@ -135,10 +148,9 @@ public class NotificationService {
         notificationRepo.saveAll(notifications);
     }
 
+    @Transactional
     public void markNotificationAsReadByMessage(RoleName roleName, String message) {
-        List<Client> clients = clientRepo.findAll().stream()
-                .filter(c -> c.getRoles().stream().anyMatch(r -> r.getName() == roleName))
-                .toList();
+        List<Client> clients = clientRepo.findByRoleOrRequestedRole(roleName);
 
         for (Client client : clients) {
             List<Notification> notifications = notificationRepo.findByRecipientOrderByCreatedAtDesc(client);
@@ -149,6 +161,7 @@ public class NotificationService {
         }
     }
 
+    @Transactional
     public void markAsRead(UUID notificationId, Client currentUser) {
         Notification notification = notificationRepo.findById(notificationId)
                 .orElseThrow(() -> new NotFoundException("Notification not found with id: " + notificationId));
@@ -164,6 +177,7 @@ public class NotificationService {
 
 
 
+    @Transactional(readOnly = true)
     public long countUnreadNotifications(UUID recipientId) {
         Client recipient = clientRepo.findById(recipientId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
@@ -171,29 +185,33 @@ public class NotificationService {
         return notificationRepo.countByRecipientAndReadFalse(recipient);
     }
 
+    @Transactional(readOnly = true)
     public long countUnreadEmergencyNotifications(UUID recipientId) {
         Client recipient = clientRepo.findById(recipientId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
         return notificationRepo.countByRecipientAndTypeAndReadFalse(recipient, NotificationType.EMERGENCY);
     }
 
+    @Transactional(readOnly = true)
     public UUID getNotificationSenderId(UUID notificationId) {
         Notification notification = notificationRepo.findById(notificationId)
                 .orElseThrow(() -> new NotFoundException("Notification not found with id: " + notificationId));
         return notification.getSender().getId();
     }
 
+    @Transactional
     public void deleteNotification(UUID userId, UUID notificationId) {
         Notification notification = notificationRepo.findById(notificationId)
-                .orElseThrow(() -> new RuntimeException("Notification not found"));
+                .orElseThrow(() -> new NotFoundException("Notification not found"));
 
         if (!notification.getRecipient().getId().equals(userId)) {
-            throw new RuntimeException("❌ You are not authorized to delete this notification");
+            throw new UnauthorizedException("You are not authorized to delete this notification");
         }
 
         notificationRepo.delete(notification);
     }
 
+    @Transactional
     public void createNotificationByEmail(
             String senderEmail,
             String recipientEmail,
@@ -225,29 +243,26 @@ public class NotificationService {
         notificationRepo.save(notification);
     }
 
+    @Transactional
     public void clientDeleteNotification(UUID clientId, UUID notificationId) {
         Notification notification = notificationRepo.findById(notificationId)
                 .orElseThrow(() -> new NotFoundException("Notification not found"));
 
-        if (notification.getType() == NotificationType.SYSTEM) {
-            notificationRepo.delete(notification);
-            return;
-        }
-
         if (!notification.getRecipient().getId().equals(clientId)) {
-            throw new RuntimeException("Unauthorized: This notification is not yours");
+            throw new UnauthorizedException("Unauthorized: This notification is not yours");
         }
 
         notificationRepo.delete(notification);
     }
 
+    @Transactional
     public void createNotificationByFullName(String senderFullName, String recipientFullName,
                                              String message, UUID parentId) {
         Client sender = clientRepo.findByFullName(senderFullName)
-                .orElseThrow(() -> new RuntimeException("Sender not found with name: " + senderFullName));
+                .orElseThrow(() -> new NotFoundException("Sender not found with name: " + senderFullName));
 
         Client recipient = clientRepo.findByFullName(recipientFullName)
-                .orElseThrow(() -> new RuntimeException("Recipient not found with name: " + recipientFullName));
+                .orElseThrow(() -> new NotFoundException("Recipient not found with name: " + recipientFullName));
 
         Notification notification = Notification.builder()
                 .sender(sender)

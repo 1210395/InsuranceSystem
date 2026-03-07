@@ -1,7 +1,6 @@
 package com.insurancesystem.Services;
 
 import com.insurancesystem.Model.Dto.MembersActivityReportDto;
-import com.insurancesystem.Model.Entity.HealthcareProviderClaim;
 import com.insurancesystem.Repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,30 +19,16 @@ public class MembersActivityReportService {
     public MembersActivityReportDto generateReport() {
         long totalMembers = clientRepo.count();
 
-        long membersWithClaims = claimRepo.findAll().stream()
-                .map(HealthcareProviderClaim::getId)
-                .distinct()
-                .count();
+        // Count distinct clients/members (not entity IDs)
+        long membersWithClaims = claimRepo.countDistinctClients();
 
-        long membersWithPrescriptions = prescriptionRepo.findAll().stream()
-                .map(p -> p.getMember().getId())
-                .distinct()
-                .count();
+        long membersWithPrescriptions = prescriptionRepo.countDistinctMembers();
 
-        long membersWithLabRequests = labRepo.findAll().stream()
-                .map(l -> l.getMember().getId())
-                .distinct()
-                .count();
+        long membersWithLabRequests = labRepo.countDistinctMembers();
 
-        long membersWithEmergencyRequests = emergencyRepo.findAll().stream()
-                .map(e -> e.getMember().getId())
-                .distinct()
-                .count();
+        long membersWithEmergencyRequests = emergencyRepo.countDistinctMembers();
 
-        long membersWithMedicalRecords = medicalRecordRepository.findAll().stream()
-                .map(r -> r.getMember().getId())
-                .distinct()
-                .count();
+        long membersWithMedicalRecords = medicalRecordRepository.countDistinctMembers();
 
         return MembersActivityReportDto.builder()
                 .totalMembers(totalMembers)

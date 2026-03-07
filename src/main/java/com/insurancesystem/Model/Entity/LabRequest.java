@@ -4,6 +4,7 @@ import com.insurancesystem.Model.Entity.Enums.LabRequestStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -43,8 +44,8 @@ public class LabRequest {
     @JoinColumn(name = "price_id")
     private PriceList test;
 
-    private Double enteredPrice; // السعر الذي دخله اللاب تِك
-    private Double approvedPrice; // السعر المعتمد (الأقل من النقابي)
+    private BigDecimal enteredPrice; // السعر الذي دخله اللاب تِك
+    private BigDecimal approvedPrice; // السعر المعتمد (الأقل من النقابي)
     // 🔥 NEW
     @Column(columnDefinition = "TEXT")
     private String diagnosis;

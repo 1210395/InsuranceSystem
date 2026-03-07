@@ -4,8 +4,6 @@ import com.insurancesystem.Repository.ClientRepository;
 import com.insurancesystem.Repository.HealthcareProviderClaimRepository;
 import com.insurancesystem.Repository.PolicyRepository;
 import com.insurancesystem.Model.Entity.Enums.ClaimStatus;
-import com.insurancesystem.Model.Entity.Enums.RoleName;
-import com.insurancesystem.Model.Entity.Enums.RoleRequestStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -19,7 +17,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/dashboard")
 @RequiredArgsConstructor
-@lombok.extern.slf4j.Slf4j
 public class DashboardController {
 
     private final ClientRepository clientRepository;
@@ -31,21 +28,8 @@ public class DashboardController {
     public ResponseEntity<Map<String, Object>> getManagerStats() {
         Map<String, Object> stats = new HashMap<>();
 
-        // Count only approved insurance clients (not all users in the system)
-        var allClients = clientRepository.findAll();
-        log.info("Total clients in DB: {}", allClients.size());
-
-        long totalClients = allClients.stream()
-                .filter(c -> {
-                    boolean isClient = c.getRequestedRole() == RoleName.INSURANCE_CLIENT;
-                    boolean isApproved = c.getRoleRequestStatus() == RoleRequestStatus.APPROVED;
-                    log.info("Client: {} | RequestedRole: {} | Status: {} | isClient: {} | isApproved: {}",
-                        c.getEmail(), c.getRequestedRole(), c.getRoleRequestStatus(), isClient, isApproved);
-                    return isClient && isApproved;
-                })
-                .count();
-        log.info("Filtered totalClients: {}", totalClients);
-        stats.put("totalClients", totalClients);
+        // Count approved insurance clients using efficient COUNT query
+        stats.put("totalClients", clientRepository.countApprovedInsuranceClients());
 
         stats.put("totalPolicies", policyRepository.count());
 

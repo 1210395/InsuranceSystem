@@ -645,9 +645,14 @@ public class AuthService {
             throw new BadRequestException("Invalid or expired reset token");
         }
 
+        if (!newPassword.matches("^(?=.*[A-Za-z])(?=.*\\d).{8,}$")) {
+            throw new BadRequestException(
+                    "Password must be at least 8 characters and contain letters and numbers"
+            );
+        }
+
         Client client = clientRepo.findByEmail(email)
                 .orElseThrow(() -> new NotFoundException("User not found"));
-
 
         client.setPasswordHash(passwordEncoder.encode(newPassword));
         clientRepo.save(client);

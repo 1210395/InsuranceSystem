@@ -1,5 +1,6 @@
 package com.insurancesystem.Model.Dto;
 
+import com.insurancesystem.Model.Entity.Enums.CoverageStatus;
 import com.insurancesystem.Model.Entity.Enums.ProviderType;
 import lombok.Data;
 import java.util.List;
@@ -57,5 +58,17 @@ public class CreatePriceListDTO {
      * If null or empty, the service is available for ALL diagnoses
      */
     private List<UUID> allowedDiagnosisIds;
+
+    /**
+     * Coverage status for this service (COVERED, NOT_COVERED, REQUIRES_APPROVAL)
+     * Defaults to COVERED if not provided
+     */
+    private CoverageStatus coverageStatus;
+
+    /**
+     * Coverage percentage (0-100) for this service
+     * Defaults to 100 if not provided
+     */
+    private Integer coveragePercentage;
 }
 

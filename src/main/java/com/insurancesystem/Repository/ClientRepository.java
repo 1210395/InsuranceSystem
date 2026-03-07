@@ -33,11 +33,28 @@ public interface ClientRepository extends JpaRepository<Client, UUID> {
 
     long countByStatus(MemberStatus status);
 
+    @Query(value = """
+        SELECT COUNT(DISTINCT c.id) FROM clients c
+        JOIN client_roles cr ON c.id = cr.client_id
+        JOIN roles r ON cr.role_id = r.id
+        WHERE r.name = 'INSURANCE_CLIENT'
+    """, nativeQuery = true)
+    long countApprovedInsuranceClients();
+
     // DEPRECATED: findByPolicy removed - Client no longer has policy field
 
     Optional<Client> findByFullName(String fullName);
 
+    @Query("""
+        SELECT c FROM Client c
+        WHERE c.roleRequestStatus = com.insurancesystem.Model.Entity.Enums.RoleRequestStatus.PENDING
+        AND (c.roles IS EMPTY)
+    """)
+    List<Client> findPendingRoleRequests();
+
     List<Client> findByRoles_Name(RoleName roleName);
+
+    long countByRoles_Name(RoleName roleName);
 
     Optional<Client> findByEmployeeId(String employeeId);
 

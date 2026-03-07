@@ -35,6 +35,7 @@ public class ChatService {
     private ChatMapper chatMapper;
 
     // ✅ إرسال رسالة جديدة
+    @Transactional
     public MessageDTO sendMessage(UUID senderId, UUID receiverId, String content) {
         var sender = clientRepo.findById(senderId)
                 .orElseThrow(() -> new ApiException("Sender not found"));
@@ -76,6 +77,7 @@ public class ChatService {
     }
 
     // ✅ جلب محادثات المستخدم (بين التأمين والجهات الطبية فقط)
+    @Transactional(readOnly = true)
     public List<ConversationDTO> getUserConversations(UUID userId) {
         return conversationRepo.findAllByUserId(userId)
                 .stream()
