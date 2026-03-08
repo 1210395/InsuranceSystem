@@ -16,6 +16,7 @@ import com.insurancesystem.Repository.ClientRepository;
 import com.insurancesystem.Services.HealthcareProviderClaimService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
@@ -43,8 +44,8 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.*;
 
+@Slf4j
 @RestController
-
 @RequestMapping("/api/healthcare-provider-claims")
 
 @RequiredArgsConstructor
@@ -467,12 +468,24 @@ public class HealthcareProviderClaimController {
             @RequestBody RejectReasonDTO dto,
             Authentication auth
     ) {
-        Client reviewer = clientRepo.findByEmail(auth.getName().toLowerCase())
-                .orElseThrow(() -> new NotFoundException("Coordinator not found"));
+        try {
+            Client reviewer = clientRepo.findByEmail(auth.getName().toLowerCase())
+                    .orElseThrow(() -> new NotFoundException("Coordinator not found"));
 
-        return ResponseEntity.ok(
-                claimService.returnToMedical(id, dto.getReason(), reviewer.getId())
-        );
+            return ResponseEntity.ok(
+                    claimService.returnToMedical(id, dto.getReason(), reviewer.getId())
+            );
+        } catch (NotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("message", e.getMessage()));
+        } catch (BadRequestException | IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Failed to return claim {} to medical: {} - {}", id, e.getClass().getSimpleName(), e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Failed to return claim to medical: " + e.getMessage()));
+        }
     }
 
     @PreAuthorize("hasAnyAuthority('ROLE_COORDINATION_ADMIN', 'ROLE_INSURANCE_MANAGER')")
@@ -503,9 +516,13 @@ public class HealthcareProviderClaimController {
         } catch (NotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("message", e.getMessage()));
-        } catch (IllegalStateException e) {
+        } catch (BadRequestException | IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Failed to approve claim {}: {} - {}", id, e.getClass().getSimpleName(), e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Failed to approve claim: " + e.getMessage()));
         }
     }
 
@@ -531,9 +548,13 @@ public class HealthcareProviderClaimController {
         } catch (NotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("message", e.getMessage()));
-        } catch (IllegalStateException e) {
+        } catch (BadRequestException | IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Failed to reject claim {}: {} - {}", id, e.getClass().getSimpleName(), e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Failed to reject claim: " + e.getMessage()));
         }
     }
 
@@ -558,9 +579,13 @@ public class HealthcareProviderClaimController {
         } catch (NotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("message", e.getMessage()));
-        } catch (IllegalStateException e) {
+        } catch (BadRequestException | IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Failed to return claim {} to provider: {} - {}", id, e.getClass().getSimpleName(), e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Failed to return claim: " + e.getMessage()));
         }
     }
 
@@ -582,9 +607,13 @@ public class HealthcareProviderClaimController {
         } catch (NotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(Map.of("message", e.getMessage()));
-        } catch (IllegalStateException e) {
+        } catch (BadRequestException | IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            log.error("Failed to mark claim {} as paid: {} - {}", id, e.getClass().getSimpleName(), e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Failed to mark as paid: " + e.getMessage()));
         }
     }
 

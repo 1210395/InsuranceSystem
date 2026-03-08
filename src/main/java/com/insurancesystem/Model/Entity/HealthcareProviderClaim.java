@@ -145,7 +145,4 @@ public class HealthcareProviderClaim {
     @Column(name = "paid_by")
     private UUID paidBy;
 
-    @Version
-    private Long version;
-
 }
