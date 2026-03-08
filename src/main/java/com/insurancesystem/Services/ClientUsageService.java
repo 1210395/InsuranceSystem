@@ -7,6 +7,7 @@ import com.insurancesystem.Repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -26,6 +27,7 @@ public class ClientUsageService {
     private final ClientRepository clientRepository;
     private final ServiceCoverageRepository serviceCoverageRepository;
     private final ServiceCategoryRepository serviceCategoryRepository;
+    private final FamilyMemberRepository familyMemberRepository;
 
     @Transactional(readOnly = true)
     public ClientUsageDTO getClientUsage(UUID clientId, int year, int month) {
@@ -73,15 +75,23 @@ public class ClientUsageService {
                 .build();
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void incrementUsage(UUID clientId, UUID serviceCoverageId, BigDecimal amount) {
+        // Resolve FamilyMember ID → parent Client ID
+        UUID resolvedClientId = resolveClientId(clientId);
+        if (resolvedClientId == null) {
+            log.warn("Cannot track usage: no client found for ID {}", clientId);
+            return;
+        }
+
         LocalDate now = LocalDate.now();
         int year = now.getYear();
         int month = now.getMonthValue();
 
         // Update client monthly usage
-        ClientUsage clientUsage = clientUsageRepository.findByClientIdAndYearAndMonth(clientId, year, month)
+        ClientUsage clientUsage = clientUsageRepository.findByClientIdAndYearAndMonth(resolvedClientId, year, month)
                 .orElseGet(() -> {
-                    Client client = clientRepository.findById(clientId)
+                    Client client = clientRepository.findById(resolvedClientId)
                             .orElseThrow(() -> new NotFoundException("Client not found"));
                     return ClientUsage.builder()
                             .client(client)
@@ -126,14 +136,33 @@ public class ClientUsageService {
         }
     }
 
+    /**
+     * Resolve a clientId that might be a FamilyMember ID to the actual Client ID.
+     */
+    private UUID resolveClientId(UUID clientId) {
+        if (clientId == null) return null;
+        // Check if it's a direct client
+        if (clientRepository.existsById(clientId)) return clientId;
+        // Check if it's a family member → return parent client ID
+        return familyMemberRepository.findById(clientId)
+                .map(fm -> fm.getClient() != null ? fm.getClient().getId() : null)
+                .orElse(null);
+    }
+
     // Fix #12: Reverse usage when approved claim is returned
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void decrementUsage(UUID clientId, UUID serviceCoverageId, BigDecimal amount) {
+        UUID resolvedClientId = resolveClientId(clientId);
+        if (resolvedClientId == null) {
+            log.warn("Cannot reverse usage: no client found for ID {}", clientId);
+            return;
+        }
+
         LocalDate now = LocalDate.now();
         int year = now.getYear();
         int month = now.getMonthValue();
 
-        clientUsageRepository.findByClientIdAndYearAndMonth(clientId, year, month)
+        clientUsageRepository.findByClientIdAndYearAndMonth(resolvedClientId, year, month)
                 .ifPresent(clientUsage -> {
                     clientUsage.setTotalVisits(Math.max(0, clientUsage.getTotalVisits() - 1));
                     clientUsage.setTotalSpending(
