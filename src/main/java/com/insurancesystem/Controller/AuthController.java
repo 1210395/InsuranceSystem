@@ -61,7 +61,7 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body(out);
     }
 
-    @PreAuthorize("hasAuthority('ROLE_INSURANCE_MANAGER')")
+    @PreAuthorize("hasAnyAuthority('ROLE_INSURANCE_MANAGER', 'ROLE_MEDICAL_ADMIN')")
     @PostMapping(value = "/admin/register", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<RegisterResponse> registerByAdmin(
             @RequestPart("data") String reqJson,
