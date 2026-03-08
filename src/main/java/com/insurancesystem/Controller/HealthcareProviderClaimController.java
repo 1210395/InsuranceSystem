@@ -409,6 +409,25 @@ public class HealthcareProviderClaimController {
                 .body(pdf);
     }
 
+    @PreAuthorize("hasAnyAuthority('ROLE_COORDINATION_ADMIN', 'ROLE_INSURANCE_MANAGER')")
+    @GetMapping(value = "/reports/excel", produces = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    public ResponseEntity<byte[]> exportReportsExcel(
+            @RequestParam ReportType type,
+            @RequestParam(required = false) ClaimStatus status,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate from,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate to
+    ) {
+        byte[] excel = claimService.exportReportExcel(type, status, from, to);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=report_" + type.name().toLowerCase() + ".xlsx")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(excel);
+    }
 
     @PreAuthorize("hasAnyAuthority('ROLE_COORDINATION_ADMIN', 'ROLE_INSURANCE_MANAGER', 'ROLE_MEDICAL_ADMIN', 'ROLE_DOCTOR')")
     @PostMapping(value = "/admin/create-direct", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

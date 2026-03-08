@@ -11,6 +11,9 @@ import com.lowagie.text.pdf.PdfWriter;
 
 import java.io.ByteArrayOutputStream;
 
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
 import com.insurancesystem.Exception.NotFoundException;
 import com.insurancesystem.Model.Dto.*;
 import com.insurancesystem.Model.Entity.HealthcareProviderClaim;
@@ -1567,6 +1570,72 @@ public class HealthcareProviderClaimService {
         List<HealthcareProviderClaim> claims = claimRepo.filterClaims(status, from, to, roleFilter);
 
         return generatePdf(reportType, claims);
+    }
+
+    public byte[] exportReportExcel(ReportType reportType, ClaimStatus status, LocalDate from, LocalDate to) {
+        RoleName roleFilter = switch (reportType) {
+            case DOCTOR -> RoleName.DOCTOR;
+            case PHARMACY -> RoleName.PHARMACIST;
+            case LAB -> RoleName.LAB_TECH;
+            case RADIOLOGY -> RoleName.RADIOLOGIST;
+            case CLIENT -> null;
+        };
+
+        List<HealthcareProviderClaim> claims = claimRepo.filterClaims(status, from, to, roleFilter);
+        return generateExcel(reportType, claims);
+    }
+
+    private byte[] generateExcel(ReportType reportType, List<HealthcareProviderClaim> claims) {
+        try (Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet(reportType.name() + " Claims Report");
+
+            // Header style
+            CellStyle headerStyle = workbook.createCellStyle();
+            org.apache.poi.ss.usermodel.Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerStyle.setFont(headerFont);
+            headerStyle.setFillForegroundColor(IndexedColors.LIGHT_GREEN.getIndex());
+            headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+            // Header row
+            Row headerRow = sheet.createRow(0);
+            String[] headers = {"Claim ID", "Provider Name", "Provider Type", "Diagnosis", "Description",
+                    "Total Amount", "Insurance Covered", "Client Pay", "Status", "Service Date", "Submitted Date"};
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+            }
+
+            // Data rows
+            int rowIdx = 1;
+            for (HealthcareProviderClaim claim : claims) {
+                Row row = sheet.createRow(rowIdx++);
+                row.createCell(0).setCellValue(claim.getId().toString());
+                row.createCell(1).setCellValue(claim.getHealthcareProvider() != null ? claim.getHealthcareProvider().getFullName() : "-");
+                row.createCell(2).setCellValue(claim.getHealthcareProvider() != null && claim.getHealthcareProvider().getRequestedRole() != null
+                        ? claim.getHealthcareProvider().getRequestedRole().name() : "-");
+                row.createCell(3).setCellValue(claim.getDiagnosis() != null ? claim.getDiagnosis() : "-");
+                row.createCell(4).setCellValue(claim.getDescription() != null ? claim.getDescription() : "-");
+                row.createCell(5).setCellValue(claim.getAmount() != null ? claim.getAmount().doubleValue() : 0);
+                row.createCell(6).setCellValue(claim.getInsuranceCoveredAmount() != null ? claim.getInsuranceCoveredAmount().doubleValue() : 0);
+                row.createCell(7).setCellValue(claim.getClientPayAmount() != null ? claim.getClientPayAmount().doubleValue() : 0);
+                row.createCell(8).setCellValue(claim.getStatus().name());
+                row.createCell(9).setCellValue(claim.getServiceDate() != null ? claim.getServiceDate().toString() : "-");
+                row.createCell(10).setCellValue(claim.getSubmittedAt() != null ? claim.getSubmittedAt().toString() : "-");
+            }
+
+            // Auto-size columns
+            for (int i = 0; i < headers.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            workbook.write(out);
+            return out.toByteArray();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate Excel report", e);
+        }
     }
 
     // Coordination admin creates claim on behalf of client
