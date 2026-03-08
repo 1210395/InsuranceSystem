@@ -1340,6 +1340,8 @@ public class HealthcareProviderClaimService {
     @Transactional(readOnly = true)
     public List<HealthcareProviderClaimMedicalDTO> getFinalDecisions() {
         List<ClaimStatus> statuses = List.of(
+                ClaimStatus.APPROVED_MEDICAL,
+                ClaimStatus.AWAITING_COORDINATION_REVIEW,
                 ClaimStatus.APPROVED_FINAL,
                 ClaimStatus.REJECTED_FINAL,
                 ClaimStatus.REJECTED_MEDICAL,

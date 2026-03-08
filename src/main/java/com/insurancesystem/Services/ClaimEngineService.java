@@ -204,7 +204,7 @@ public class ClaimEngineService {
                 claim.setIsCovered(true);
                 claim.setInsuranceCoveredAmount(perItemResult.insurancePay);
                 claim.setClientPayAmount(perItemResult.clientPay);
-                claim.setCoveragePercentUsed(perItemResult.effectivePercent);
+                claim.setCoveragePercentUsed(perItemResult.policyPercent);
                 claim.setCoverageMessage(perItemResult.message);
                 claim.setMaxCoverageUsed(coverage.getMaxCoverageAmount() != null ? coverage.getMaxCoverageAmount() : BigDecimal.ZERO);
                 return claim;
@@ -312,7 +312,7 @@ public class ClaimEngineService {
     private static class PerItemCoverageResult {
         BigDecimal insurancePay;
         BigDecimal clientPay;
-        BigDecimal effectivePercent;
+        BigDecimal policyPercent;
         String message;
     }
 
@@ -331,6 +331,8 @@ public class ClaimEngineService {
             BigDecimal totalInsurance = BigDecimal.ZERO;
             BigDecimal totalClient = BigDecimal.ZERO;
             BigDecimal totalAmount = BigDecimal.ZERO;
+            // Track weighted policy percentage: sum(itemPrice * policyCoveragePct)
+            BigDecimal weightedPolicySum = BigDecimal.ZERO;
 
             JsonNode items = root.get("items");
             if (items != null && items.isArray() && !items.isEmpty()) {
@@ -366,6 +368,7 @@ public class ClaimEngineService {
 
                     totalInsurance = totalInsurance.add(itemInsurance);
                     totalClient = totalClient.add(itemClient);
+                    weightedPolicySum = weightedPolicySum.add(price.multiply(BigDecimal.valueOf(coveragePct)));
                 }
             } else if (root.has("testName")) {
                 // Single-item claims (lab tests, radiology)
@@ -397,6 +400,7 @@ public class ClaimEngineService {
 
                     totalInsurance = itemInsurance;
                     totalClient = itemClient;
+                    weightedPolicySum = price.multiply(BigDecimal.valueOf(coveragePct));
                 }
             } else {
                 return null;
@@ -407,15 +411,16 @@ public class ClaimEngineService {
             PerItemCoverageResult result = new PerItemCoverageResult();
             result.insurancePay = totalInsurance;
             result.clientPay = totalClient;
-            result.effectivePercent = totalInsurance.multiply(BigDecimal.valueOf(100))
+            // Use weighted average of policy coverage percentages, not effective percent
+            result.policyPercent = weightedPolicySum
                     .divide(totalAmount, 2, RoundingMode.HALF_UP);
 
-            if (result.effectivePercent.compareTo(BigDecimal.valueOf(100)) >= 0) {
+            if (result.policyPercent.compareTo(BigDecimal.valueOf(100)) >= 0) {
                 result.message = "✔ Fully covered";
-            } else if (result.effectivePercent.compareTo(BigDecimal.ZERO) == 0) {
+            } else if (result.policyPercent.compareTo(BigDecimal.ZERO) == 0) {
                 result.message = "❌ Not covered";
             } else {
-                result.message = "✔ Partially covered (" + result.effectivePercent.setScale(0, RoundingMode.HALF_UP) + "%)";
+                result.message = "✔ Partially covered (" + result.policyPercent.setScale(0, RoundingMode.HALF_UP) + "%)";
             }
 
             return result;
