@@ -1182,27 +1182,34 @@ public class HealthcareProviderClaimService {
 
         HealthcareProviderClaim savedClaim = claimRepo.save(claim);
 
-        notificationService.sendToUser(
-                claim.getHealthcareProvider().getId(),
-                "❌ تم رفض مطالبتك من المراجع الطبي " + reviewer.getFullName() +
-                        " - المبلغ: " + claim.getAmount() + " دينار" +
-                        (reason != null && !reason.isEmpty() ? "\nالسبب: " + reason : ""),
-                "❌ Your claim has been rejected by medical reviewer " + reviewer.getFullName() +
-                        " - Amount: " + claim.getAmount() + " JOD" +
-                        (reason != null && !reason.isEmpty() ? "\nReason: " + reason : "")
-        );
-
-        if (claim.getClientId() != null) {
-            UUID rejectPatientNotifyId = resolveNotificationRecipientId(claim.getClientId());
-            if (rejectPatientNotifyId != null) {
+        try {
+            if (claim.getHealthcareProvider() != null) {
                 notificationService.sendToUser(
-                        rejectPatientNotifyId,
-                        "❌ تم رفض مطالبتك الطبية من " + claim.getHealthcareProvider().getFullName() +
-                                " - السبب: " + (reason != null && !reason.isEmpty() ? reason : "غير محدد"),
-                        "❌ Your medical claim from " + claim.getHealthcareProvider().getFullName() +
-                                " has been rejected - Reason: " + (reason != null && !reason.isEmpty() ? reason : "Not specified")
+                        claim.getHealthcareProvider().getId(),
+                        "❌ تم رفض مطالبتك من المراجع الطبي " + reviewer.getFullName() +
+                                " - المبلغ: " + claim.getAmount() + " دينار" +
+                                (reason != null && !reason.isEmpty() ? "\nالسبب: " + reason : ""),
+                        "❌ Your claim has been rejected by medical reviewer " + reviewer.getFullName() +
+                                " - Amount: " + claim.getAmount() + " JOD" +
+                                (reason != null && !reason.isEmpty() ? "\nReason: " + reason : "")
                 );
             }
+
+            if (claim.getClientId() != null) {
+                UUID rejectPatientNotifyId = resolveNotificationRecipientId(claim.getClientId());
+                if (rejectPatientNotifyId != null) {
+                    String providerName = claim.getHealthcareProvider() != null ? claim.getHealthcareProvider().getFullName() : "مقدم الخدمة";
+                    notificationService.sendToUser(
+                            rejectPatientNotifyId,
+                            "❌ تم رفض مطالبتك الطبية من " + providerName +
+                                    " - السبب: " + (reason != null && !reason.isEmpty() ? reason : "غير محدد"),
+                            "❌ Your medical claim from " + providerName +
+                                    " has been rejected - Reason: " + (reason != null && !reason.isEmpty() ? reason : "Not specified")
+                    );
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to send medical rejection notifications for claim {}: {}", claimId, e.getMessage());
         }
 
         HealthcareProviderClaimDTO resultDto = claimMapper.toDto(savedClaim);
@@ -1254,39 +1261,47 @@ public class HealthcareProviderClaimService {
         }
         englishProviderMessage += " - Now pending coordination admin review";
 
-        notificationService.sendToUser(
-                claim.getHealthcareProvider().getId(),
-                notificationMessage,
-                englishProviderMessage
-        );
+        try {
+            String providerName = claim.getHealthcareProvider() != null ? claim.getHealthcareProvider().getFullName() : "مقدم الخدمة";
 
-        // 🔔 إشعار للمنسقين الإداريين
-        clientRepo.findByRoles_Name(RoleName.COORDINATION_ADMIN)
-                .forEach(coordinator ->
-                        notificationService.sendToUser(
-                                coordinator.getId(),
-                                "🔔 مطالبة جديدة في انتظار المراجعة الإدارية\n" +
-                                        "من: " + claim.getHealthcareProvider().getFullName() + "\n" +
-                                        "المبلغ: " + claim.getAmount() + " دينار" +
-                                        (claim.getClientName() != null ? "\nللمريض: " + claim.getClientName() : ""),
-                                "🔔 New claim pending administrative review\n" +
-                                        "From: " + claim.getHealthcareProvider().getFullName() + "\n" +
-                                        "Amount: " + claim.getAmount() + " JOD" +
-                                        (claim.getClientName() != null ? "\nFor patient: " + claim.getClientName() : "")
-                        )
-                );
-
-        if (claim.getClientId() != null) {
-            UUID approvePatientNotifyId = resolveNotificationRecipientId(claim.getClientId());
-            if (approvePatientNotifyId != null) {
+            if (claim.getHealthcareProvider() != null) {
                 notificationService.sendToUser(
-                        approvePatientNotifyId,
-                        "✅ تمت الموافقة الطبية على مطالبتك من " + claim.getHealthcareProvider().getFullName() +
-                                " - الآن في انتظار مراجعة المنسق الإداري",
-                        "✅ Your medical claim from " + claim.getHealthcareProvider().getFullName() +
-                                " has been medically approved - Now pending coordination admin review"
+                        claim.getHealthcareProvider().getId(),
+                        notificationMessage,
+                        englishProviderMessage
                 );
             }
+
+            // 🔔 إشعار للمنسقين الإداريين
+            clientRepo.findByRoles_Name(RoleName.COORDINATION_ADMIN)
+                    .forEach(coordinator ->
+                            notificationService.sendToUser(
+                                    coordinator.getId(),
+                                    "🔔 مطالبة جديدة في انتظار المراجعة الإدارية\n" +
+                                            "من: " + (claim.getHealthcareProvider() != null ? claim.getHealthcareProvider().getFullName() : "مقدم الخدمة") + "\n" +
+                                            "المبلغ: " + claim.getAmount() + " دينار" +
+                                            (claim.getClientName() != null ? "\nللمريض: " + claim.getClientName() : ""),
+                                    "🔔 New claim pending administrative review\n" +
+                                            "From: " + (claim.getHealthcareProvider() != null ? claim.getHealthcareProvider().getFullName() : "Provider") + "\n" +
+                                            "Amount: " + claim.getAmount() + " JOD" +
+                                            (claim.getClientName() != null ? "\nFor patient: " + claim.getClientName() : "")
+                            )
+                    );
+
+            if (claim.getClientId() != null) {
+                UUID approvePatientNotifyId = resolveNotificationRecipientId(claim.getClientId());
+                if (approvePatientNotifyId != null) {
+                    notificationService.sendToUser(
+                            approvePatientNotifyId,
+                            "✅ تمت الموافقة الطبية على مطالبتك من " + providerName +
+                                    " - الآن في انتظار مراجعة المنسق الإداري",
+                            "✅ Your medical claim from " + providerName +
+                                    " has been medically approved - Now pending coordination admin review"
+                    );
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to send medical approval notifications for claim {}: {}", claimId, e.getMessage());
         }
 
         HealthcareProviderClaimDTO resultDto = claimMapper.toDto(savedClaim);
@@ -1726,30 +1741,35 @@ public class HealthcareProviderClaimService {
 
         HealthcareProviderClaim savedClaim = claimRepo.save(claim);
 
-        // 🔔 إشعار لمقدم الخدمة
-        notificationService.sendToUser(
-                claim.getHealthcareProvider().getId(),
-                "✅ تمت الموافقة النهائية على مطالبتك من المنسق الإداري " + reviewer.getFullName() +
-                        " - المبلغ: " + claim.getAmount() + " دينار" +
-                        (claim.getClientName() != null ? " للمريض " + claim.getClientName() : "") +
-                        " - تمت الموافقة بنجاح!",
-                "✅ Your claim has been finally approved by coordination admin " + reviewer.getFullName() +
-                        " - Amount: " + claim.getAmount() + " JOD" +
-                        (claim.getClientName() != null ? " for patient " + claim.getClientName() : "") +
-                        " - Approved successfully!"
-        );
+        // 🔔 Notifications — non-blocking (should never prevent approval)
+        try {
+            if (claim.getHealthcareProvider() != null) {
+                notificationService.sendToUser(
+                        claim.getHealthcareProvider().getId(),
+                        "✅ تمت الموافقة النهائية على مطالبتك من المنسق الإداري " + reviewer.getFullName() +
+                                " - المبلغ: " + claim.getAmount() + " دينار" +
+                                (claim.getClientName() != null ? " للمريض " + claim.getClientName() : "") +
+                                " - تمت الموافقة بنجاح!",
+                        "✅ Your claim has been finally approved by coordination admin " + reviewer.getFullName() +
+                                " - Amount: " + claim.getAmount() + " JOD" +
+                                (claim.getClientName() != null ? " for patient " + claim.getClientName() : "") +
+                                " - Approved successfully!"
+                );
+            }
 
-        // 🔔 إشعار للمريض (إن وجد) - handles both Client and FamilyMember
-        UUID patientNotifyId = resolveNotificationRecipientId(claim.getClientId());
-        if (patientNotifyId != null) {
-            String providerName = claim.getHealthcareProvider() != null ? claim.getHealthcareProvider().getFullName() : "مقدم الخدمة";
-            notificationService.sendToUser(
-                    patientNotifyId,
-                    "✅ تمت الموافقة النهائية على مطالبتك الطبية من " + providerName +
-                            " - تمت الموافقة بنجاح!",
-                    "✅ Your medical claim from " + providerName +
-                            " has been finally approved - Approved successfully!"
-            );
+            UUID patientNotifyId = resolveNotificationRecipientId(claim.getClientId());
+            if (patientNotifyId != null) {
+                String providerName = claim.getHealthcareProvider() != null ? claim.getHealthcareProvider().getFullName() : "مقدم الخدمة";
+                notificationService.sendToUser(
+                        patientNotifyId,
+                        "✅ تمت الموافقة النهائية على مطالبتك الطبية من " + providerName +
+                                " - تمت الموافقة بنجاح!",
+                        "✅ Your medical claim from " + providerName +
+                                " has been finally approved - Approved successfully!"
+                );
+            }
+        } catch (Exception e) {
+            log.warn("Failed to send approval notifications for claim {}: {}", claimId, e.getMessage());
         }
 
         HealthcareProviderClaimDTO resultDto = claimMapper.toDto(savedClaim);
@@ -1776,27 +1796,33 @@ public class HealthcareProviderClaimService {
 
         HealthcareProviderClaim savedClaim = claimRepo.save(claim);
 
-        notificationService.sendToUser(
-                claim.getHealthcareProvider().getId(),
-                "❌ تم رفض مطالبتك من المنسق الإداري " + reviewer.getFullName() +
-                        " - المبلغ: " + claim.getAmount() + " دينار" +
-                        (reason != null && !reason.isEmpty() ? "\nالسبب: " + reason : ""),
-                "❌ Your claim has been rejected by coordination admin " + reviewer.getFullName() +
-                        " - Amount: " + claim.getAmount() + " JOD" +
-                        (reason != null && !reason.isEmpty() ? "\nReason: " + reason : "")
-        );
+        // 🔔 Notifications — non-blocking (should never prevent rejection)
+        try {
+            if (claim.getHealthcareProvider() != null) {
+                notificationService.sendToUser(
+                        claim.getHealthcareProvider().getId(),
+                        "❌ تم رفض مطالبتك من المنسق الإداري " + reviewer.getFullName() +
+                                " - المبلغ: " + claim.getAmount() + " دينار" +
+                                (reason != null && !reason.isEmpty() ? "\nالسبب: " + reason : ""),
+                        "❌ Your claim has been rejected by coordination admin " + reviewer.getFullName() +
+                                " - Amount: " + claim.getAmount() + " JOD" +
+                                (reason != null && !reason.isEmpty() ? "\nReason: " + reason : "")
+                );
+            }
 
-        // 🔔 إشعار للمريض - handles both Client and FamilyMember
-        UUID rejectPatientNotifyId = resolveNotificationRecipientId(claim.getClientId());
-        if (rejectPatientNotifyId != null) {
-            String providerName = claim.getHealthcareProvider() != null ? claim.getHealthcareProvider().getFullName() : "مقدم الخدمة";
-            notificationService.sendToUser(
-                    rejectPatientNotifyId,
-                    "❌ تم رفض مطالبتك الطبية من " + providerName +
-                            " - السبب: " + (reason != null && !reason.isEmpty() ? reason : "غير محدد"),
-                    "❌ Your medical claim from " + providerName +
-                            " has been rejected - Reason: " + (reason != null && !reason.isEmpty() ? reason : "Not specified")
-            );
+            UUID rejectPatientNotifyId = resolveNotificationRecipientId(claim.getClientId());
+            if (rejectPatientNotifyId != null) {
+                String providerName = claim.getHealthcareProvider() != null ? claim.getHealthcareProvider().getFullName() : "مقدم الخدمة";
+                notificationService.sendToUser(
+                        rejectPatientNotifyId,
+                        "❌ تم رفض مطالبتك الطبية من " + providerName +
+                                " - السبب: " + (reason != null && !reason.isEmpty() ? reason : "غير محدد"),
+                        "❌ Your medical claim from " + providerName +
+                                " has been rejected - Reason: " + (reason != null && !reason.isEmpty() ? reason : "Not specified")
+                );
+            }
+        } catch (Exception e) {
+            log.warn("Failed to send rejection notifications for claim {}: {}", claimId, e.getMessage());
         }
 
         HealthcareProviderClaimDTO resultDto = claimMapper.toDto(savedClaim);
@@ -1860,14 +1886,18 @@ public class HealthcareProviderClaimService {
               "A claim has been returned by the coordination admin.\n\n" +
               "📝 Note:\n" + reason;
 
-        clientRepo.findByRoles_Name(RoleName.MEDICAL_ADMIN)
-                .forEach(admin ->
-                        notificationService.sendToUser(
-                                admin.getId(),
-                                medicalAdminMessage,
-                                englishMedicalAdminMessage
-                        )
-                );
+        try {
+            clientRepo.findByRoles_Name(RoleName.MEDICAL_ADMIN)
+                    .forEach(admin ->
+                            notificationService.sendToUser(
+                                    admin.getId(),
+                                    medicalAdminMessage,
+                                    englishMedicalAdminMessage
+                            )
+                    );
+        } catch (Exception e) {
+            log.warn("Failed to send return-to-medical notifications to medical admins for claim {}: {}", claimId, e.getMessage());
+        }
 
         String providerMessage = wasApproved
             ? "⚠️ تم إرجاع مطالبتك الموافق عليها للمراجعة الطبية مرة أخرى:\n" + reason
@@ -1877,11 +1907,17 @@ public class HealthcareProviderClaimService {
             ? "⚠️ Your approved claim has been returned for medical review again:\n" + reason
             : "⚠️ Your claim has been returned for medical review due to an administrative note:\n" + reason;
 
-        notificationService.sendToUser(
-                claim.getHealthcareProvider().getId(),
-                providerMessage,
-                englishProviderMessage
-        );
+        try {
+            if (claim.getHealthcareProvider() != null) {
+                notificationService.sendToUser(
+                        claim.getHealthcareProvider().getId(),
+                        providerMessage,
+                        englishProviderMessage
+                );
+            }
+        } catch (Exception e) {
+            log.warn("Failed to send return-to-medical notification for claim {}: {}", claimId, e.getMessage());
+        }
 
         HealthcareProviderClaimDTO resultDto = claimMapper.toDto(saved);
         populatePatientInfo(saved, resultDto);
@@ -1981,13 +2017,19 @@ public class HealthcareProviderClaimService {
         HealthcareProviderClaim saved = claimRepo.save(claim);
 
         // Notify the provider about the returned claim
-        notificationService.sendToUser(
-                claim.getHealthcareProvider().getId(),
-                "⚠️ تمت إعادة مطالبتك للتصحيح:\n" + reason +
-                        "\nيرجى مراجعة المطالبة وإجراء التصحيحات اللازمة",
-                "⚠️ Your claim has been returned for correction:\n" + reason +
-                        "\nPlease review the claim and make the necessary corrections"
-        );
+        try {
+            if (claim.getHealthcareProvider() != null) {
+                notificationService.sendToUser(
+                        claim.getHealthcareProvider().getId(),
+                        "⚠️ تمت إعادة مطالبتك للتصحيح:\n" + reason +
+                                "\nيرجى مراجعة المطالبة وإجراء التصحيحات اللازمة",
+                        "⚠️ Your claim has been returned for correction:\n" + reason +
+                                "\nPlease review the claim and make the necessary corrections"
+                );
+            }
+        } catch (Exception e) {
+            log.warn("Failed to send return-to-provider notification for claim {}: {}", claimId, e.getMessage());
+        }
 
         HealthcareProviderClaimDTO resultDto = claimMapper.toDto(saved);
         populatePatientInfo(saved, resultDto);
@@ -2011,24 +2053,29 @@ public class HealthcareProviderClaimService {
 
         HealthcareProviderClaim saved = claimRepo.save(claim);
 
-        // Notify the provider about the payment
-        notificationService.sendToUser(
-                claim.getHealthcareProvider().getId(),
-                "💰 تم دفع مطالبتك بنجاح - المبلغ: " + claim.getInsuranceCoveredAmount() + " دينار" +
-                        (claim.getClientName() != null ? " للمريض " + claim.getClientName() : ""),
-                "💰 Your claim has been paid successfully - Amount: " + claim.getInsuranceCoveredAmount() + " JOD" +
-                        (claim.getClientName() != null ? " for patient " + claim.getClientName() : "")
-        );
+        // Notify provider and patient about the payment
+        try {
+            if (claim.getHealthcareProvider() != null) {
+                notificationService.sendToUser(
+                        claim.getHealthcareProvider().getId(),
+                        "💰 تم دفع مطالبتك بنجاح - المبلغ: " + claim.getInsuranceCoveredAmount() + " دينار" +
+                                (claim.getClientName() != null ? " للمريض " + claim.getClientName() : ""),
+                        "💰 Your claim has been paid successfully - Amount: " + claim.getInsuranceCoveredAmount() + " JOD" +
+                                (claim.getClientName() != null ? " for patient " + claim.getClientName() : "")
+                );
+            }
 
-        // Notify the patient (if exists) - handles both Client and FamilyMember
-        UUID paidPatientNotifyId = resolveNotificationRecipientId(claim.getClientId());
-        if (paidPatientNotifyId != null) {
-            String providerName = claim.getHealthcareProvider() != null ? claim.getHealthcareProvider().getFullName() : "مقدم الخدمة";
-            notificationService.sendToUser(
-                    paidPatientNotifyId,
-                    "💰 تم دفع مطالبتك الطبية من " + providerName,
-                    "💰 Your medical claim from " + providerName + " has been paid"
-            );
+            UUID paidPatientNotifyId = resolveNotificationRecipientId(claim.getClientId());
+            if (paidPatientNotifyId != null) {
+                String providerName = claim.getHealthcareProvider() != null ? claim.getHealthcareProvider().getFullName() : "مقدم الخدمة";
+                notificationService.sendToUser(
+                        paidPatientNotifyId,
+                        "💰 تم دفع مطالبتك الطبية من " + providerName,
+                        "💰 Your medical claim from " + providerName + " has been paid"
+                );
+            }
+        } catch (Exception e) {
+            log.warn("Failed to send payment notifications for claim {}: {}", claimId, e.getMessage());
         }
 
         HealthcareProviderClaimDTO resultDto = claimMapper.toDto(saved);
