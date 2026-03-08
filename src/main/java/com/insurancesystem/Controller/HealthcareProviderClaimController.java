@@ -460,11 +460,10 @@ public class HealthcareProviderClaimController {
     @GetMapping("/coordination-review")
     public ResponseEntity<?> coordinationReviewList(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        if (size > 100) size = 100;
-        Page<HealthcareProviderClaimDTO> result = claimService.getClaimsForCoordinationReview(
-                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
-        return ResponseEntity.ok(result.getContent());
+            @RequestParam(defaultValue = "50") int size) {
+        if (size > 200) size = 200;
+        List<HealthcareProviderClaimDTO> result = claimService.getClaimsForCoordinationReviewPaginated(page, size);
+        return ResponseEntity.ok(result);
     }
 
     // ============================================================

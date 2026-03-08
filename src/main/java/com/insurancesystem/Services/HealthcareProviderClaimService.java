@@ -44,6 +44,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
 import java.io.IOException;
@@ -1928,19 +1929,31 @@ public class HealthcareProviderClaimService {
     }
 
     @Transactional(readOnly = true)
-    public Page<HealthcareProviderClaimDTO> getClaimsForCoordinationReview(Pageable pageable) {
-        return claimRepo.findByStatusWithProvider(ClaimStatus.AWAITING_COORDINATION_REVIEW, pageable)
-                .map(claim -> {
-                    HealthcareProviderClaimDTO dto = claimMapper.toDto(claim);
-                    populatePatientInfo(claim, dto);
-                    dto.setProviderRole(getProviderRole(claim));
-                    dto.setInvoiceImagePath(claim.getInvoiceImagePath());
-                    if (claim.getClientId() != null) {
-                        clientRepo.findById(claim.getClientId())
-                                .ifPresent(c -> dto.setEmployeeId(c.getEmployeeId()));
-                    }
-                    return dto;
-                });
+    public List<HealthcareProviderClaimDTO> getClaimsForCoordinationReviewPaginated(int page, int size) {
+        // Two-step query to avoid Hibernate in-memory pagination with JOIN FETCH
+        // Step 1: Get IDs with DB-level pagination (lightweight query)
+        List<UUID> ids = claimRepo.findIdsByStatus(
+                ClaimStatus.AWAITING_COORDINATION_REVIEW,
+                PageRequest.of(page, size));
+
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+
+        // Step 2: Fetch full entities with JOIN FETCH using the IDs
+        List<HealthcareProviderClaim> claims = claimRepo.findByIdsWithProvider(ids);
+
+        return claims.stream().map(claim -> {
+            HealthcareProviderClaimDTO dto = claimMapper.toDto(claim);
+            populatePatientInfo(claim, dto);
+            dto.setProviderRole(getProviderRole(claim));
+            dto.setInvoiceImagePath(claim.getInvoiceImagePath());
+            if (claim.getClientId() != null) {
+                clientRepo.findById(claim.getClientId())
+                        .ifPresent(c -> dto.setEmployeeId(c.getEmployeeId()));
+            }
+            return dto;
+        }).toList();
     }
 
     // Return claim to provider for corrections

@@ -56,6 +56,20 @@ public interface HealthcareProviderClaimRepository extends JpaRepository<Healthc
     """, countQuery = "SELECT COUNT(c) FROM HealthcareProviderClaim c WHERE c.status = :status")
     Page<HealthcareProviderClaim> findByStatusWithProvider(@Param("status") ClaimStatus status, Pageable pageable);
 
+    // Two-step pagination: step 1 — get IDs only (no JOIN FETCH, safe for DB-level pagination)
+    @Query("SELECT c.id FROM HealthcareProviderClaim c WHERE c.status = :status ORDER BY c.createdAt DESC")
+    List<UUID> findIdsByStatus(@Param("status") ClaimStatus status, Pageable pageable);
+
+    // Two-step pagination: step 2 — fetch full entities by IDs with JOIN FETCH
+    @Query("""
+        SELECT c FROM HealthcareProviderClaim c
+        JOIN FETCH c.healthcareProvider
+        LEFT JOIN FETCH c.policy
+        WHERE c.id IN :ids
+        ORDER BY c.createdAt DESC
+    """)
+    List<HealthcareProviderClaim> findByIdsWithProvider(@Param("ids") List<UUID> ids);
+
     void deleteAllByPolicy(Policy policy);
 
 
