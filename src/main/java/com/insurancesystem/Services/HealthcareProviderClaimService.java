@@ -46,6 +46,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -1934,7 +1935,7 @@ public class HealthcareProviderClaimService {
         // Step 1: Get IDs with DB-level pagination (lightweight query)
         List<UUID> ids = claimRepo.findIdsByStatus(
                 ClaimStatus.AWAITING_COORDINATION_REVIEW,
-                PageRequest.of(page, size));
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
 
         if (ids.isEmpty()) {
             return List.of();

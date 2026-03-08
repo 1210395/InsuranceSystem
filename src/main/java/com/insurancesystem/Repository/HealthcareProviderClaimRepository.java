@@ -57,7 +57,7 @@ public interface HealthcareProviderClaimRepository extends JpaRepository<Healthc
     Page<HealthcareProviderClaim> findByStatusWithProvider(@Param("status") ClaimStatus status, Pageable pageable);
 
     // Two-step pagination: step 1 — get IDs only (no JOIN FETCH, safe for DB-level pagination)
-    @Query("SELECT c.id FROM HealthcareProviderClaim c WHERE c.status = :status ORDER BY c.createdAt DESC")
+    @Query("SELECT c.id FROM HealthcareProviderClaim c WHERE c.status = :status")
     List<UUID> findIdsByStatus(@Param("status") ClaimStatus status, Pageable pageable);
 
     // Two-step pagination: step 2 — fetch full entities by IDs with JOIN FETCH
