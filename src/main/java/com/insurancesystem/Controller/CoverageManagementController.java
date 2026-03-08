@@ -249,7 +249,7 @@ public class CoverageManagementController {
      * Get all active diagnoses (for doctor diagnosis dropdown and manager mapping UI)
      */
     @GetMapping("/diagnoses/all")
-    @PreAuthorize("hasAnyRole('DOCTOR','INSURANCE_MANAGER','MEDICAL_ADMIN')")
+    @PreAuthorize("hasAnyRole('DOCTOR','INSURANCE_MANAGER','MEDICAL_ADMIN','COORDINATION_ADMIN')")
     public ResponseEntity<List<MedicalDiagnosis>> getAllActiveDiagnoses() {
         return ResponseEntity.ok(medicalDiagnosisRepository.findByActiveTrue());
     }
