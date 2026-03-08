@@ -1935,7 +1935,7 @@ public class HealthcareProviderClaimService {
         // Step 1: Get IDs with DB-level pagination (lightweight query)
         List<UUID> ids = claimRepo.findIdsByStatus(
                 ClaimStatus.AWAITING_COORDINATION_REVIEW,
-                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "submittedAt")));
 
         if (ids.isEmpty()) {
             return List.of();

@@ -243,7 +243,7 @@ public class HealthcareProviderClaimController {
             @RequestParam(defaultValue = "20") int size) {
         if (size > 100) size = 100;
         Page<HealthcareProviderClaimDTO> result = claimService.getAllClaims(
-                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "submittedAt")));
         return ResponseEntity.ok(result.getContent());
     }
 

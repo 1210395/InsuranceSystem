@@ -66,7 +66,7 @@ public interface HealthcareProviderClaimRepository extends JpaRepository<Healthc
         JOIN FETCH c.healthcareProvider
         LEFT JOIN FETCH c.policy
         WHERE c.id IN :ids
-        ORDER BY c.createdAt DESC
+        ORDER BY c.submittedAt DESC
     """)
     List<HealthcareProviderClaim> findByIdsWithProvider(@Param("ids") List<UUID> ids);
 
