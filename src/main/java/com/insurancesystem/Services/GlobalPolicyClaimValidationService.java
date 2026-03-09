@@ -229,7 +229,7 @@ public class GlobalPolicyClaimValidationService {
             if (monthlySpending.add(claimAmount).compareTo(limits.getMaxSpendingPerMonth()) > 0) {
                 BigDecimal remaining = limits.getMaxSpendingPerMonth().subtract(monthlySpending);
                 return notCovered("MONTHLY_SPENDING_EXCEEDED",
-                        "Monthly spending limit exceeded. Remaining: " + remaining.setScale(2, RoundingMode.HALF_UP) + " JOD");
+                        "Monthly spending limit exceeded. Remaining: " + remaining.setScale(2, RoundingMode.HALF_UP) + " ILS");
             }
         }
 
@@ -240,7 +240,7 @@ public class GlobalPolicyClaimValidationService {
             if (yearlySpending.add(claimAmount).compareTo(limits.getMaxSpendingPerYear()) > 0) {
                 BigDecimal remaining = limits.getMaxSpendingPerYear().subtract(yearlySpending);
                 return notCovered("YEARLY_SPENDING_EXCEEDED",
-                        "Yearly spending limit exceeded. Remaining: " + remaining.setScale(2, RoundingMode.HALF_UP) + " JOD");
+                        "Yearly spending limit exceeded. Remaining: " + remaining.setScale(2, RoundingMode.HALF_UP) + " ILS");
             }
         }
 
@@ -282,7 +282,7 @@ public class GlobalPolicyClaimValidationService {
             if (monthlySpending.add(claimAmount).compareTo(limits.getMaxSpendingPerMonth()) > 0) {
                 BigDecimal remaining = limits.getMaxSpendingPerMonth().subtract(monthlySpending);
                 return notCovered("CATEGORY_MONTHLY_SPENDING_EXCEEDED",
-                        "Monthly spending limit for this category exceeded. Remaining: " + remaining.setScale(2, RoundingMode.HALF_UP) + " JOD");
+                        "Monthly spending limit for this category exceeded. Remaining: " + remaining.setScale(2, RoundingMode.HALF_UP) + " ILS");
             }
         }
 
@@ -292,7 +292,7 @@ public class GlobalPolicyClaimValidationService {
             if (yearlySpending.add(claimAmount).compareTo(limits.getMaxSpendingPerYear()) > 0) {
                 BigDecimal remaining = limits.getMaxSpendingPerYear().subtract(yearlySpending);
                 return notCovered("CATEGORY_YEARLY_SPENDING_EXCEEDED",
-                        "Yearly spending limit for this category exceeded. Remaining: " + remaining.setScale(2, RoundingMode.HALF_UP) + " JOD");
+                        "Yearly spending limit for this category exceeded. Remaining: " + remaining.setScale(2, RoundingMode.HALF_UP) + " ILS");
             }
         }
 

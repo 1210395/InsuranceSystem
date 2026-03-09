@@ -387,9 +387,9 @@ public class TemplateGeneratorService {
             limitRun.setText("السقف المالي السنوي للمنتفع:");
             limitRun.setBold(true);
             limitRun.addBreak();
-            limitRun.setText("يكون السقف المالي السنوي للتأمين الصحي للمنتفع 1000 دينار أردني");
+            limitRun.setText("يكون السقف المالي السنوي للتأمين الصحي للمنتفع 1000 شيكل");
             limitRun.addBreak();
-            limitRun.setText("منها 100 دينار للزيارات والأدوية، و900 للعمليات والإقامة");
+            limitRun.setText("منها 100 شيكل للزيارات والأدوية، و900 للعمليات والإقامة");
 
             document.createParagraph();
 
@@ -421,9 +421,9 @@ public class TemplateGeneratorService {
             coverageTable.getRow(4).getCell(0).setText("تغطية الماموجرام وفحص عنق الرحم");
             coverageTable.getRow(4).getCell(1).setText("100%");
             coverageTable.getRow(5).getCell(0).setText("تغطية الولادة الطبيعية");
-            coverageTable.getRow(5).getCell(1).setText("250 دينار");
+            coverageTable.getRow(5).getCell(1).setText("250 شيكل");
             coverageTable.getRow(6).getCell(0).setText("تغطية الولادة القيصرية");
-            coverageTable.getRow(6).getCell(1).setText("560 دينار");
+            coverageTable.getRow(6).getCell(1).setText("560 شيكل");
             coverageTable.getRow(7).getCell(0).setText("تغطية الشبكات والبالونات");
             coverageTable.getRow(7).getCell(1).setText("100% (حد أقصى 700 للشبكة، 300 للبالون)");
 

@@ -59,12 +59,18 @@ public class SearchProfileService {
 
         notificationService.sendToUser(
                 currentUser.getId(),
-                "تم استلام طلبك لإنشاء بروفايل جديد وهو الآن قيد المراجعة"
+                "تم استلام طلبك لإنشاء بروفايل جديد وهو الآن قيد المراجعة",
+                null,
+                savedProfile.getId(),
+                "REGISTRATION"
         );
 
         notificationService.sendToRole(
                 RoleName.INSURANCE_MANAGER,
-                "يوجد طلب جديد لإنشاء بروفايل من المستخدم: " + currentUser.getEmail()
+                "يوجد طلب جديد لإنشاء بروفايل من المستخدم: " + currentUser.getEmail(),
+                null,
+                savedProfile.getId(),
+                "REGISTRATION"
         );
 
         return searchProfileMapper.toDto(savedProfile);
@@ -113,7 +119,10 @@ public class SearchProfileService {
             // 🔔 إشعار لصاحب البروفايل أنه تم الرفض
             notificationService.sendToUser(
                     profile.getOwner().getId(),
-                    "❌ تم رفض طلب إنشاء البروفايل الخاص بك. السبب: " + rejectionReason
+                    "❌ تم رفض طلب إنشاء البروفايل الخاص بك. السبب: " + rejectionReason,
+                    null,
+                    profile.getId(),
+                    "REGISTRATION"
             );
 
         } else if (status == ProfileStatus.APPROVED) {
@@ -122,7 +131,10 @@ public class SearchProfileService {
             // 🔔 إشعار لصاحب البروفايل أنه تم القبول
             notificationService.sendToUser(
                     profile.getOwner().getId(),
-                    "✅ تم قبول طلب إنشاء البروفايل الخاص بك!"
+                    "✅ تم قبول طلب إنشاء البروفايل الخاص بك!",
+                    null,
+                    profile.getId(),
+                    "REGISTRATION"
             );
         } else {
             // حالة PENDING
@@ -195,13 +207,19 @@ public class SearchProfileService {
 
         notificationService.sendToUser(
                 profile.getOwner().getId(),
-                "✏️ تم تعديل البروفايل الخاص بك، وهو الآن قيد المراجعة من الإدارة."
+                "✏️ تم تعديل البروفايل الخاص بك، وهو الآن قيد المراجعة من الإدارة.",
+                null,
+                updatedProfile.getId(),
+                "REGISTRATION"
         );
 
         notificationService.sendToRole(
                 RoleName.INSURANCE_MANAGER,
                 "📢 يوجد تعديل جديد على بروفايل لصاحب الحساب: " + profile.getOwner().getEmail() +
-                        " (اسم البروفايل: " + profile.getName() + ")"
+                        " (اسم البروفايل: " + profile.getName() + ")",
+                null,
+                updatedProfile.getId(),
+                "REGISTRATION"
         );
 
 

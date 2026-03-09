@@ -106,6 +106,31 @@ public class NotificationService {
     }
 
     @Transactional
+    public void sendToUser(UUID recipientId, String arabicMessage, String englishMessage, UUID referenceId, String referenceType) {
+        Client systemSender = getSystemSender();
+        if (systemSender == null) {
+            log.warn("No Insurance Manager found - skipping system notification to user {}: {}", recipientId, arabicMessage);
+            return;
+        }
+
+        Client recipient = clientRepo.findById(recipientId)
+                .orElseThrow(() -> new NotFoundException("Recipient not found"));
+
+        Notification notification = Notification.builder()
+                .recipient(recipient)
+                .sender(systemSender)
+                .message(arabicMessage)
+                .englishMessage(englishMessage)
+                .read(false)
+                .type(NotificationType.SYSTEM)
+                .referenceId(referenceId)
+                .referenceType(referenceType)
+                .build();
+
+        notificationRepo.save(notification);
+    }
+
+    @Transactional
     public void sendToRole(RoleName roleName, String message) {
         sendToRole(roleName, message, null);
     }
@@ -133,6 +158,37 @@ public class NotificationService {
                         .englishMessage(englishMessage)
                         .read(false)
                         .type(NotificationType.SYSTEM)
+                        .build())
+                .toList();
+
+        notificationRepo.saveAll(notifications);
+    }
+
+    @Transactional
+    public void sendToRole(RoleName roleName, String arabicMessage, String englishMessage, UUID referenceId, String referenceType) {
+        Client systemSender = getSystemSender();
+        if (systemSender == null) {
+            log.warn("No Insurance Manager found - skipping system notification to role {}: {}", roleName, arabicMessage);
+            return;
+        }
+
+        List<Client> clients = clientRepo.findByRoleOrRequestedRole(roleName);
+
+        if (clients.isEmpty()) {
+            log.warn("No users with role {} found - skipping notification", roleName);
+            return;
+        }
+
+        List<Notification> notifications = clients.stream()
+                .map(client -> Notification.builder()
+                        .recipient(client)
+                        .sender(systemSender)
+                        .message(arabicMessage)
+                        .englishMessage(englishMessage)
+                        .read(false)
+                        .type(NotificationType.SYSTEM)
+                        .referenceId(referenceId)
+                        .referenceType(referenceType)
                         .build())
                 .toList();
 

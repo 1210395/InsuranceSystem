@@ -438,7 +438,10 @@ public class AuthService {
             try {
                 notificationService.sendToRole(
                         RoleName.INSURANCE_MANAGER,
-                        "مستخدم جديد (" + saved.getFullName() + ") سجل وينتظر الموافقة."
+                        "مستخدم جديد (" + saved.getFullName() + ") سجل وينتظر الموافقة.",
+                        null,
+                        saved.getId(),
+                        "REGISTRATION"
                 );
             } catch (Exception e) {
                 log.warn("Failed to notify managers about new registration for {}: {}",

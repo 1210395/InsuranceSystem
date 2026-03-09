@@ -109,21 +109,30 @@ public class EmergencyRequestService {
         // 🔔 إشعار للعميل
         notificationService.sendToUser(
                 member.getId(),
-                "تم استلام طلب الطوارئ الخاص بك وهو الآن قيد المراجعة."
+                "تم استلام طلب الطوارئ الخاص بك وهو الآن قيد المراجعة.",
+                null,
+                emergency.getId(),
+                "EMERGENCY"
         );
 
         // 🔔 إشعار للدكتور الذي أنشأ الطلب
         notificationService.sendToUser(
                 doctorId,
                 "✅ تم إنشاء طلب طوارئ بنجاح للمريض " + member.getFullName() +
-                        " في " + dto.getLocation() + " - في انتظار المراجعة الطبية"
+                        " في " + dto.getLocation() + " - في انتظار المراجعة الطبية",
+                null,
+                emergency.getId(),
+                "EMERGENCY"
         );
 
         // 🔔 إشعار للمدير الطبي
         notificationService.sendToRole(
                 RoleName.MEDICAL_ADMIN,
                 "طلب طوارئ جديد من " + member.getFullName() +
-                        " في " + dto.getLocation()
+                        " في " + dto.getLocation(),
+                null,
+                emergency.getId(),
+                "EMERGENCY"
         );
 
         log.info("✅ Notifications sent for emergency request ID: {}", emergency.getId());
@@ -330,7 +339,10 @@ public class EmergencyRequestService {
         if (emergency.getMember() != null) {
             notificationService.sendToUser(
                     emergency.getMember().getId(),
-                    "✅ تمت الموافقة على طلب الطوارئ الخاص بك."
+                    "✅ تمت الموافقة على طلب الطوارئ الخاص بك.",
+                    null,
+                    emergency.getId(),
+                    "EMERGENCY"
             );
         }
 
@@ -339,7 +351,10 @@ public class EmergencyRequestService {
                 emergency.getDoctorId(),
                 "✅ تمت الموافقة الطبية على طلب الطوارئ للمريض " +
                         (emergency.getMember() != null ? emergency.getMember().getFullName() : "غير معروف") +
-                        " في " + emergency.getLocation()
+                        " في " + emergency.getLocation(),
+                null,
+                emergency.getId(),
+                "EMERGENCY"
         );
 
         return emergencyRequestMapper.toDto(emergency, familyMemberRepo);
@@ -386,7 +401,10 @@ public class EmergencyRequestService {
         if (emergency.getMember() != null) {
             notificationService.sendToUser(
                     emergency.getMember().getId(),
-                    "❌ تم رفض طلب الطوارئ. السبب: " + dto.getReason()
+                    "❌ تم رفض طلب الطوارئ. السبب: " + dto.getReason(),
+                    null,
+                    emergency.getId(),
+                    "EMERGENCY"
             );
         }
 
@@ -395,7 +413,10 @@ public class EmergencyRequestService {
                 emergency.getDoctorId(),
                 "❌ تم رفض طلب الطوارئ للمريض " +
                         (emergency.getMember() != null ? emergency.getMember().getFullName() : "غير معروف") +
-                        " في " + emergency.getLocation() + ". السبب: " + dto.getReason()
+                        " في " + emergency.getLocation() + ". السبب: " + dto.getReason(),
+                null,
+                emergency.getId(),
+                "EMERGENCY"
         );
 
         return emergencyRequestMapper.toDto(emergency, familyMemberRepo);

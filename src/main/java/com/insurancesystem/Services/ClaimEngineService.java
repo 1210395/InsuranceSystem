@@ -272,7 +272,7 @@ public class ClaimEngineService {
             if (monthlySpending == null) monthlySpending = BigDecimal.ZERO;
             if (monthlySpending.add(claimAmount).compareTo(limits.getMaxSpendingPerMonth()) > 0) {
                 BigDecimal remaining = limits.getMaxSpendingPerMonth().subtract(monthlySpending);
-                return "❌ Monthly spending limit exceeded. Remaining: " + remaining.setScale(2, RoundingMode.HALF_UP) + " JOD";
+                return "❌ Monthly spending limit exceeded. Remaining: " + remaining.setScale(2, RoundingMode.HALF_UP) + " ILS";
             }
         }
 
@@ -282,7 +282,7 @@ public class ClaimEngineService {
             if (yearlySpending == null) yearlySpending = BigDecimal.ZERO;
             if (yearlySpending.add(claimAmount).compareTo(limits.getMaxSpendingPerYear()) > 0) {
                 BigDecimal remaining = limits.getMaxSpendingPerYear().subtract(yearlySpending);
-                return "❌ Yearly spending limit exceeded. Remaining: " + remaining.setScale(2, RoundingMode.HALF_UP) + " JOD";
+                return "❌ Yearly spending limit exceeded. Remaining: " + remaining.setScale(2, RoundingMode.HALF_UP) + " ILS";
             }
         }
 

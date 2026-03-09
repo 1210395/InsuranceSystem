@@ -50,6 +50,12 @@ public class Notification {
     @Column(nullable = false)
     private boolean replied = false;  // ✅ default false
 
+    @Column(name = "reference_id")
+    private UUID referenceId;  // ID of the related entity (claim, prescription, etc.)
+
+    @Column(name = "reference_type", length = 50)
+    private String referenceType;  // Type: CLAIM, PRESCRIPTION, LAB_REQUEST, RADIOLOGY_REQUEST, EMERGENCY, REGISTRATION
+
 }
 
 

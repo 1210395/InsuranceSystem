@@ -166,10 +166,14 @@ public class RadiologyRequestService {
                 : "📋 لديك طلب فحص إشعاعي جديد من الدكتور " + doctor.getFullName() +
                 " للمريض " + member.getFullName();
 
+        final UUID savedRequestId = savedRequest.getId();
         clientRepository.findByRoles_Name(RoleName.RADIOLOGIST)
                 .forEach(r -> notificationService.sendToUser(
                         r.getId(),
-                        radiologistMessage
+                        radiologistMessage,
+                        null,
+                        savedRequestId,
+                        "RADIOLOGY_REQUEST"
                 ));
 
         // 🔔 إشعار للمريض (main client)
@@ -186,7 +190,10 @@ public class RadiologyRequestService {
 
         notificationService.sendToUser(
                 member.getId(),
-                memberNotification
+                memberNotification,
+                null,
+                savedRequest.getId(),
+                "RADIOLOGY_REQUEST"
         );
         
         // Convert to DTO and explicitly set family member information if applicable
@@ -332,7 +339,10 @@ public class RadiologyRequestService {
         if (saved.getMember() != null) {
             notificationService.sendToUser(
                     saved.getMember().getId(),
-                    "✅ Radiology results are ready: " + saved.getTestName()
+                    "✅ Radiology results are ready: " + saved.getTestName(),
+                    null,
+                    saved.getId(),
+                    "RADIOLOGY_REQUEST"
             );
         }
 
@@ -342,7 +352,10 @@ public class RadiologyRequestService {
             notificationService.sendToUser(
                     saved.getDoctor().getId(),
                     "✅ Radiology test completed for patient " + memberName +
-                            " - Test: " + saved.getTestName()
+                            " - Test: " + saved.getTestName(),
+                    null,
+                    saved.getId(),
+                    "RADIOLOGY_REQUEST"
             );
         }
 

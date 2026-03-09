@@ -172,7 +172,10 @@ public class LabRequestService {
 
         notificationService.sendToUser(
                 member.getId(),
-                memberNotification
+                memberNotification,
+                null,
+                saved.getId(),
+                "LAB_REQUEST"
         );
         log.info("✅ Notification sent to member");
 
@@ -194,7 +197,10 @@ public class LabRequestService {
         for (Client labTech : labTechs) {
             notificationService.sendToUser(
                     labTech.getId(),
-                    labTechMessage
+                    labTechMessage,
+                    null,
+                    saved.getId(),
+                    "LAB_REQUEST"
             );
         }
         log.info("✅ Notifications sent to {} lab technicians", labTechs.size());
@@ -407,7 +413,10 @@ public class LabRequestService {
         if (saved.getMember() != null) {
             notificationService.sendToUser(
                     saved.getMember().getId(),
-                    "✅ Lab test results are ready: " + saved.getTest().getServiceName()
+                    "✅ Lab test results are ready: " + saved.getTest().getServiceName(),
+                    null,
+                    saved.getId(),
+                    "LAB_REQUEST"
             );
             log.info("✅ Notification sent to member");
         }
@@ -418,7 +427,10 @@ public class LabRequestService {
             notificationService.sendToUser(
                     saved.getDoctor().getId(),
                     "✅ Lab test completed for patient " + memberName +
-                            " - Test: " + saved.getTest().getServiceName()
+                            " - Test: " + saved.getTest().getServiceName(),
+                    null,
+                    saved.getId(),
+                    "LAB_REQUEST"
             );
             log.info("✅ Notification sent to doctor");
         }

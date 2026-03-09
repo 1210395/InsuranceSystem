@@ -439,10 +439,14 @@ public class PrescriptionService {
                 : "📋 New prescription from Dr. " + doctor.getFullName() +
                 " for patient " + member.getFullName() + chronicIndicatorForPharmacist;
 
+        final UUID prescriptionIdForNotification = prescription.getId();
         clientRepo.findByRoles_Name(RoleName.PHARMACIST)
                 .forEach(pharmacist -> notificationService.sendToUser(
                         pharmacist.getId(),
-                        pharmacistMessage
+                        pharmacistMessage,
+                        null,
+                        prescriptionIdForNotification,
+                        "PRESCRIPTION"
                 ));
 
         // 🔔 إشعار للمريض (main client)
@@ -460,7 +464,10 @@ public class PrescriptionService {
 
         notificationService.sendToUser(
                 member.getId(),
-                notificationMessage
+                notificationMessage,
+                null,
+                prescription.getId(),
+                "PRESCRIPTION"
         );
 
         // ✅ Force initialization of member fields BEFORE mapping to ensure they're available
@@ -765,7 +772,10 @@ public class PrescriptionService {
             notificationService.sendToUser(
                     prescription.getMember().getId(),
                     "✅ تمت الموافقة على وصفتك من الصيدلي " + pharmacist.getFullName() +
-                            " - المجموع: " + total + " دينار"
+                            " - المجموع: " + total + " شيكل",
+                    null,
+                    prescription.getId(),
+                    "PRESCRIPTION"
             );
         }
 
@@ -775,7 +785,10 @@ public class PrescriptionService {
                     prescription.getDoctor().getId(),
                     "✅ تمت الموافقة على وصفتك للمريض " +
                             (prescription.getMember() != null ? prescription.getMember().getFullName() : "غير محدد") +
-                            " من الصيدلي " + pharmacist.getFullName()
+                            " من الصيدلي " + pharmacist.getFullName(),
+                    null,
+                    prescription.getId(),
+                    "PRESCRIPTION"
             );
         }
 
@@ -801,7 +814,10 @@ public class PrescriptionService {
         if (prescription.getMember() != null) {
             notificationService.sendToUser(
                     prescription.getMember().getId(),
-                    "❌ تم رفض وصفتك من الصيدلي " + pharmacist.getFullName()
+                    "❌ تم رفض وصفتك من الصيدلي " + pharmacist.getFullName(),
+                    null,
+                    prescription.getId(),
+                    "PRESCRIPTION"
             );
         }
 
@@ -811,7 +827,10 @@ public class PrescriptionService {
                     prescription.getDoctor().getId(),
                     "❌ تم رفض وصفتك للمريض " +
                             (prescription.getMember() != null ? prescription.getMember().getFullName() : "غير محدد") +
-                            " من الصيدلي " + pharmacist.getFullName()
+                            " من الصيدلي " + pharmacist.getFullName(),
+                    null,
+                    prescription.getId(),
+                    "PRESCRIPTION"
             );
         }
 
@@ -911,7 +930,10 @@ public class PrescriptionService {
         if (prescription.getMember() != null && prescription.getDoctor() != null) {
             notificationService.sendToUser(
                     prescription.getMember().getId(),
-                    "✏️ تم تحديث وصفتك الطبية من الدكتور " + prescription.getDoctor().getFullName()
+                    "✏️ تم تحديث وصفتك الطبية من الدكتور " + prescription.getDoctor().getFullName(),
+                    null,
+                    prescription.getId(),
+                    "PRESCRIPTION"
             );
         }
 
@@ -920,7 +942,10 @@ public class PrescriptionService {
             notificationService.sendToUser(
                     prescription.getPharmacist().getId(),
                     "✏️ تم تحديث الوصفة الطبية من الدكتور " + prescription.getDoctor().getFullName() +
-                            " للمريض " + (prescription.getMember() != null ? prescription.getMember().getFullName() : "غير محدد")
+                            " للمريض " + (prescription.getMember() != null ? prescription.getMember().getFullName() : "غير محدد"),
+                    null,
+                    prescription.getId(),
+                    "PRESCRIPTION"
             );
         }
 
@@ -950,7 +975,10 @@ public class PrescriptionService {
         if (prescription.getMember() != null && prescription.getDoctor() != null) {
             notificationService.sendToUser(
                     prescription.getMember().getId(),
-                    "🗑️ تم حذف وصفتك الطبية من الدكتور " + prescription.getDoctor().getFullName()
+                    "🗑️ تم حذف وصفتك الطبية من الدكتور " + prescription.getDoctor().getFullName(),
+                    null,
+                    prescription.getId(),
+                    "PRESCRIPTION"
             );
         }
 
@@ -1514,7 +1542,10 @@ public class PrescriptionService {
             notificationService.sendToUser(
                     prescription.getMember().getId(),
                     "💊 تم صرف الأدوية من وصفتك الطبية بواسطة الصيدلي " + pharmacist.getFullName() +
-                            " - المجموع: " + prescription.getTotalPrice() + " دينار. شكراً لاستخدامك خدماتنا."
+                            " - المجموع: " + prescription.getTotalPrice() + " شيكل. شكراً لاستخدامك خدماتنا.",
+                    null,
+                    prescription.getId(),
+                    "PRESCRIPTION"
             );
         }
 
@@ -1524,7 +1555,10 @@ public class PrescriptionService {
                     prescription.getDoctor().getId(),
                     "💊 تم صرف الأدوية من وصفتك للمريض " +
                             (prescription.getMember() != null ? prescription.getMember().getFullName() : "غير محدد") +
-                            " بواسطة الصيدلي " + pharmacist.getFullName()
+                            " بواسطة الصيدلي " + pharmacist.getFullName(),
+                    null,
+                    prescription.getId(),
+                    "PRESCRIPTION"
             );
         }
 

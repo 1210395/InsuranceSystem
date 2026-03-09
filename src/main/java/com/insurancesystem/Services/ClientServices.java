@@ -138,14 +138,20 @@ public class ClientServices {
         if (role.getName() == RoleName.INSURANCE_CLIENT) {
             notificationService.sendToUser(u.getId(),
                     "تمت الموافقة على حسابك كعميل. يمكنك تسجيل الدخول الآن.",
-                    "Your account has been approved as a client. You can log in now.");
+                    "Your account has been approved as a client. You can log in now.",
+                    u.getId(),
+                    "REGISTRATION");
             notificationService.sendToRole(RoleName.MEDICAL_ADMIN,
                     "تمت الموافقة على طلبك كعميل: " + u.getFullName(),
-                    "Client account approved: " + u.getFullName());
+                    "Client account approved: " + u.getFullName(),
+                    u.getId(),
+                    "REGISTRATION");
         } else {
             notificationService.sendToUser(u.getId(),
                     "تمت الموافقة على طلب دورك.",
-                    "Your role request has been approved.");
+                    "Your role request has been approved.",
+                    u.getId(),
+                    "REGISTRATION");
         }
 
         clientRepo.save(u);
@@ -172,7 +178,9 @@ public class ClientServices {
         emailService.sendRoleRejectionEmail(u.getEmail(), u.getFullName(), u.getRequestedRole(), reason);
         notificationService.sendToUser(u.getId(),
                 "❌ تم رفض طلب حسابك. السبب: " + reason,
-                "❌ Your account request has been rejected. Reason: " + reason);
+                "❌ Your account request has been rejected. Reason: " + reason,
+                u.getId(),
+                "REGISTRATION");
         notificationService.markNotificationAsReadByMessage(RoleName.INSURANCE_MANAGER,
                 "مستخدم جديد (" + u.getFullName() + ") سجل وينتظر الموافقة.");
     }
@@ -267,7 +275,9 @@ public class ClientServices {
         clientRepo.save(client);
         notificationService.sendToUser(client.getId(),
                 "🚫 تم تعطيل حسابك من قبل الإدارة. السبب: " + reason,
-                "🚫 Your account has been deactivated by administration. Reason: " + reason);
+                "🚫 Your account has been deactivated by administration. Reason: " + reason,
+                client.getId(),
+                "REGISTRATION");
     }
 
     @Transactional
@@ -284,7 +294,9 @@ public class ClientServices {
         clientRepo.save(client);
         notificationService.sendToUser(client.getId(),
                 "✅ تم إعادة تفعيل حسابك بنجاح.",
-                "✅ Your account has been reactivated successfully.");
+                "✅ Your account has been reactivated successfully.",
+                client.getId(),
+                "REGISTRATION");
     }
 
 

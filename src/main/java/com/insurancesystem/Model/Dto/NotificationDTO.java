@@ -22,6 +22,8 @@ public class NotificationDTO {
     private String senderName;    // ✅ اسم المرسل
     private boolean replied; // ✅ جديد
     private NotificationType type; // بدل String
+    private UUID referenceId;
+    private String referenceType;
 
 
 

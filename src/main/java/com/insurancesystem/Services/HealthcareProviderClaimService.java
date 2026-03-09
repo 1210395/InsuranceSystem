@@ -732,24 +732,24 @@ public class HealthcareProviderClaimService {
                         // Follow-up visit notification - only mention it's follow-up with 0 amount, patient pays
                         notificationMessage = "⚠️ مطالبة زيارة متابعة (Follow-up Visit) من الدكتور " + provider.getFullName() +
                                 (finalPatientName != null ? " للمريض " + finalPatientName : "") +
-                                " - المبلغ للدكتور: 0 دينار (التأمين لا يدفع - المريض يدفع المبلغ)";
+                                " - المبلغ للدكتور: 0 شيكل (التأمين لا يدفع - المريض يدفع المبلغ)";
                     } else {
                         // Normal visit notification
                         notificationMessage = "📋 مطالبة جديدة من " + provider.getFullName() +
                                 (finalPatientName != null ? " للمريض " + finalPatientName : "") +
-                                " - المبلغ: " + finalClaim.getAmount() + " دينار";
+                                " - المبلغ: " + finalClaim.getAmount() + " شيكل";
                     }
                     String englishNotificationMessage;
                     if (isFollowUpClaim) {
                         englishNotificationMessage = "⚠️ Follow-up visit claim from Dr. " + provider.getFullName() +
                                 (finalPatientName != null ? " for patient " + finalPatientName : "") +
-                                " - Doctor amount: 0 JOD (Insurance does not pay - patient pays the amount)";
+                                " - Doctor amount: 0 ILS (Insurance does not pay - patient pays the amount)";
                     } else {
                         englishNotificationMessage = "📋 New claim from " + provider.getFullName() +
                                 (finalPatientName != null ? " for patient " + finalPatientName : "") +
-                                " - Amount: " + finalClaim.getAmount() + " JOD";
+                                " - Amount: " + finalClaim.getAmount() + " ILS";
                     }
-                    notificationService.sendToUser(medicalAdmin.getId(), notificationMessage, englishNotificationMessage);
+                    notificationService.sendToUser(medicalAdmin.getId(), notificationMessage, englishNotificationMessage, finalClaim.getId(), "CLAIM");
                 });
 
         // Check if follow-up for provider notification
@@ -763,25 +763,27 @@ public class HealthcareProviderClaimService {
                     finalClaim.getOriginalConsultationFee().toString() : "0";
             notificationService.sendToUser(
                     provider.getId(),
-                    "✅ تم إرسال مطالبة زيارة متابعة بنجاح - المبلغ للدكتور: 0 دينار (التأمين لا يدفع)" +
-                            (finalPatientName != null ? " - المريض " + finalPatientName + " يجب أن يدفع سعر الكشفية: " + consultationFee + " دينار" :
-                                    " - المريض يجب أن يدفع سعر الكشفية: " + consultationFee + " دينار") +
+                    "✅ تم إرسال مطالبة زيارة متابعة بنجاح - المبلغ للدكتور: 0 شيكل (التأمين لا يدفع)" +
+                            (finalPatientName != null ? " - المريض " + finalPatientName + " يجب أن يدفع سعر الكشفية: " + consultationFee + " شيكل" :
+                                    " - المريض يجب أن يدفع سعر الكشفية: " + consultationFee + " شيكل") +
                             " - في انتظار المراجعة الطبية",
-                    "✅ Follow-up visit claim submitted successfully - Doctor amount: 0 JOD (Insurance does not pay)" +
-                            (finalPatientName != null ? " - Patient " + finalPatientName + " must pay the consultation fee: " + consultationFee + " JOD" :
-                                    " - Patient must pay the consultation fee: " + consultationFee + " JOD") +
-                            " - Pending medical review"
+                    "✅ Follow-up visit claim submitted successfully - Doctor amount: 0 ILS (Insurance does not pay)" +
+                            (finalPatientName != null ? " - Patient " + finalPatientName + " must pay the consultation fee: " + consultationFee + " ILS" :
+                                    " - Patient must pay the consultation fee: " + consultationFee + " ILS") +
+                            " - Pending medical review",
+                    finalClaim.getId(), "CLAIM"
             );
         } else {
             // Normal visit notification for provider
             notificationService.sendToUser(
                     provider.getId(),
-                    "✅ تم إرسال مطالبتك بنجاح - المبلغ: " + finalClaim.getAmount() + " دينار" +
+                    "✅ تم إرسال مطالبتك بنجاح - المبلغ: " + finalClaim.getAmount() + " شيكل" +
                             (finalPatientName != null ? " للمريض " + finalPatientName : "") +
                             " - في انتظار المراجعة الطبية",
-                    "✅ Your claim has been submitted successfully - Amount: " + finalClaim.getAmount() + " JOD" +
+                    "✅ Your claim has been submitted successfully - Amount: " + finalClaim.getAmount() + " ILS" +
                             (finalPatientName != null ? " for patient " + finalPatientName : "") +
-                            " - Pending medical review"
+                            " - Pending medical review",
+                    finalClaim.getId(), "CLAIM"
             );
         }
 
@@ -799,25 +801,27 @@ public class HealthcareProviderClaimService {
                         finalPatient.getId(),
                         "📋 تم إنشاء مطالبة طبية لك من " + provider.getFullName() +
                                 " - نوع الزيارة: زيارة متابعة (Follow-up Visit)" +
-                                " - المبلغ للدكتور: 0 دينار (التأمين لا يدفع)" +
-                                " - يجب عليك دفع سعر الكشفية: " + consultationFee + " دينار" +
+                                " - المبلغ للدكتور: 0 شيكل (التأمين لا يدفع)" +
+                                " - يجب عليك دفع سعر الكشفية: " + consultationFee + " شيكل" +
                                 " - في انتظار المراجعة",
                         "📋 A medical claim has been created for you by " + provider.getFullName() +
                                 " - Visit type: Follow-up Visit" +
-                                " - Doctor amount: 0 JOD (Insurance does not pay)" +
-                                " - You must pay the consultation fee: " + consultationFee + " JOD" +
-                                " - Pending review"
+                                " - Doctor amount: 0 ILS (Insurance does not pay)" +
+                                " - You must pay the consultation fee: " + consultationFee + " ILS" +
+                                " - Pending review",
+                        finalClaim.getId(), "CLAIM"
                 );
             } else {
                 // Normal visit notification for patient
                 notificationService.sendToUser(
                         finalPatient.getId(),
                         "📋 تم إنشاء مطالبة طبية لك من " + provider.getFullName() +
-                                " - المبلغ: " + claim.getAmount() + " دينار" +
+                                " - المبلغ: " + claim.getAmount() + " شيكل" +
                                 " - في انتظار المراجعة",
                         "📋 A medical claim has been created for you by " + provider.getFullName() +
-                                " - Amount: " + claim.getAmount() + " JOD" +
-                                " - Pending review"
+                                " - Amount: " + claim.getAmount() + " ILS" +
+                                " - Pending review",
+                        finalClaim.getId(), "CLAIM"
                 );
             }
         }
@@ -901,40 +905,42 @@ public class HealthcareProviderClaimService {
         String notificationMessage = familyMember != null
             ? "📋 مطالبة جديدة من العميل " + client.getFullName() +
               " لعضو الأسرة " + beneficiaryName +
-              " - المبلغ: " + claim.getAmount() + " دينار"
+              " - المبلغ: " + claim.getAmount() + " شيكل"
             : "📋 مطالبة جديدة من العميل " + client.getFullName() +
-              " - المبلغ: " + claim.getAmount() + " دينار";
+              " - المبلغ: " + claim.getAmount() + " شيكل";
 
         String englishNotificationMessage = familyMember != null
             ? "📋 New claim from client " + client.getFullName() +
               " for family member " + beneficiaryName +
-              " - Amount: " + claim.getAmount() + " JOD"
+              " - Amount: " + claim.getAmount() + " ILS"
             : "📋 New claim from client " + client.getFullName() +
-              " - Amount: " + claim.getAmount() + " JOD";
+              " - Amount: " + claim.getAmount() + " ILS";
 
         clientRepo.findByRoles_Name(RoleName.MEDICAL_ADMIN)
                 .forEach(medicalAdmin -> notificationService.sendToUser(
                         medicalAdmin.getId(),
                         notificationMessage,
-                        englishNotificationMessage
+                        englishNotificationMessage,
+                        savedClaim.getId(), "CLAIM"
                 ));
 
         String clientNotificationMessage = familyMember != null
-            ? "✅ تم إرسال مطالبة لعضو الأسرة " + beneficiaryName + " بنجاح - المبلغ: " + claim.getAmount() + " دينار" +
+            ? "✅ تم إرسال مطالبة لعضو الأسرة " + beneficiaryName + " بنجاح - المبلغ: " + claim.getAmount() + " شيكل" +
               " - في انتظار المراجعة الطبية"
-            : "✅ تم إرسال مطالبتك بنجاح - المبلغ: " + claim.getAmount() + " دينار" +
+            : "✅ تم إرسال مطالبتك بنجاح - المبلغ: " + claim.getAmount() + " شيكل" +
               " - في انتظار المراجعة الطبية";
 
         String englishClientNotificationMessage = familyMember != null
-            ? "✅ Claim for family member " + beneficiaryName + " submitted successfully - Amount: " + claim.getAmount() + " JOD" +
+            ? "✅ Claim for family member " + beneficiaryName + " submitted successfully - Amount: " + claim.getAmount() + " ILS" +
               " - Pending medical review"
-            : "✅ Your claim has been submitted successfully - Amount: " + claim.getAmount() + " JOD" +
+            : "✅ Your claim has been submitted successfully - Amount: " + claim.getAmount() + " ILS" +
               " - Pending medical review";
 
         notificationService.sendToUser(
                 client.getId(),
                 clientNotificationMessage,
-                englishClientNotificationMessage
+                englishClientNotificationMessage,
+                savedClaim.getId(), "CLAIM"
         );
 
         HealthcareProviderClaimDTO resultDto = claimMapper.toDto(savedClaim);
@@ -1190,11 +1196,12 @@ public class HealthcareProviderClaimService {
                 notificationService.sendToUser(
                         claim.getHealthcareProvider().getId(),
                         "❌ تم رفض مطالبتك من المراجع الطبي " + reviewer.getFullName() +
-                                " - المبلغ: " + claim.getAmount() + " دينار" +
+                                " - المبلغ: " + claim.getAmount() + " شيكل" +
                                 (reason != null && !reason.isEmpty() ? "\nالسبب: " + reason : ""),
                         "❌ Your claim has been rejected by medical reviewer " + reviewer.getFullName() +
-                                " - Amount: " + claim.getAmount() + " JOD" +
-                                (reason != null && !reason.isEmpty() ? "\nReason: " + reason : "")
+                                " - Amount: " + claim.getAmount() + " ILS" +
+                                (reason != null && !reason.isEmpty() ? "\nReason: " + reason : ""),
+                        claim.getId(), "CLAIM"
                 );
             }
 
@@ -1207,7 +1214,8 @@ public class HealthcareProviderClaimService {
                             "❌ تم رفض مطالبتك الطبية من " + providerName +
                                     " - السبب: " + (reason != null && !reason.isEmpty() ? reason : "غير محدد"),
                             "❌ Your medical claim from " + providerName +
-                                    " has been rejected - Reason: " + (reason != null && !reason.isEmpty() ? reason : "Not specified")
+                                    " has been rejected - Reason: " + (reason != null && !reason.isEmpty() ? reason : "Not specified"),
+                            claim.getId(), "CLAIM"
                     );
                 }
             }
@@ -1248,9 +1256,9 @@ public class HealthcareProviderClaimService {
         if (claim.getIsFollowUp() != null && claim.getIsFollowUp()) {
             notificationMessage += " - ⚠️ زيارة متابعة (Follow-up): المريض يجب أن يدفع سعر الكشفية (" + 
                     (claim.getOriginalConsultationFee() != null ? claim.getOriginalConsultationFee() : "0") + 
-                    " دينار). التأمين لا يدفع الكشفية في زيارة المتابعة.";
+                    " شيكل). التأمين لا يدفع الكشفية في زيارة المتابعة.";
         } else {
-            notificationMessage += " - المبلغ: " + claim.getAmount() + " دينار";
+            notificationMessage += " - المبلغ: " + claim.getAmount() + " شيكل";
         }
         notificationMessage += " - الآن في انتظار مراجعة المنسق الإداري";
         
@@ -1258,9 +1266,9 @@ public class HealthcareProviderClaimService {
         if (claim.getIsFollowUp() != null && claim.getIsFollowUp()) {
             englishProviderMessage += " - ⚠️ Follow-up visit: Patient must pay the consultation fee (" +
                     (claim.getOriginalConsultationFee() != null ? claim.getOriginalConsultationFee() : "0") +
-                    " JOD). Insurance does not pay for follow-up consultation.";
+                    " ILS). Insurance does not pay for follow-up consultation.";
         } else {
-            englishProviderMessage += " - Amount: " + claim.getAmount() + " JOD";
+            englishProviderMessage += " - Amount: " + claim.getAmount() + " ILS";
         }
         englishProviderMessage += " - Now pending coordination admin review";
 
@@ -1271,7 +1279,8 @@ public class HealthcareProviderClaimService {
                 notificationService.sendToUser(
                         claim.getHealthcareProvider().getId(),
                         notificationMessage,
-                        englishProviderMessage
+                        englishProviderMessage,
+                        claim.getId(), "CLAIM"
                 );
             }
 
@@ -1282,12 +1291,13 @@ public class HealthcareProviderClaimService {
                                     coordinator.getId(),
                                     "🔔 مطالبة جديدة في انتظار المراجعة الإدارية\n" +
                                             "من: " + (claim.getHealthcareProvider() != null ? claim.getHealthcareProvider().getFullName() : "مقدم الخدمة") + "\n" +
-                                            "المبلغ: " + claim.getAmount() + " دينار" +
+                                            "المبلغ: " + claim.getAmount() + " شيكل" +
                                             (claim.getClientName() != null ? "\nللمريض: " + claim.getClientName() : ""),
                                     "🔔 New claim pending administrative review\n" +
                                             "From: " + (claim.getHealthcareProvider() != null ? claim.getHealthcareProvider().getFullName() : "Provider") + "\n" +
-                                            "Amount: " + claim.getAmount() + " JOD" +
-                                            (claim.getClientName() != null ? "\nFor patient: " + claim.getClientName() : "")
+                                            "Amount: " + claim.getAmount() + " ILS" +
+                                            (claim.getClientName() != null ? "\nFor patient: " + claim.getClientName() : ""),
+                                    claim.getId(), "CLAIM"
                             )
                     );
 
@@ -1299,7 +1309,8 @@ public class HealthcareProviderClaimService {
                             "✅ تمت الموافقة الطبية على مطالبتك من " + providerName +
                                     " - الآن في انتظار مراجعة المنسق الإداري",
                             "✅ Your medical claim from " + providerName +
-                                    " has been medically approved - Now pending coordination admin review"
+                                    " has been medically approved - Now pending coordination admin review",
+                            claim.getId(), "CLAIM"
                     );
                 }
             }
@@ -1714,56 +1725,58 @@ public class HealthcareProviderClaimService {
         String clientNotificationMessage = familyMember != null
             ? "📋 تم إنشاء مطالبة من المنسق الإداري " + admin.getFullName() +
               " لعضو الأسرة " + beneficiaryName +
-              " - المبلغ: " + claim.getAmount() + " دينار" +
+              " - المبلغ: " + claim.getAmount() + " شيكل" +
               " - في انتظار المراجعة الطبية"
             : "📋 تم إنشاء مطالبة من المنسق الإداري " + admin.getFullName() +
               " للعميل " + beneficiaryName +
-              " - المبلغ: " + claim.getAmount() + " دينار" +
+              " - المبلغ: " + claim.getAmount() + " شيكل" +
               " - في انتظار المراجعة الطبية";
 
         String englishClientNotifMsg = familyMember != null
             ? "📋 A claim has been created by coordination admin " + admin.getFullName() +
               " for family member " + beneficiaryName +
-              " - Amount: " + claim.getAmount() + " JOD" +
+              " - Amount: " + claim.getAmount() + " ILS" +
               " - Pending medical review"
             : "📋 A claim has been created by coordination admin " + admin.getFullName() +
               " for client " + beneficiaryName +
-              " - Amount: " + claim.getAmount() + " JOD" +
+              " - Amount: " + claim.getAmount() + " ILS" +
               " - Pending medical review";
 
         // Notify the client
         notificationService.sendToUser(
                 client.getId(),
                 clientNotificationMessage,
-                englishClientNotifMsg
+                englishClientNotifMsg,
+                savedClaim.getId(), "CLAIM"
         );
 
         // Notify medical admins about the new claim created by coordinator that needs review
         String medicalAdminNotificationMessage = familyMember != null
             ? "📋 مطالبة جديدة من المنسق الإداري " + admin.getFullName() +
               " لعضو الأسرة " + beneficiaryName + " (العميل: " + client.getFullName() + ")" +
-              " - المبلغ: " + claim.getAmount() + " دينار" +
+              " - المبلغ: " + claim.getAmount() + " شيكل" +
               " - تحتاج مراجعة طبية"
             : "📋 مطالبة جديدة من المنسق الإداري " + admin.getFullName() +
               " للعميل " + beneficiaryName +
-              " - المبلغ: " + claim.getAmount() + " دينار" +
+              " - المبلغ: " + claim.getAmount() + " شيكل" +
               " - تحتاج مراجعة طبية";
 
         String englishMedicalAdminNotifMsg = familyMember != null
             ? "📋 New claim from coordination admin " + admin.getFullName() +
               " for family member " + beneficiaryName + " (Client: " + client.getFullName() + ")" +
-              " - Amount: " + claim.getAmount() + " JOD" +
+              " - Amount: " + claim.getAmount() + " ILS" +
               " - Requires medical review"
             : "📋 New claim from coordination admin " + admin.getFullName() +
               " for client " + beneficiaryName +
-              " - Amount: " + claim.getAmount() + " JOD" +
+              " - Amount: " + claim.getAmount() + " ILS" +
               " - Requires medical review";
 
         clientRepo.findByRoles_Name(RoleName.MEDICAL_ADMIN)
                 .forEach(medicalAdmin -> notificationService.sendToUser(
                         medicalAdmin.getId(),
                         medicalAdminNotificationMessage,
-                        englishMedicalAdminNotifMsg
+                        englishMedicalAdminNotifMsg,
+                        savedClaim.getId(), "CLAIM"
                 ));
 
         HealthcareProviderClaimDTO resultDto = claimMapper.toDto(savedClaim);
@@ -1818,13 +1831,14 @@ public class HealthcareProviderClaimService {
                 notificationService.sendToUser(
                         claim.getHealthcareProvider().getId(),
                         "✅ تمت الموافقة النهائية على مطالبتك من المنسق الإداري " + reviewer.getFullName() +
-                                " - المبلغ: " + claim.getAmount() + " دينار" +
+                                " - المبلغ: " + claim.getAmount() + " شيكل" +
                                 (claim.getClientName() != null ? " للمريض " + claim.getClientName() : "") +
                                 " - تمت الموافقة بنجاح!",
                         "✅ Your claim has been finally approved by coordination admin " + reviewer.getFullName() +
-                                " - Amount: " + claim.getAmount() + " JOD" +
+                                " - Amount: " + claim.getAmount() + " ILS" +
                                 (claim.getClientName() != null ? " for patient " + claim.getClientName() : "") +
-                                " - Approved successfully!"
+                                " - Approved successfully!",
+                        claim.getId(), "CLAIM"
                 );
             }
 
@@ -1836,7 +1850,8 @@ public class HealthcareProviderClaimService {
                         "✅ تمت الموافقة النهائية على مطالبتك الطبية من " + providerName +
                                 " - تمت الموافقة بنجاح!",
                         "✅ Your medical claim from " + providerName +
-                                " has been finally approved - Approved successfully!"
+                                " has been finally approved - Approved successfully!",
+                        claim.getId(), "CLAIM"
                 );
             }
         } catch (Exception e) {
@@ -1873,11 +1888,12 @@ public class HealthcareProviderClaimService {
                 notificationService.sendToUser(
                         claim.getHealthcareProvider().getId(),
                         "❌ تم رفض مطالبتك من المنسق الإداري " + reviewer.getFullName() +
-                                " - المبلغ: " + claim.getAmount() + " دينار" +
+                                " - المبلغ: " + claim.getAmount() + " شيكل" +
                                 (reason != null && !reason.isEmpty() ? "\nالسبب: " + reason : ""),
                         "❌ Your claim has been rejected by coordination admin " + reviewer.getFullName() +
-                                " - Amount: " + claim.getAmount() + " JOD" +
-                                (reason != null && !reason.isEmpty() ? "\nReason: " + reason : "")
+                                " - Amount: " + claim.getAmount() + " ILS" +
+                                (reason != null && !reason.isEmpty() ? "\nReason: " + reason : ""),
+                        claim.getId(), "CLAIM"
                 );
             }
 
@@ -1889,7 +1905,8 @@ public class HealthcareProviderClaimService {
                         "❌ تم رفض مطالبتك الطبية من " + providerName +
                                 " - السبب: " + (reason != null && !reason.isEmpty() ? reason : "غير محدد"),
                         "❌ Your medical claim from " + providerName +
-                                " has been rejected - Reason: " + (reason != null && !reason.isEmpty() ? reason : "Not specified")
+                                " has been rejected - Reason: " + (reason != null && !reason.isEmpty() ? reason : "Not specified"),
+                        claim.getId(), "CLAIM"
                 );
             }
         } catch (Exception e) {
@@ -1963,7 +1980,8 @@ public class HealthcareProviderClaimService {
                             notificationService.sendToUser(
                                     admin.getId(),
                                     medicalAdminMessage,
-                                    englishMedicalAdminMessage
+                                    englishMedicalAdminMessage,
+                                    claim.getId(), "CLAIM"
                             )
                     );
         } catch (Exception e) {
@@ -1983,7 +2001,8 @@ public class HealthcareProviderClaimService {
                 notificationService.sendToUser(
                         claim.getHealthcareProvider().getId(),
                         providerMessage,
-                        englishProviderMessage
+                        englishProviderMessage,
+                        claim.getId(), "CLAIM"
                 );
             }
         } catch (Exception e) {
@@ -2095,7 +2114,8 @@ public class HealthcareProviderClaimService {
                         "⚠️ تمت إعادة مطالبتك للتصحيح:\n" + reason +
                                 "\nيرجى مراجعة المطالبة وإجراء التصحيحات اللازمة",
                         "⚠️ Your claim has been returned for correction:\n" + reason +
-                                "\nPlease review the claim and make the necessary corrections"
+                                "\nPlease review the claim and make the necessary corrections",
+                        claim.getId(), "CLAIM"
                 );
             }
         } catch (Exception e) {
@@ -2129,10 +2149,11 @@ public class HealthcareProviderClaimService {
             if (claim.getHealthcareProvider() != null) {
                 notificationService.sendToUser(
                         claim.getHealthcareProvider().getId(),
-                        "💰 تم دفع مطالبتك بنجاح - المبلغ: " + claim.getInsuranceCoveredAmount() + " دينار" +
+                        "💰 تم دفع مطالبتك بنجاح - المبلغ: " + claim.getInsuranceCoveredAmount() + " شيكل" +
                                 (claim.getClientName() != null ? " للمريض " + claim.getClientName() : ""),
-                        "💰 Your claim has been paid successfully - Amount: " + claim.getInsuranceCoveredAmount() + " JOD" +
-                                (claim.getClientName() != null ? " for patient " + claim.getClientName() : "")
+                        "💰 Your claim has been paid successfully - Amount: " + claim.getInsuranceCoveredAmount() + " ILS" +
+                                (claim.getClientName() != null ? " for patient " + claim.getClientName() : ""),
+                        claim.getId(), "CLAIM"
                 );
             }
 
@@ -2142,7 +2163,8 @@ public class HealthcareProviderClaimService {
                 notificationService.sendToUser(
                         paidPatientNotifyId,
                         "💰 تم دفع مطالبتك الطبية من " + providerName,
-                        "💰 Your medical claim from " + providerName + " has been paid"
+                        "💰 Your medical claim from " + providerName + " has been paid",
+                        claim.getId(), "CLAIM"
                 );
             }
         } catch (Exception e) {

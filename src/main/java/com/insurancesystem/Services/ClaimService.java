@@ -60,7 +60,10 @@ public class ClaimService {
         notificationService.sendToRole(
                 RoleName.INSURANCE_MANAGER,
                 "مطالبة جديدة من " + member.getFullName() +
-                        " بمبلغ " + dto.getAmount()
+                        " بمبلغ " + dto.getAmount(),
+                null,
+                claim.getId(),
+                "CLAIM"
         );
 
         return claimMapper.toDto(claim);
@@ -110,7 +113,10 @@ public class ClaimService {
 
         notificationService.sendToUser(
                 claim.getMember().getId(),
-                "تمت الموافقة على مطالبتك بمبلغ " + claim.getAmount()
+                "تمت الموافقة على مطالبتك بمبلغ " + claim.getAmount(),
+                null,
+                claim.getId(),
+                "CLAIM"
         );
         notificationService.markNotificationAsReadByMessage(
                 RoleName.INSURANCE_MANAGER,
@@ -137,7 +143,10 @@ public class ClaimService {
 
         notificationService.sendToUser(
                 claim.getMember().getId(),
-                "تم رفض مطالبتك. السبب: " + dto.getReason()
+                "تم رفض مطالبتك. السبب: " + dto.getReason(),
+                null,
+                claim.getId(),
+                "CLAIM"
         );
         notificationService.markNotificationAsReadByMessage(
                 RoleName.INSURANCE_MANAGER,

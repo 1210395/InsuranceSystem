@@ -294,7 +294,7 @@ public class WordImportService {
     private void extractAnnualLimit(String text, ExcelImportService.ImportResult result) {
         // السقف المالي السنوي للمنتفع: 1000 دينار
         if (text.contains("السقف المالي السنوي")) {
-            log.info("Found annual limit: 1000 JOD (100 for visits, 900 for hospital)");
+            log.info("Found annual limit: 1000 ILS (100 for visits, 900 for hospital)");
             result.importedRows++;
             result.totalRows++;
         }
@@ -313,7 +313,7 @@ public class WordImportService {
         // Extract lines containing coverage percentages
         String[] lines = text.split("\n");
         for (String line : lines) {
-            if (line.contains("تغطية التأمين") && (line.contains("%") || line.contains("دينار"))) {
+            if (line.contains("تغطية التأمين") && (line.contains("%") || line.contains("شيكل"))) {
                 // Extract percentage
                 Pattern percentPattern = Pattern.compile("(\\d+)%");
                 Matcher matcher = percentPattern.matcher(line);
